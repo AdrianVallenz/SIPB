@@ -1,0 +1,85 @@
+export type Role = 'admin' | 'user';
+
+export interface UserSession {
+  email: string;
+  name: string;
+  role: Role;
+  loginAt: string;
+}
+
+export type ProductCategory =
+  | 'Elektronik'
+  | 'Sembako & Pangan'
+  | 'Minuman & Snack'
+  | 'Alat Tulis Kantor'
+  | 'Kebutuhan Rumah';
+
+export const PRODUCT_CATEGORIES: ProductCategory[] = [
+  'Elektronik',
+  'Sembako & Pangan',
+  'Minuman & Snack',
+  'Alat Tulis Kantor',
+  'Kebutuhan Rumah',
+];
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  category: ProductCategory;
+  buyPrice: number;    // Harga modal/beli (khusus Admin)
+  sellPrice: number;   // Harga jual kasir
+  stock: number;       // Sisa stok saat ini
+  minStock: number;    // Batas minimum peringatan stok
+  unit: string;        // pcs, pack, botol, kg, rim, box, unit
+  description?: string;
+  updatedAt: string;
+}
+
+export type PaymentMethod = 'Tunai' | 'QRIS' | 'Transfer Bank' | 'Kartu Debit';
+
+export const PAYMENT_METHODS: PaymentMethod[] = [
+  'Tunai',
+  'QRIS',
+  'Transfer Bank',
+  'Kartu Debit',
+];
+
+export interface TransactionItem {
+  productId: string;
+  sku: string;
+  name: string;
+  buyPrice?: number;
+  price: number;
+  quantity: number;
+  subtotal: number;
+}
+
+export interface Transaction {
+  id: string;
+  invoiceNo: string;
+  createdAt: string;
+  cashierEmail: string;
+  cashierName: string;
+  items: TransactionItem[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  paymentMethod: PaymentMethod;
+  amountPaid: number;
+  change: number;
+}
+
+export interface StockLog {
+  id: string;
+  productId: string;
+  productName: string;
+  type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  quantity: number;
+  previousStock: number;
+  newStock: number;
+  reason: string;
+  createdAt: string;
+  operator: string;
+}
