@@ -58,14 +58,20 @@ export default function AdminReports() {
   const averageTransaction =
     filteredTransactions.length > 0 ? Math.round(totalOmzet / filteredTransactions.length) : 0;
 
+  const sanitizeCsvCell = (val: string | number): string => {
+    const str = String(val ?? '');
+    const safePrefix = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+    return `"${safePrefix.replace(/"/g, '""')}"`;
+  };
+
   const handleExportCsv = () => {
     if (filteredTransactions.length === 0) return;
     const headers = ['No. Nota', 'Waktu Transaksi', 'Kasir', 'Metode Bayar', 'Jumlah Item (Pcs)', 'Subtotal', 'Diskon', 'Total Bayar'];
     const rows = filteredTransactions.map((t) => [
-      t.invoiceNo,
-      formatDateTime(t.createdAt, true),
-      `"${t.cashierName.replace(/"/g, '""')}"`,
-      t.paymentMethod,
+      sanitizeCsvCell(t.invoiceNo),
+      sanitizeCsvCell(formatDateTime(t.createdAt, true)),
+      sanitizeCsvCell(t.cashierName),
+      sanitizeCsvCell(t.paymentMethod),
       t.items.reduce((s, i) => s + i.quantity, 0),
       t.subtotal,
       t.discount,

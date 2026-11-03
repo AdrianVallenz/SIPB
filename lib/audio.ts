@@ -1,15 +1,28 @@
-// Web Audio API Synthesizer for POS feedback chimes (no external assets required)
+// Singleton Web Audio API Synthesizer for zero-allocation POS feedback chimes
+
+let sharedAudioCtx: AudioContext | null = null;
+
+const getAudioContext = (): AudioContext | null => {
+  if (typeof window === 'undefined') return null;
+  if (!sharedAudioCtx) {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    sharedAudioCtx = new AudioContextClass();
+  }
+  if (sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+  return sharedAudioCtx;
+};
 
 export const playCashierChime = () => {
-  if (typeof window === 'undefined') return;
   try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    
-    const ctx = new AudioContextClass();
-    const now = ctx.currentTime;
+    const ctx = getAudioContext();
+    if (!ctx) return;
 
-    // Harmonic double chime (E5 -> B5) like a modern retail register
+    const now = ctx.currentTime;
     const osc1 = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
     const gainNode = ctx.createGain();
@@ -33,19 +46,16 @@ export const playCashierChime = () => {
     osc2.start(now);
     osc1.stop(now + 0.45);
     osc2.stop(now + 0.45);
-  } catch (err) {
-    // Audio context may be restricted before user gesture, safely ignore
-    console.debug('Audio chime skipped', err);
+  } catch {
+    // Safely ignore if audio is blocked prior to user gesture
   }
 };
 
 export const playBeep = () => {
-  if (typeof window === 'undefined') return;
   try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
 
-    const ctx = new AudioContextClass();
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();

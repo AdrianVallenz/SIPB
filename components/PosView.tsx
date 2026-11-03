@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, PRODUCT_CATEGORIES, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
 import { formatRupiah } from '@/lib/format';
@@ -51,13 +51,18 @@ export default function PosView() {
     setTimeout(() => setPosNotice(''), 3000);
   };
 
+  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const cartQtyMap = useMemo(() => new Map(cart.map((c) => [c.productId, c.quantity])), [cart]);
+
   // Filter products
-  const filteredProducts = products.filter((p) => {
-    const matchesCategory = selectedCategory === 'Semua' || p.category === selectedCategory;
+  const filteredProducts = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    const matchesSearch = p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
-    return matchesCategory && matchesSearch;
-  });
+    return products.filter((p) => {
+      const matchesCategory = selectedCategory === 'Semua' || p.category === selectedCategory;
+      const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+      return matchesCategory && matchesSearch;
+    });
+  }, [products, selectedCategory, searchQuery]);
 
   // Cart operations
   const addToCart = (product: Product) => {
@@ -111,12 +116,19 @@ export default function PosView() {
   };
 
   // Calculations
-  const cartSubtotal = cart.reduce((sum, item) => {
-    const prod = products.find((p) => p.id === item.productId);
-    return sum + (prod ? prod.sellPrice * item.quantity : 0);
-  }, 0);
+  const { cartSubtotal, totalPcsInCart } = useMemo(() => {
+    let subtotal = 0;
+    let totalPcs = 0;
+    for (const item of cart) {
+      const prod = productMap.get(item.productId);
+      if (prod) {
+        subtotal += prod.sellPrice * item.quantity;
+        totalPcs += item.quantity;
+      }
+    }
+    return { cartSubtotal: subtotal, totalPcsInCart: totalPcs };
+  }, [cart, productMap]);
 
-  const totalPcsInCart = cart.reduce((sum, item) => sum + item.quantity, 0);
   const finalDiscount = Math.min(discount, cartSubtotal);
   const grandTotal = Math.max(0, cartSubtotal - finalDiscount);
   const changeAmount = paymentMethod === 'Tunai' ? Math.max(0, cashGiven - grandTotal) : 0;
@@ -218,7 +230,7 @@ export default function PosView() {
           {filteredProducts.map((prod) => {
             const isOutOfStock = prod.stock <= 0;
             const isLowStock = prod.stock > 0 && prod.stock <= prod.minStock;
-            const inCart = cart.find((c) => c.productId === prod.id)?.quantity || 0;
+            const inCart = cartQtyMap.get(prod.id) || 0;
 
             return (
               <div
@@ -402,7 +414,7 @@ export default function PosView() {
             }}
           >
             {cart.map((item) => {
-              const prod = products.find((p) => p.id === item.productId);
+              const prod = productMap.get(item.productId);
               if (!prod) return null;
               const itemTotal = prod.sellPrice * item.quantity;
 

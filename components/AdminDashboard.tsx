@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction } from '@/lib/types';
 import { formatRupiah, getLocalDateKey, formatDateTime } from '@/lib/format';
@@ -21,48 +21,86 @@ export default function AdminDashboard() {
   const { products, transactions, setActiveTab } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<Transaction | null>(null);
 
-  const todayKey = getLocalDateKey();
-  const todayTransactions = transactions.filter((t) => getLocalDateKey(t.createdAt) === todayKey);
+  const {
+    todayTransactions,
+    todayRevenue,
+    totalRevenue,
+    totalGrossProfit,
+    totalStockAssetValuation,
+    totalPotentialSalesValuation,
+    criticalProducts,
+    outOfStockProducts,
+    chartData,
+    sevenDayRevenue,
+    maxChartVal,
+  } = useMemo(() => {
+    const todayKey = getLocalDateKey();
+    const productBuyMap = new Map(products.map((p) => [p.id, p.buyPrice]));
 
-  const todayRevenue = todayTransactions.reduce((sum, t) => sum + t.total, 0);
-  const totalRevenue = transactions.reduce((sum, t) => sum + t.total, 0);
+    const todayTrx: Transaction[] = [];
+    const revenueByDate = new Map<string, { total: number; count: number }>();
+    let revToday = 0;
+    let revTotal = 0;
+    let grossProfit = 0;
 
-  // Gross Profit calculation across all transactions
-  const totalGrossProfit = transactions.reduce((sum, t) => {
-    const trxCost = t.items.reduce((itemCost, item) => {
-      const unitCost =
-        item.buyPrice ?? products.find((p) => p.id === item.productId)?.buyPrice ?? Math.round(item.price * 0.78);
-      return itemCost + unitCost * item.quantity;
-    }, 0);
-    return sum + (t.total - trxCost);
-  }, 0);
+    for (const t of transactions) {
+      const dateKey = getLocalDateKey(t.createdAt);
+      if (dateKey === todayKey) {
+        todayTrx.push(t);
+        revToday += t.total;
+      }
+      revTotal += t.total;
 
-  // Stock Asset Valuation
-  const totalStockAssetValuation = products.reduce((sum, p) => sum + p.buyPrice * p.stock, 0);
-  const totalPotentialSalesValuation = products.reduce((sum, p) => sum + p.sellPrice * p.stock, 0);
+      const prevDay = revenueByDate.get(dateKey) || { total: 0, count: 0 };
+      revenueByDate.set(dateKey, { total: prevDay.total + t.total, count: prevDay.count + 1 });
 
-  // Low stock alerts
-  const criticalProducts = products.filter((p) => p.stock <= p.minStock);
-  const outOfStockProducts = products.filter((p) => p.stock === 0);
+      let trxCost = 0;
+      for (const item of t.items) {
+        const unitCost =
+          item.buyPrice ?? productBuyMap.get(item.productId) ?? Math.round(item.price * 0.78);
+        trxCost += unitCost * item.quantity;
+      }
+      grossProfit += t.total - trxCost;
+    }
 
-  // Last 7 days chart data (local timezone)
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
+    let stockAssetVal = 0;
+    let potentialSalesVal = 0;
+    const critical: typeof products = [];
+    const outOfStock: typeof products = [];
+
+    for (const p of products) {
+      stockAssetVal += p.buyPrice * p.stock;
+      potentialSalesVal += p.sellPrice * p.stock;
+      if (p.stock <= p.minStock) critical.push(p);
+      if (p.stock === 0) outOfStock.push(p);
+    }
+
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const key = getLocalDateKey(d);
+      const dayLabel = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' });
+      const entry = revenueByDate.get(key) || { total: 0, count: 0 };
+      return { dateKey: key, dayLabel, total: entry.total, count: entry.count };
+    });
+
+    const sevenDayRev = last7Days.reduce((sum, d) => sum + d.total, 0);
+    const maxVal = Math.max(...last7Days.map((d) => d.total), 500000);
+
     return {
-      key: getLocalDateKey(d),
-      dayLabel: d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }),
+      todayTransactions: todayTrx,
+      todayRevenue: revToday,
+      totalRevenue: revTotal,
+      totalGrossProfit: grossProfit,
+      totalStockAssetValuation: stockAssetVal,
+      totalPotentialSalesValuation: potentialSalesVal,
+      criticalProducts: critical,
+      outOfStockProducts: outOfStock,
+      chartData: last7Days,
+      sevenDayRevenue: sevenDayRev,
+      maxChartVal: maxVal,
     };
-  });
-
-  const chartData = last7Days.map(({ key, dayLabel }) => {
-    const dayTrx = transactions.filter((t) => getLocalDateKey(t.createdAt) === key);
-    const dayTotal = dayTrx.reduce((sum, t) => sum + t.total, 0);
-    return { dateKey: key, dayLabel, total: dayTotal, count: dayTrx.length };
-  });
-
-  const sevenDayRevenue = chartData.reduce((sum, d) => sum + d.total, 0);
-  const maxChartVal = Math.max(...chartData.map((d) => d.total), 500000);
+  }, [products, transactions]);
 
   const svgWidth = 650;
   const svgHeight = 220;
@@ -178,11 +216,11 @@ export default function AdminDashboard() {
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                backgroundColor: 'rgba(56, 139, 253, 0.14)',
+                backgroundColor: 'var(--accent-amber-bg)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--accent-blue)',
+                color: 'var(--accent-amber-text)',
               }}
             >
               <Package size={16} />

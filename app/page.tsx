@@ -1,16 +1,18 @@
 'use client';
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { AppProvider, useApp } from '@/context/AppContext';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import LoginView from '@/components/LoginView';
-import AdminDashboard from '@/components/AdminDashboard';
-import AdminProducts from '@/components/AdminProducts';
-import AdminReports from '@/components/AdminReports';
-import AdminSettings from '@/components/AdminSettings';
-import PosView from '@/components/PosView';
-import CashierHistory from '@/components/CashierHistory';
+
+const AdminDashboard = dynamic(() => import('@/components/AdminDashboard'));
+const AdminProducts = dynamic(() => import('@/components/AdminProducts'));
+const AdminReports = dynamic(() => import('@/components/AdminReports'));
+const AdminSettings = dynamic(() => import('@/components/AdminSettings'));
+const PosView = dynamic(() => import('@/components/PosView'));
+const CashierHistory = dynamic(() => import('@/components/CashierHistory'));
 
 function AppContent() {
   const { user, activeTab } = useApp();

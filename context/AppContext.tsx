@@ -64,6 +64,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
   const [activeTab, setActiveTabState] = useState<string>('pos');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number>(0);
 
   useEffect(() => {
     const loadedTheme = getStoredTheme();
@@ -99,6 +101,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = (email: string, pass: string): { success: boolean; message?: string } => {
+    const now = Date.now();
+    if (lockoutUntil > now) {
+      const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
+      return {
+        success: false,
+        message: `Terlalu banyak percobaan gagal. Silakan tunggu ${remainingSec} detik lagi.`,
+      };
+    }
+
     const cleanEmail = email.trim().toLowerCase();
 
     if (cleanEmail === 'admin@sip.com' && pass === '12345678') {
@@ -108,6 +119,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         role: 'admin',
         loginAt: new Date().toISOString(),
       };
+      setFailedAttempts(0);
+      setLockoutUntil(0);
       setUser(session);
       saveStoredSession(session);
       setActiveTabState('dashboard');
@@ -121,10 +134,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         role: 'user',
         loginAt: new Date().toISOString(),
       };
+      setFailedAttempts(0);
+      setLockoutUntil(0);
       setUser(session);
       saveStoredSession(session);
       setActiveTabState('pos');
       return { success: true };
+    }
+
+    const nextAttempts = failedAttempts + 1;
+    setFailedAttempts(nextAttempts);
+    if (nextAttempts >= 5) {
+      setLockoutUntil(now + 30000);
+      setFailedAttempts(0);
+      return {
+        success: false,
+        message: 'Batas percobaan login terlampaui (5x). Akun dikunci sementara selama 30 detik.',
+      };
     }
 
     return {
@@ -378,6 +404,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     const safeDiscount = Math.max(0, Math.round(Number(discount) || 0));
+    const maxCashierDiscount = Math.round(subtotal * 0.25);
+    if (user.role !== 'admin' && safeDiscount > maxCashierDiscount) {
+      return {
+        success: false,
+        error: `Otorisasi Kasir hanya mengizinkan diskon maksimal 25% (Rp ${maxCashierDiscount.toLocaleString('id-ID')}). Hubungi Administrator untuk diskon lebih besar.`,
+      };
+    }
+
     const finalDiscount = Math.min(safeDiscount, subtotal);
     const grandTotal = Math.max(0, subtotal - finalDiscount);
     const safeAmountPaid = Math.max(0, Math.round(Number(amountPaid) || 0));

@@ -9,9 +9,28 @@ const STORAGE_KEYS = {
   THEME: 'sip_theme_v1',
 } as const;
 
+// 12 hours max session duration (1 cashier shift)
+const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
 const VALID_ACCOUNTS: Record<string, { name: string; role: 'admin' | 'user' }> = {
   'admin@sip.com': { name: 'Administrator Toko', role: 'admin' },
   'user@sip.com': { name: 'Kasir Penjualan', role: 'user' },
+};
+
+const isValidProduct = (item: unknown): item is Product => {
+  if (!item || typeof item !== 'object') return false;
+  const p = item as Record<string, unknown>;
+  return (
+    typeof p.id === 'string' &&
+    typeof p.sku === 'string' &&
+    typeof p.name === 'string' &&
+    typeof p.buyPrice === 'number' &&
+    Number.isFinite(p.buyPrice) &&
+    typeof p.sellPrice === 'number' &&
+    Number.isFinite(p.sellPrice) &&
+    typeof p.stock === 'number' &&
+    Number.isFinite(p.stock)
+  );
 };
 
 export const getStoredProducts = (): Product[] => {
@@ -23,7 +42,9 @@ export const getStoredProducts = (): Product[] => {
       return INITIAL_PRODUCTS;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return INITIAL_PRODUCTS;
+    if (!Array.isArray(parsed) || !parsed.every(isValidProduct)) {
+      return INITIAL_PRODUCTS;
+    }
     return parsed;
   } catch (err) {
     console.error('Failed to read products from storage', err);
@@ -49,7 +70,20 @@ export const getStoredTransactions = (): Transaction[] => {
       return INITIAL_TRANSACTIONS;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return INITIAL_TRANSACTIONS;
+    if (
+      !Array.isArray(parsed) ||
+      !parsed.every(
+        (t) =>
+          t &&
+          typeof t === 'object' &&
+          typeof t.id === 'string' &&
+          typeof t.invoiceNo === 'string' &&
+          typeof t.total === 'number' &&
+          Array.isArray(t.items)
+      )
+    ) {
+      return INITIAL_TRANSACTIONS;
+    }
     return parsed;
   } catch (err) {
     console.error('Failed to read transactions from storage', err);
@@ -75,7 +109,12 @@ export const getStoredStockLogs = (): StockLog[] => {
       return INITIAL_STOCK_LOGS;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return INITIAL_STOCK_LOGS;
+    if (
+      !Array.isArray(parsed) ||
+      !parsed.every((l) => l && typeof l === 'object' && typeof l.id === 'string' && typeof l.productName === 'string')
+    ) {
+      return INITIAL_STOCK_LOGS;
+    }
     return parsed;
   } catch (err) {
     console.error('Failed to read stock logs from storage', err);
@@ -104,15 +143,22 @@ export const getStoredSession = (): UserSession | null => {
     }
     const account = VALID_ACCOUNTS[parsed.email.toLowerCase()];
     if (!account || parsed.role !== account.role) {
-      // Prevent privilege escalation via localStorage tampering
       localStorage.removeItem(STORAGE_KEYS.SESSION);
       return null;
     }
+
+    // Check session expiration (TTL)
+    const loginTime = typeof parsed.loginAt === 'string' ? new Date(parsed.loginAt).getTime() : NaN;
+    if (Number.isNaN(loginTime) || Date.now() - loginTime > SESSION_MAX_AGE_MS) {
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+      return null;
+    }
+
     return {
       email: parsed.email.toLowerCase(),
       name: account.name,
       role: account.role,
-      loginAt: typeof parsed.loginAt === 'string' ? parsed.loginAt : new Date().toISOString(),
+      loginAt: parsed.loginAt!,
     };
   } catch (err) {
     console.error('Failed to read session from storage', err);
