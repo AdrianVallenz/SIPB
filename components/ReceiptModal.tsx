@@ -88,6 +88,12 @@ export default function ReceiptModal({ transaction, onClose }: ReceiptModalProps
               <span>Metode   :</span>
               <span>{transaction.paymentMethod}</span>
             </div>
+            {transaction.status === 'VOIDED' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#c00', fontWeight: 700 }}>
+                <span>Status   :</span>
+                <span>DIBATALKAN (VOID)</span>
+              </div>
+            )}
           </div>
 
           <div className="receipt-divider" />

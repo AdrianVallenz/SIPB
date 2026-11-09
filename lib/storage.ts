@@ -198,14 +198,3 @@ export const saveStoredTheme = (theme: 'dark' | 'light'): void => {
     console.error('Failed to save theme to storage', err);
   }
 };
-
-export const resetAllStorageToDefault = (): void => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(INITIAL_TRANSACTIONS));
-    localStorage.setItem(STORAGE_KEYS.STOCK_LOGS, JSON.stringify(INITIAL_STOCK_LOGS));
-  } catch (err) {
-    console.error('Failed to reset storage', err);
-  }
-};

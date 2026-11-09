@@ -12,9 +12,10 @@ export default function CashierHistory() {
   const [selectedReceipt, setSelectedReceipt] = useState<Transaction | null>(null);
 
   const cashierTransactions = transactions.filter((t) => t.cashierEmail === user?.email);
+  const activeCashierTransactions = cashierTransactions.filter((t) => t.status !== 'VOIDED');
 
-  const totalShiftSales = cashierTransactions.reduce((sum, t) => sum + t.total, 0);
-  const cashSales = cashierTransactions
+  const totalShiftSales = activeCashierTransactions.reduce((sum, t) => sum + t.total, 0);
+  const cashSales = activeCashierTransactions
     .filter((t) => t.paymentMethod === 'Tunai')
     .reduce((sum, t) => sum + t.total, 0);
   const nonCashSales = totalShiftSales - cashSales;
@@ -100,8 +101,13 @@ export default function CashierHistory() {
             <tbody>
               {cashierTransactions.map((t) => (
                 <tr key={t.id}>
-                  <td className="font-mono" style={{ fontWeight: 600, color: 'var(--accent-green-text)' }}>
+                  <td className="font-mono" style={{ fontWeight: 600, color: t.status === 'VOIDED' ? 'var(--accent-red)' : 'var(--accent-green-text)' }}>
                     {t.invoiceNo}
+                    {t.status === 'VOIDED' && (
+                      <span className="badge badge-red" style={{ marginLeft: '6px', fontSize: '9.5px', padding: '1px 6px' }}>
+                        VOID
+                      </span>
+                    )}
                   </td>
                   <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                     {formatDateTime(t.createdAt, true)}

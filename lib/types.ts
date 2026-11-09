@@ -69,6 +69,9 @@ export interface Transaction {
   paymentMethod: PaymentMethod;
   amountPaid: number;
   change: number;
+  status?: 'COMPLETED' | 'VOIDED';
+  voidReason?: string;
+  voidedAt?: string;
 }
 
 export interface StockLog {

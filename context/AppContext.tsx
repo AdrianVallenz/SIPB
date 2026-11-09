@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react';
 import { Product, Transaction, StockLog, UserSession, PaymentMethod } from '@/lib/types';
 import {
   getStoredProducts,
@@ -13,7 +13,6 @@ import {
   saveStoredSession,
   getStoredTheme,
   saveStoredTheme,
-  resetAllStorageToDefault,
 } from '@/lib/storage';
 import { playCashierChime } from '@/lib/audio';
 
@@ -48,41 +47,37 @@ interface AppContextType {
     discount: number,
     amountPaid: number
   ) => { success: boolean; transaction?: Transaction; error?: string };
-  resetDemoData: () => ActionResult;
+  voidTransaction: (transactionId: string, reason: string) => ActionResult;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const ADMIN_TABS = new Set(['dashboard', 'products', 'reports', 'pos', 'settings']);
 const USER_TABS = new Set(['pos', 'my-transactions']);
+const emptySubscribe = () => () => {};
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserSession | null>(null);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
-  const [activeTab, setActiveTabState] = useState<string>('pos');
-  const [isInitialized, setIsInitialized] = useState(false);
+  const isInitialized = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+
+  const [user, setUser] = useState<UserSession | null>(() => getStoredSession());
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => getStoredTheme());
+  const [products, setProducts] = useState<Product[]>(() => getStoredProducts());
+  const [transactions, setTransactions] = useState<Transaction[]>(() => getStoredTransactions());
+  const [stockLogs, setStockLogs] = useState<StockLog[]>(() => getStoredStockLogs());
+  const [activeTab, setActiveTabState] = useState<string>(() => {
+    const session = getStoredSession();
+    return session?.role === 'admin' ? 'dashboard' : 'pos';
+  });
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
 
   useEffect(() => {
-    const loadedTheme = getStoredTheme();
-    setTheme(loadedTheme);
-    document.documentElement.setAttribute('data-theme', loadedTheme);
-
-    const loadedSession = getStoredSession();
-    setUser(loadedSession);
-    if (loadedSession) {
-      setActiveTabState(loadedSession.role === 'admin' ? 'dashboard' : 'pos');
-    }
-
-    setProducts(getStoredProducts());
-    setTransactions(getStoredTransactions());
-    setStockLogs(getStoredStockLogs());
-    setIsInitialized(true);
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const setActiveTab = (tab: string) => {
     if (!user) return;
@@ -445,14 +440,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       paymentMethod,
       amountPaid: finalAmountPaid,
       change,
+      status: 'COMPLETED',
     };
 
+    const saleLogs: StockLog[] = [];
     const updatedProducts = products.map((p) => {
       const cartItem = cartItems.find((ci) => ci.productId === p.id);
       if (cartItem) {
+        const qty = Math.floor(cartItem.quantity);
+        const newStock = p.stock - qty;
+        saleLogs.push({
+          id: `log-${now.getTime().toString(36)}-${p.id}`,
+          productId: p.id,
+          productName: p.name,
+          type: 'OUT',
+          quantity: qty,
+          previousStock: p.stock,
+          newStock,
+          reason: `Penjualan Kasir (${invoiceNo})`,
+          createdAt: now.toISOString(),
+          operator: user.email,
+        });
         return {
           ...p,
-          stock: p.stock - Math.floor(cartItem.quantity),
+          stock: newStock,
           updatedAt: now.toISOString(),
         };
       }
@@ -461,6 +472,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setProducts(updatedProducts);
     saveStoredProducts(updatedProducts);
+
+    if (saleLogs.length > 0) {
+      const updatedLogs = [...saleLogs, ...stockLogs];
+      setStockLogs(updatedLogs);
+      saveStoredStockLogs(updatedLogs);
+    }
 
     const updatedTransactions = [newTransaction, ...transactions];
     setTransactions(updatedTransactions);
@@ -471,14 +488,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true, transaction: newTransaction };
   };
 
-  const resetDemoData = (): ActionResult => {
+  const voidTransaction = (transactionId: string, reason: string): ActionResult => {
     const authErr = requireAdmin();
     if (authErr) return authErr;
 
-    resetAllStorageToDefault();
-    setProducts(getStoredProducts());
-    setTransactions(getStoredTransactions());
-    setStockLogs(getStoredStockLogs());
+    const targetTrx = transactions.find((t) => t.id === transactionId);
+    if (!targetTrx) {
+      return { success: false, error: 'Transaksi tidak ditemukan.' };
+    }
+    if (targetTrx.status === 'VOIDED') {
+      return { success: false, error: 'Nota transaksi ini sudah dibatalkan sebelumnya.' };
+    }
+
+    const cleanReason = reason.trim() || 'Pembatalan nota / retur barang oleh Administrator';
+    const nowIso = new Date().toISOString();
+    const voidLogs: StockLog[] = [];
+
+    // Restore stock for each item in the voided transaction
+    const itemQtyByProduct = new Map<string, number>();
+    for (const item of targetTrx.items) {
+      itemQtyByProduct.set(item.productId, (itemQtyByProduct.get(item.productId) || 0) + item.quantity);
+    }
+
+    const updatedProducts = products.map((p) => {
+      const returnQty = itemQtyByProduct.get(p.id);
+      if (returnQty && returnQty > 0) {
+        const newStock = p.stock + returnQty;
+        voidLogs.push({
+          id: `log-void-${Date.now().toString(36)}-${p.id}`,
+          productId: p.id,
+          productName: p.name,
+          type: 'IN',
+          quantity: returnQty,
+          previousStock: p.stock,
+          newStock,
+          reason: `Void Nota ${targetTrx.invoiceNo}: ${cleanReason}`,
+          createdAt: nowIso,
+          operator: user?.email || 'admin@sip.com',
+        });
+        return {
+          ...p,
+          stock: newStock,
+          updatedAt: nowIso,
+        };
+      }
+      return p;
+    });
+
+    const updatedTransactions = transactions.map((t) =>
+      t.id === transactionId
+        ? {
+            ...t,
+            status: 'VOIDED' as const,
+            voidReason: cleanReason,
+            voidedAt: nowIso,
+          }
+        : t
+    );
+
+    setProducts(updatedProducts);
+    saveStoredProducts(updatedProducts);
+
+    if (voidLogs.length > 0) {
+      const updatedLogs = [...voidLogs, ...stockLogs];
+      setStockLogs(updatedLogs);
+      saveStoredStockLogs(updatedLogs);
+    }
+
+    setTransactions(updatedTransactions);
+    saveStoredTransactions(updatedTransactions);
+
     return { success: true };
   };
 
@@ -500,7 +579,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteProduct,
         adjustStock,
         processSale,
-        resetDemoData,
+        voidTransaction,
       }}
     >
       {isInitialized ? children : null}

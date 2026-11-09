@@ -1,26 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '@/context/AppContext';
-import {
-  Shield,
-  RotateCcw,
-  Database,
-  CheckCircle2,
-  AlertTriangle,
-} from 'lucide-react';
+import { Shield, Database } from 'lucide-react';
 
 export default function AdminSettings() {
-  const { products, transactions, stockLogs, resetDemoData } = useApp();
-  const [resetSuccess, setResetSuccess] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-
-  const handleConfirmReset = () => {
-    resetDemoData();
-    setIsConfirmModalOpen(false);
-    setResetSuccess(true);
-    setTimeout(() => setResetSuccess(false), 3500);
-  };
+  const { products, transactions, stockLogs } = useApp();
 
   return (
     <div className="page-container">
@@ -29,17 +14,10 @@ export default function AdminSettings() {
         <div>
           <h2 className="page-title">Pengaturan Sistem &amp; Keamanan Akses</h2>
           <p className="page-subtitle">
-            Konfigurasi matriks otorisasi peran pengguna (RBAC) dan pemeliharaan penyimpanan data lokal.
+            Konfigurasi matriks otorisasi peran pengguna (RBAC) dan informasi penyimpanan basis data lokal.
           </p>
         </div>
       </div>
-
-      {resetSuccess && (
-        <div className="alert-box-info">
-          <CheckCircle2 size={16} />
-          <span>Basis data operasional berhasil dikembalikan ke pengaturan awal (default demo).</span>
-        </div>
-      )}
 
       {/* Role Matrix Comparison */}
       <div className="sip-card" style={{ padding: 0 }}>
@@ -102,7 +80,7 @@ export default function AdminSettings() {
         </div>
       </div>
 
-      {/* Database Maintenance Card */}
+      {/* Database Status Card */}
       <div className="sip-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
           <Database size={18} style={{ color: 'var(--accent-cyan)' }} />
@@ -114,7 +92,7 @@ export default function AdminSettings() {
           </div>
         </div>
 
-        <div className="kpi-grid" style={{ marginBottom: '18px' }}>
+        <div className="kpi-grid">
           <div style={{ padding: '14px', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
             <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>Total Master Produk</div>
             <div className="font-mono" style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
@@ -136,75 +114,7 @@ export default function AdminSettings() {
             </div>
           </div>
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '13px' }}>Pulihkan Data Standar (Reset Demo)</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              Kembalikan 20 produk awal, riwayat transaksi contoh, dan saldo stok ke kondisi semula.
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsConfirmModalOpen(true)}
-            className="btn btn-secondary btn-sm"
-            style={{ color: 'var(--accent-amber-text)', borderColor: 'rgba(210, 153, 34, 0.4)' }}
-          >
-            <RotateCcw size={14} />
-            <span>Reset Data ke Default</span>
-          </button>
-        </div>
       </div>
-
-      {/* Confirmation Modal */}
-      {isConfirmModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '420px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '18px' }}>
-              <div
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--accent-amber-bg)',
-                  color: 'var(--accent-amber-text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 12px',
-                }}
-              >
-                <AlertTriangle size={22} />
-              </div>
-              <h3 style={{ fontSize: '17px', fontWeight: 700, marginBottom: '6px' }}>
-                Reset Seluruh Data ke Default?
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Seluruh penambahan produk, perubahan stok, dan transaksi baru yang Anda buat akan dikembalikan ke data awal simulasi.
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setIsConfirmModalOpen(false)}
-                className="btn btn-secondary"
-                style={{ flex: 1 }}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmReset}
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-              >
-                Ya, Reset Data
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

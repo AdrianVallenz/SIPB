@@ -44,6 +44,7 @@ export default function AdminDashboard() {
     let grossProfit = 0;
 
     for (const t of transactions) {
+      if (t.status === 'VOIDED') continue;
       const dateKey = getLocalDateKey(t.createdAt);
       if (dateKey === todayKey) {
         todayTrx.push(t);
@@ -531,37 +532,52 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {transactions.slice(0, 5).map((trx) => (
-                <tr key={trx.id}>
-                  <td className="font-mono" style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
-                    {trx.invoiceNo}
-                  </td>
-                  <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    {formatDateTime(trx.createdAt)}
-                  </td>
-                  <td>{trx.cashierName}</td>
-                  <td style={{ fontSize: '12.5px' }}>
-                    {trx.items.reduce((s, i) => s + i.quantity, 0)} pcs ({trx.items.map((i) => i.name).slice(0, 2).join(', ')}
-                    {trx.items.length > 2 ? '...' : ''})
-                  </td>
-                  <td>
-                    <span className="badge badge-muted">{trx.paymentMethod}</span>
-                  </td>
-                  <td className="font-mono" style={{ fontWeight: 700 }}>
-                    {formatRupiah(trx.total)}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      onClick={() => setSelectedReceipt(trx)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '5px 9px', fontSize: '11px' }}
+              {transactions.slice(0, 5).map((trx) => {
+                const isVoided = trx.status === 'VOIDED';
+                return (
+                  <tr key={trx.id} style={{ opacity: isVoided ? 0.6 : 1 }}>
+                    <td className="font-mono" style={{ fontWeight: 600, color: isVoided ? 'var(--accent-red)' : 'var(--accent-cyan)' }}>
+                      {trx.invoiceNo}
+                      {isVoided && (
+                        <span className="badge badge-red" style={{ marginLeft: '6px', fontSize: '9.5px', padding: '1px 6px' }}>
+                          VOID
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      {formatDateTime(trx.createdAt)}
+                    </td>
+                    <td>{trx.cashierName}</td>
+                    <td style={{ fontSize: '12.5px' }}>
+                      {trx.items.reduce((s, i) => s + i.quantity, 0)} pcs ({trx.items.map((i) => i.name).slice(0, 2).join(', ')}
+                      {trx.items.length > 2 ? '...' : ''})
+                    </td>
+                    <td>
+                      <span className="badge badge-muted">{trx.paymentMethod}</span>
+                    </td>
+                    <td
+                      className="font-mono"
+                      style={{
+                        fontWeight: 700,
+                        textDecoration: isVoided ? 'line-through' : 'none',
+                        color: isVoided ? 'var(--text-muted)' : 'var(--text-primary)',
+                      }}
                     >
-                      <Eye size={13} />
-                      <span>Nota</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {formatRupiah(trx.total)}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        onClick={() => setSelectedReceipt(trx)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '5px 9px', fontSize: '11px' }}
+                      >
+                        <Eye size={13} />
+                        <span>Nota</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {transactions.length === 0 && (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '28px', color: 'var(--text-muted)' }}>
