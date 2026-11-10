@@ -37,7 +37,10 @@ export default function LoginView() {
     setEmail(targetEmail);
     setPassword('12345678');
     setError('');
-    login(targetEmail, '12345678');
+    const res = login(targetEmail, '12345678');
+    if (!res.success) {
+      setError(res.message || 'Autentikasi gagal.');
+    }
   };
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction, PAYMENT_METHODS } from '@/lib/types';
 import { formatRupiah, formatDateTime, getLocalDateKey } from '@/lib/format';
@@ -29,6 +29,7 @@ export default function AdminReports() {
   const [voidReason, setVoidReason] = useState<string>('');
   const [voidError, setVoidError] = useState<string>('');
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const now = new Date();
   const todayKey = getLocalDateKey(now);
@@ -126,10 +127,11 @@ export default function AdminReports() {
     const inv = voidingTrx.invoiceNo;
     setVoidingTrx(null);
     setVoidReason('');
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     setFeedbackMsg(
       `Nota ${inv} berhasil dibatalkan (Void). Seluruh stok item terkait telah dikembalikan otomatis ke gudang.`
     );
-    setTimeout(() => setFeedbackMsg(''), 4000);
+    feedbackTimerRef.current = setTimeout(() => setFeedbackMsg(''), 4000);
   };
 
   return (

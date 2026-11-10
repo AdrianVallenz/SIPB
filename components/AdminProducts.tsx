@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, ProductCategory, PRODUCT_CATEGORIES } from '@/lib/types';
 import { formatRupiah, formatDateTime } from '@/lib/format';
@@ -53,9 +53,12 @@ export default function AdminProducts() {
   const [restockQty, setRestockQty] = useState<number>(10);
   const [restockReason, setRestockReason] = useState<string>('');
 
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const showFeedback = (msg: string) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     setFeedbackMsg(msg);
-    setTimeout(() => setFeedbackMsg(''), 3500);
+    feedbackTimerRef.current = setTimeout(() => setFeedbackMsg(''), 3500);
   };
 
   // Filtering products
@@ -579,7 +582,8 @@ export default function AdminProducts() {
                     type="number"
                     min="0"
                     required
-                    value={formData.buyPrice}
+                    placeholder="0"
+                    value={formData.buyPrice === 0 ? '' : formData.buyPrice}
                     onChange={(e) => setFormData({ ...formData, buyPrice: Math.max(0, parseInt(e.target.value) || 0) })}
                     className="sip-input font-mono"
                   />
@@ -591,7 +595,8 @@ export default function AdminProducts() {
                     type="number"
                     min="0"
                     required
-                    value={formData.sellPrice}
+                    placeholder="0"
+                    value={formData.sellPrice === 0 ? '' : formData.sellPrice}
                     onChange={(e) => setFormData({ ...formData, sellPrice: Math.max(0, parseInt(e.target.value) || 0) })}
                     className="sip-input font-mono"
                   />
@@ -604,8 +609,8 @@ export default function AdminProducts() {
                   <input
                     type="number"
                     min="0"
-                    required
-                    value={formData.stock}
+                    placeholder="0"
+                    value={formData.stock === 0 ? '' : formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value) || 0) })}
                     className="sip-input font-mono"
                   />
@@ -617,8 +622,9 @@ export default function AdminProducts() {
                     type="number"
                     min="1"
                     required
-                    value={formData.minStock}
-                    onChange={(e) => setFormData({ ...formData, minStock: Math.max(1, parseInt(e.target.value) || 1) })}
+                    placeholder="1"
+                    value={formData.minStock === 0 ? '' : formData.minStock}
+                    onChange={(e) => setFormData({ ...formData, minStock: Math.max(0, parseInt(e.target.value) || 0) })}
                     className="sip-input font-mono"
                   />
                 </div>
@@ -726,8 +732,9 @@ export default function AdminProducts() {
                   type="number"
                   min="1"
                   required
-                  value={restockQty}
-                  onChange={(e) => setRestockQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  placeholder="1"
+                  value={restockQty === 0 ? '' : restockQty}
+                  onChange={(e) => setRestockQty(Math.max(0, parseInt(e.target.value) || 0))}
                   className="sip-input font-mono"
                   style={{ fontSize: '15px', fontWeight: 700 }}
                 />
@@ -826,9 +833,11 @@ export default function AdminProducts() {
               <button
                 onClick={() => {
                   const name = deletingProduct.name;
-                  deleteProduct(deletingProduct.id);
+                  const res = deleteProduct(deletingProduct.id);
                   setDeletingProduct(null);
-                  showFeedback(`Produk "${name}" telah dihapus.`);
+                  if (res.success) {
+                    showFeedback(`Produk "${name}" telah dihapus.`);
+                  }
                 }}
                 className="btn btn-danger"
                 style={{ flex: 1 }}

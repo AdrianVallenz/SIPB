@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, PRODUCT_CATEGORIES, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
 import { formatRupiah } from '@/lib/format';
@@ -45,14 +45,33 @@ export default function PosView() {
   const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
 
   const categories = ['Semua', ...PRODUCT_CATEGORIES];
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const notifyLimit = (msg: string) => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     setPosNotice(msg);
-    setTimeout(() => setPosNotice(''), 3000);
+    noticeTimerRef.current = setTimeout(() => setPosNotice(''), 3000);
   };
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const cartQtyMap = useMemo(() => new Map(cart.map((c) => [c.productId, c.quantity])), [cart]);
+
+  // Valid cart items (only existing products with available stock, clamped to current stock)
+  const validCart = useMemo(
+    () =>
+      cart
+        .map((item) => {
+          const prod = productMap.get(item.productId);
+          if (!prod || prod.stock <= 0) return null;
+          return {
+            productId: item.productId,
+            quantity: Math.min(item.quantity, prod.stock),
+          };
+        })
+        .filter((item): item is CartItemState => item !== null),
+    [cart, productMap]
+  );
+
+  const cartQtyMap = useMemo(() => new Map(validCart.map((c) => [c.productId, c.quantity])), [validCart]);
 
   // Filter products
   const filteredProducts = useMemo(() => {
@@ -93,10 +112,11 @@ export default function PosView() {
       prev
         .map((item) => {
           if (item.productId === productId) {
-            const newQty = item.quantity + delta;
+            const clampedCurrent = Math.min(item.quantity, prod.stock);
+            const newQty = delta > 0 ? item.quantity + delta : clampedCurrent + delta;
             if (newQty > prod.stock) {
               notifyLimit(`Stok tersedia untuk "${prod.name}" hanya ${prod.stock} ${prod.unit}.`);
-              return item;
+              return { ...item, quantity: prod.stock };
             }
             return { ...item, quantity: newQty };
           }
@@ -114,22 +134,6 @@ export default function PosView() {
     setCart([]);
     setDiscount(0);
   };
-
-  // Calculations (only valid products with available stock)
-  const validCart = useMemo(
-    () =>
-      cart
-        .map((item) => {
-          const prod = productMap.get(item.productId);
-          if (!prod || prod.stock <= 0) return null;
-          return {
-            productId: item.productId,
-            quantity: Math.min(item.quantity, prod.stock),
-          };
-        })
-        .filter((item): item is CartItemState => item !== null),
-    [cart, productMap]
-  );
 
   const { cartSubtotal, totalPcsInCart } = useMemo(() => {
     let subtotal = 0;
