@@ -115,11 +115,26 @@ export default function PosView() {
     setDiscount(0);
   };
 
-  // Calculations
+  // Calculations (only valid products with available stock)
+  const validCart = useMemo(
+    () =>
+      cart
+        .map((item) => {
+          const prod = productMap.get(item.productId);
+          if (!prod || prod.stock <= 0) return null;
+          return {
+            productId: item.productId,
+            quantity: Math.min(item.quantity, prod.stock),
+          };
+        })
+        .filter((item): item is CartItemState => item !== null),
+    [cart, productMap]
+  );
+
   const { cartSubtotal, totalPcsInCart } = useMemo(() => {
     let subtotal = 0;
     let totalPcs = 0;
-    for (const item of cart) {
+    for (const item of validCart) {
       const prod = productMap.get(item.productId);
       if (prod) {
         subtotal += prod.sellPrice * item.quantity;
@@ -127,14 +142,14 @@ export default function PosView() {
       }
     }
     return { cartSubtotal: subtotal, totalPcsInCart: totalPcs };
-  }, [cart, productMap]);
+  }, [validCart, productMap]);
 
   const finalDiscount = Math.min(discount, cartSubtotal);
   const grandTotal = Math.max(0, cartSubtotal - finalDiscount);
   const changeAmount = paymentMethod === 'Tunai' ? Math.max(0, cashGiven - grandTotal) : 0;
 
   const handleOpenCheckout = () => {
-    if (cart.length === 0) return;
+    if (validCart.length === 0) return;
     setPaymentError('');
     setCashGiven(grandTotal);
     setIsPaymentModalOpen(true);
@@ -142,7 +157,7 @@ export default function PosView() {
 
   const handleConfirmPayment = () => {
     setPaymentError('');
-    const res = processSale(cart, paymentMethod, finalDiscount, cashGiven);
+    const res = processSale(validCart, paymentMethod, finalDiscount, cashGiven);
     if (res.success && res.transaction) {
       setIsPaymentModalOpen(false);
       setCart([]);
@@ -413,7 +428,7 @@ export default function PosView() {
               paddingRight: '4px',
             }}
           >
-            {cart.map((item) => {
+            { validCart.map((item) => {
               const prod = productMap.get(item.productId);
               if (!prod) return null;
               const itemTotal = prod.sellPrice * item.quantity;
@@ -492,7 +507,7 @@ export default function PosView() {
               );
             })}
 
-            {cart.length === 0 && (
+            {validCart.length === 0 && (
               <div
                 style={{
                   padding: '40px 16px',
@@ -554,13 +569,13 @@ export default function PosView() {
           </div>
 
           <button
-            disabled={cart.length === 0}
+            disabled={validCart.length === 0}
             onClick={handleOpenCheckout}
             className="btn btn-primary"
             style={{ width: '100%', padding: '12px', fontSize: '13.5px' }}
           >
             <CreditCard size={16} />
-            <span>Bayar &amp; Cetak Nota ({cart.length} SKU)</span>
+            <span>Bayar &amp; Cetak Nota ({validCart.length} SKU)</span>
           </button>
         </div>
       </div>

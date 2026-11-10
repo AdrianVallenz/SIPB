@@ -32,6 +32,8 @@ export default function AdminReports() {
 
   const now = new Date();
   const todayKey = getLocalDateKey(now);
+  const past7Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+  const past30Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
 
   const filteredTransactions = transactions.filter((t) => {
     const tDate = new Date(t.createdAt);
@@ -40,13 +42,9 @@ export default function AdminReports() {
     if (dateFilter === 'today') {
       matchesDate = getLocalDateKey(tDate) === todayKey;
     } else if (dateFilter === '7days') {
-      const past7 = new Date();
-      past7.setDate(now.getDate() - 7);
-      matchesDate = tDate >= past7;
+      matchesDate = tDate >= past7Start;
     } else if (dateFilter === '30days') {
-      const past30 = new Date();
-      past30.setDate(now.getDate() - 30);
-      matchesDate = tDate >= past30;
+      matchesDate = tDate >= past30Start;
     }
 
     const matchesMethod = methodFilter === 'Semua' || t.paymentMethod === methodFilter;

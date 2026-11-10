@@ -634,8 +634,22 @@ body {
     visibility: visible;
   }
 
+  body:has(.receipt-printable) .modal-backdrop,
+  body:has(.receipt-printable) .modal-content {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    animation: none !important;
+    transform: none !important;
+    padding: 0 !important;
+  }
+
   body:has(.receipt-printable) .receipt-printable {
-    position: fixed;
+    position: absolute;
     left: 0;
     top: 0;
     width: 100%;

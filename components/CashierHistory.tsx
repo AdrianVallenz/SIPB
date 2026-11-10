@@ -45,7 +45,10 @@ export default function CashierHistory() {
             {formatRupiah(totalShiftSales)}
           </div>
           <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Dari {cashierTransactions.length} transaksi nota
+            Dari {activeCashierTransactions.length} nota aktif
+            {cashierTransactions.length > activeCashierTransactions.length
+              ? ` (${cashierTransactions.length - activeCashierTransactions.length} void)`
+              : ''}
           </div>
         </div>
 
@@ -120,7 +123,15 @@ export default function CashierHistory() {
                   <td>
                     <span className="badge badge-muted">{t.paymentMethod}</span>
                   </td>
-                  <td className="font-mono" style={{ fontWeight: 700, fontSize: '13.5px' }}>
+                  <td
+                    className="font-mono"
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '13.5px',
+                      textDecoration: t.status === 'VOIDED' ? 'line-through' : 'none',
+                      color: t.status === 'VOIDED' ? 'var(--text-muted)' : 'var(--text-primary)',
+                    }}
+                  >
                     {formatRupiah(t.total)}
                   </td>
                   <td style={{ textAlign: 'right' }}>

@@ -457,7 +457,13 @@ export default function AdminProducts() {
                       </span>
                     </td>
                     <td className="font-mono" style={{ fontWeight: 700 }}>
-                      {log.type === 'IN' ? `+${log.quantity}` : log.type === 'OUT' ? `-${log.quantity}` : log.quantity}
+                      {log.type === 'IN'
+                        ? `+${log.quantity}`
+                        : log.type === 'OUT'
+                        ? `-${log.quantity}`
+                        : log.newStock >= log.previousStock
+                        ? `+${log.newStock - log.previousStock}`
+                        : `${log.newStock - log.previousStock}`}
                     </td>
                     <td className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                       {log.previousStock} &rarr; <strong style={{ color: 'var(--text-primary)' }}>{log.newStock}</strong>
