@@ -296,8 +296,8 @@ export default function AdminProducts() {
             </div>
           </div>
 
-          {/* Main Products Table */}
-          <div className="sip-card" style={{ padding: 0 }}>
+          {/* Main Products Table (Desktop) */}
+          <div className="sip-card desktop-table-wrap" style={{ padding: 0 }}>
             <div className="sip-table-container" style={{ border: 'none' }}>
               <table className="sip-table">
                 <thead>
@@ -454,9 +454,146 @@ export default function AdminProducts() {
                       </td>
                     </tr>
                   )}
-                </tbody>
+              </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile Products Card List */}
+          <div className="mobile-card-list">
+            {filteredProducts.map((p) => {
+              const margin =
+                p.sellPrice > 0 ? Math.round(((p.sellPrice - p.buyPrice) / p.sellPrice) * 100) : 0;
+              const isOutOfStock = p.stock === 0;
+              const isLowStock = p.stock > 0 && p.stock <= p.minStock;
+
+              return (
+                <div key={p.id} className="mobile-data-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
+                        <span className="font-mono" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                          {p.sku}
+                        </span>
+                        <span className="badge badge-muted" style={{ fontSize: '10px', padding: '1px 7px' }}>
+                          {p.category}
+                        </span>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', lineHeight: 1.3 }}>{p.name}</div>
+                    </div>
+                    <span
+                      className={`badge ${
+                        isOutOfStock ? 'badge-red' : isLowStock ? 'badge-amber' : 'badge-green'
+                      }`}
+                    >
+                      {isOutOfStock ? 'Habis' : `${p.stock} ${p.unit}`}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr auto',
+                      gap: '8px',
+                      alignItems: 'center',
+                      padding: '8px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      backgroundColor: 'var(--bg-subtle)',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>Harga Jual</div>
+                      <div className="font-mono" style={{ fontWeight: 700, fontSize: '13.5px' }}>
+                        {formatRupiah(p.sellPrice)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>Modal</div>
+                      <div className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {formatRupiah(p.buyPrice)}
+                      </div>
+                    </div>
+                    <span className={`badge ${margin >= 0 ? 'badge-green' : 'badge-red'} font-mono`}>
+                      {margin >= 0 ? `+${margin}%` : `${margin}%`}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalError('');
+                        setRestockProduct(p);
+                        setRestockQty(10);
+                        setRestockType('IN');
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ flex: 1, minHeight: '36px', color: 'var(--accent-cyan)' }}
+                    >
+                      <PackagePlus size={14} />
+                      <span>Stok</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(p)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ flex: 1, minHeight: '36px' }}
+                    >
+                      <Edit2 size={14} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingProduct(p)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ minHeight: '36px', color: 'var(--accent-red)' }}
+                      aria-label="Hapus Produk"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredProducts.length === 0 && (
+              <div className="sip-card" style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--text-muted)' }}>
+                {products.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Katalog Toko Anda Masih Kosong
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                      <button type="button" onClick={handleOpenAdd} className="btn btn-primary btn-sm">
+                        <Plus size={14} />
+                        <span>Tambah Produk</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isImportingSample}
+                        onClick={async () => {
+                          setIsImportingSample(true);
+                          try {
+                            const res = await loadSampleCatalog();
+                            if (res.success) {
+                              showFeedback('8 produk contoh berhasil ditambahkan ke katalog toko Anda.');
+                            }
+                          } finally {
+                            setIsImportingSample(false);
+                          }
+                        }}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <Sparkles size={14} style={{ color: 'var(--accent-cyan)' }} />
+                        <span>{isImportingSample ? 'Memuat...' : 'Muat 8 Contoh'}</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  'Tidak ada produk yang sesuai dengan kriteria pencarian.'
+                )}
+              </div>
+            )}
           </div>
         </>
       ) : (
@@ -468,7 +605,7 @@ export default function AdminProducts() {
               Catatan audit setiap penambahan barang masuk, pengurangan barang rusak, dan koreksi stok.
             </p>
           </div>
-          <div className="sip-table-container" style={{ border: 'none', borderRadius: 0 }}>
+          <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
             <table className="sip-table">
               <thead>
                 <tr>
@@ -528,6 +665,39 @@ export default function AdminProducts() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="mobile-card-list" style={{ padding: '14px' }}>
+            {stockLogs.map((log) => (
+              <div key={log.id} className="mobile-data-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '13.5px' }}>{log.productName}</span>
+                  <span
+                    className={`badge ${
+                      log.type === 'IN'
+                        ? 'badge-green'
+                        : log.type === 'OUT'
+                        ? 'badge-red'
+                        : 'badge-cyan'
+                    }`}
+                  >
+                    {log.type === 'IN' ? `+${log.quantity}` : log.type === 'OUT' ? `-${log.quantity}` : 'Koreksi'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{log.reason}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <span className="font-mono">
+                    Stok: {log.previousStock} &rarr; <strong>{log.newStock}</strong>
+                  </span>
+                  <span>{formatDateTime(log.createdAt)}</span>
+                </div>
+              </div>
+            ))}
+            {stockLogs.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '24px 8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                Belum ada riwayat mutasi stok yang tercatat.
+              </div>
+            )}
           </div>
         </div>
       )}

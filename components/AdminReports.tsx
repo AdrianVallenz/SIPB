@@ -270,8 +270,8 @@ export default function AdminReports() {
         </div>
       </div>
 
-      {/* Transactions Table */}
-      <div className="sip-card" style={{ padding: 0 }}>
+      {/* Transactions Table (Desktop) & Card List (Mobile) */}
+      <div className="sip-card desktop-table-wrap" style={{ padding: 0 }}>
         <div className="sip-table-container" style={{ border: 'none' }}>
           <table className="sip-table">
             <thead>
@@ -379,6 +379,101 @@ export default function AdminReports() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Reports Card List */}
+      <div className="mobile-card-list no-print">
+        {filteredTransactions.map((t) => {
+          const isVoided = t.status === 'VOIDED';
+          return (
+            <div key={t.id} className="mobile-data-card" style={{ opacity: isVoided ? 0.68 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <span
+                  className="font-mono"
+                  style={{ fontWeight: 700, fontSize: '13.5px', color: isVoided ? 'var(--accent-red)' : 'var(--accent-cyan)' }}
+                >
+                  {t.invoiceNo}
+                </span>
+                {isVoided ? (
+                  <span className="badge badge-red">VOID</span>
+                ) : (
+                  <span className="badge badge-green">Selesai</span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: 'var(--text-secondary)', gap: '8px' }}>
+                <span>{formatDateTime(t.createdAt)}</span>
+                <span>Kasir: {t.cashierName}</span>
+              </div>
+
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                {t.items.length} SKU ({t.items.reduce((s, i) => s + i.quantity, 0)} pcs) &bull;{' '}
+                {t.items.map((i) => `${i.name} (${i.quantity}x)`).slice(0, 2).join(', ')}
+                {t.items.length > 2 ? '...' : ''}
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingTop: '8px',
+                  borderTop: '1px solid var(--border-color)',
+                  gap: '8px',
+                }}
+              >
+                <div>
+                  <span className="badge badge-muted" style={{ fontSize: '10px', marginBottom: '2px' }}>
+                    {t.paymentMethod}
+                  </span>
+                  <div
+                    className="font-mono"
+                    style={{
+                      fontWeight: 800,
+                      fontSize: '15px',
+                      textDecoration: isVoided ? 'line-through' : 'none',
+                    }}
+                  >
+                    {formatRupiah(t.total)}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setViewingReceipt(t)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ minHeight: '36px' }}
+                  >
+                    <Eye size={14} />
+                    <span>Nota</span>
+                  </button>
+                  {!isVoided && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVoidError('');
+                        setVoidReason('');
+                        setVoidingTrx(t);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ minHeight: '36px', color: 'var(--accent-red)' }}
+                    >
+                      <Ban size={14} />
+                      <span>Void</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredTransactions.length === 0 && (
+          <div className="sip-card" style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--text-muted)' }}>
+            Tidak ada transaksi penjualan yang cocok dengan filter pencarian.
+          </div>
+        )}
       </div>
 
       {/* VOID TRANSACTION CONFIRMATION MODAL */}

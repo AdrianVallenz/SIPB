@@ -89,7 +89,7 @@ export default function CashierHistory() {
           <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Daftar Nota Transaksi Kasir</h3>
         </div>
 
-        <div className="sip-table-container" style={{ border: 'none', borderRadius: 0 }}>
+        <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
           <table className="sip-table">
             <thead>
               <tr>
@@ -156,6 +156,74 @@ export default function CashierHistory() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cashier Transactions Card List */}
+        <div className="mobile-card-list" style={{ padding: '14px' }}>
+          {cashierTransactions.map((t) => {
+            const isVoided = t.status === 'VOIDED';
+            return (
+              <div key={t.id} className="mobile-data-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    className="font-mono"
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '13.5px',
+                      color: isVoided ? 'var(--accent-red)' : 'var(--accent-green-text)',
+                    }}
+                  >
+                    {t.invoiceNo}
+                  </span>
+                  <span className="badge badge-muted">{t.paymentMethod}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                  <span>{formatDateTime(t.createdAt, true)}</span>
+                  <span>
+                    {t.items.reduce((s, i) => s + i.quantity, 0)} pcs ({t.items.length} SKU)
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: '8px',
+                    borderTop: '1px solid var(--border-color)',
+                  }}
+                >
+                  <div
+                    className="font-mono"
+                    style={{
+                      fontWeight: 800,
+                      fontSize: '15px',
+                      textDecoration: isVoided ? 'line-through' : 'none',
+                      color: isVoided ? 'var(--text-muted)' : 'var(--text-primary)',
+                    }}
+                  >
+                    {formatRupiah(t.total)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReceipt(t)}
+                    className="btn btn-primary btn-sm"
+                    style={{ minHeight: '36px' }}
+                  >
+                    <Eye size={14} />
+                    <span>Cetak Struk</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {cashierTransactions.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '24px 8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+              Belum ada transaksi penjualan yang tercatat pada shift Anda.
+            </div>
+          )}
         </div>
       </div>
 

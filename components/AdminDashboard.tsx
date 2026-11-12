@@ -1832,7 +1832,7 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        <div className="sip-table-container" style={{ border: 'none', borderRadius: 0 }}>
+        <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
           <table className="sip-table">
             <thead>
               <tr>
@@ -1914,6 +1914,60 @@ export default function AdminDashboard() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Recent Transactions Cards */}
+        <div className="mobile-card-list" style={{ padding: '14px' }}>
+          {transactions.slice(0, 5).map((trx) => {
+            const isVoided = trx.status === 'VOIDED';
+            return (
+              <div key={trx.id} className="mobile-data-card" style={{ opacity: isVoided ? 0.68 : 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    className="font-mono"
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '13.5px',
+                      color: isVoided ? 'var(--accent-red)' : 'var(--accent-cyan)',
+                    }}
+                  >
+                    {trx.invoiceNo}
+                  </span>
+                  <span className="badge badge-muted">{trx.paymentMethod}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                  <span>{formatDateTime(trx.createdAt)}</span>
+                  <span>{trx.cashierName}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+                  <div
+                    className="font-mono"
+                    style={{
+                      fontWeight: 800,
+                      fontSize: '14.5px',
+                      textDecoration: isVoided ? 'line-through' : 'none',
+                    }}
+                  >
+                    {formatRupiah(trx.total)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReceipt(trx)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ minHeight: '34px' }}
+                  >
+                    <Eye size={13} />
+                    <span>Nota</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {transactions.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '20px 8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+              Belum ada transaksi penjualan yang tercatat.
+            </div>
+          )}
         </div>
       </div>
 

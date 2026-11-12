@@ -4,7 +4,9 @@ import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, PRODUCT_CATEGORIES, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
 import { formatRupiah } from '@/lib/format';
+import { useBluetoothPrinter } from '@/lib/usePrinter';
 import ReceiptModal from './ReceiptModal';
+import PrinterModal from './PrinterModal';
 import { playBeep } from '@/lib/audio';
 import {
   Search,
@@ -19,6 +21,10 @@ import {
   Check,
   AlertTriangle,
   RotateCcw,
+  Bluetooth,
+  BluetoothConnected,
+  ChevronRight,
+  X,
 } from 'lucide-react';
 
 interface CartItemState {
@@ -28,6 +34,7 @@ interface CartItemState {
 
 export default function PosView() {
   const { products, processSale } = useApp();
+  const { runtime, settings, isConnected, printTransaction } = useBluetoothPrinter();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
@@ -35,14 +42,22 @@ export default function PosView() {
   const [discount, setDiscount] = useState<number>(0);
   const [posNotice, setPosNotice] = useState<string>('');
 
+  // Mobile Cart Sheet & Printer Modal
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [isPrinterModalOpen, setIsPrinterModalOpen] = useState(false);
+
   // Payment Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Tunai');
   const [cashGiven, setCashGiven] = useState<number>(0);
   const [paymentError, setPaymentError] = useState<string>('');
 
-  // Finished Transaction Receipt
+  // Finished Transaction Receipt & Auto-print Notice
   const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
+  const [receiptPrintNotice, setReceiptPrintNotice] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   const categories = ['Semua', ...PRODUCT_CATEGORIES];
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,7 +70,6 @@ export default function PosView() {
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
-  // Valid cart items (only existing products with available stock, clamped to current stock)
   const validCart = useMemo(
     () =>
       cart
@@ -73,7 +87,6 @@ export default function PosView() {
 
   const cartQtyMap = useMemo(() => new Map(validCart.map((c) => [c.productId, c.quantity])), [validCart]);
 
-  // Filter products
   const filteredProducts = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return products.filter((p) => {
@@ -83,7 +96,6 @@ export default function PosView() {
     });
   }, [products, selectedCategory, searchQuery]);
 
-  // Cart operations
   const addToCart = (product: Product) => {
     if (product.stock <= 0) return;
 
@@ -156,29 +168,261 @@ export default function PosView() {
     if (validCart.length === 0) return;
     setPaymentError('');
     setCashGiven(grandTotal);
+    setIsMobileCartOpen(false);
     setIsPaymentModalOpen(true);
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     setPaymentError('');
     const res = processSale(validCart, paymentMethod, finalDiscount, cashGiven);
     if (res.success && res.transaction) {
       setIsPaymentModalOpen(false);
+      setIsMobileCartOpen(false);
       setCart([]);
       setDiscount(0);
+
+      let autoNotice: { type: 'success' | 'error'; text: string } | null = null;
+      if (settings.autoPrintOnSale && isConnected) {
+        const printRes = await printTransaction(res.transaction, false);
+        autoNotice = printRes.success
+          ? {
+              type: 'success',
+              text: `Struk otomatis dicetak ke ${runtime.deviceName || 'Printer Bluetooth'}.`,
+            }
+          : {
+              type: 'error',
+              text: printRes.error || 'Gagal cetak otomatis Bluetooth.',
+            };
+      }
+      setReceiptPrintNotice(autoNotice);
       setCompletedTransaction(res.transaction);
     } else {
       setPaymentError(res.error || 'Terjadi kesalahan saat memproses penjualan.');
     }
   };
 
+  const renderCartBody = (isSheet = false) => (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {/* Cart Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: '12px',
+            borderBottom: '1px solid var(--border-color)',
+            marginBottom: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShoppingCart size={17} style={{ color: 'var(--accent-cyan)' }} />
+            <h2 style={{ fontSize: '15px', fontWeight: 700 }}>Keranjang Transaksi</h2>
+            {totalPcsInCart > 0 && (
+              <span className="badge badge-cyan font-mono" style={{ padding: '1px 7px', fontSize: '10.5px' }}>
+                {totalPcsInCart}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {cart.length > 0 && (
+              <button
+                type="button"
+                onClick={clearCart}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '11px', color: 'var(--accent-red)', padding: '4px 8px' }}
+                title="Kosongkan Keranjang"
+              >
+                <RotateCcw size={12} /> Kosongkan
+              </button>
+            )}
+            {isSheet && (
+              <button
+                type="button"
+                onClick={() => setIsMobileCartOpen(false)}
+                className="btn btn-secondary btn-icon"
+                aria-label="Tutup Keranjang"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Cart Item List */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            maxHeight: isSheet ? '38vh' : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            paddingRight: '4px',
+          }}
+        >
+          {validCart.map((item) => {
+            const prod = productMap.get(item.productId);
+            if (!prod) return null;
+            const itemTotal = prod.sellPrice * item.quantity;
+
+            return (
+              <div
+                key={item.productId}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-subtle)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, flex: 1 }}>{prod.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFromCart(prod.id)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                    }}
+                    title="Hapus item"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div className="font-mono" style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    @ {formatRupiah(prod.sellPrice)}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(prod.id, -1)}
+                      className="btn btn-secondary btn-icon"
+                      style={{ width: '30px', height: '30px', padding: 0 }}
+                    >
+                      <Minus size={13} />
+                    </button>
+
+                    <span className="font-mono" style={{ fontWeight: 700, fontSize: '13px', minWidth: '22px', textAlign: 'center' }}>
+                      {item.quantity}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(prod.id, 1)}
+                      disabled={item.quantity >= prod.stock}
+                      className="btn btn-secondary btn-icon"
+                      style={{ width: '30px', height: '30px', padding: 0 }}
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="font-mono"
+                  style={{
+                    textAlign: 'right',
+                    marginTop: '4px',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    color: 'var(--accent-cyan)',
+                  }}
+                >
+                  {formatRupiah(itemTotal)}
+                </div>
+              </div>
+            );
+          })}
+
+          {validCart.length === 0 && (
+            <div
+              style={{
+                padding: '32px 16px',
+                textAlign: 'center',
+                color: 'var(--text-muted)',
+                fontSize: '12.5px',
+              }}
+            >
+              Keranjang masih kosong. Pilih barang dari daftar katalog untuk memulai transaksi.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Cart Bottom Summary */}
+      <div style={{ paddingTop: '12px', marginTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Potongan Diskon (Rp)</span>
+          <input
+            type="number"
+            min="0"
+            value={discount || ''}
+            onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value) || 0))}
+            placeholder="0"
+            className="sip-input font-mono"
+            style={{ width: '120px', padding: '6px 10px', fontSize: '13px', textAlign: 'right' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+          <span>Subtotal ({totalPcsInCart} pcs):</span>
+          <span className="font-mono">{formatRupiah(cartSubtotal)}</span>
+        </div>
+
+        {finalDiscount > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: 'var(--accent-red)' }}>
+            <span>Diskon:</span>
+            <span className="font-mono">- {formatRupiah(finalDiscount)}</span>
+          </div>
+        )}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginTop: '8px',
+            marginBottom: '12px',
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.1)',
+            border: '1px solid rgba(var(--accent-cyan-rgb), 0.28)',
+          }}
+        >
+          <span style={{ fontSize: '13px', fontWeight: 700 }}>Total Tagihan:</span>
+          <span className="font-mono" style={{ fontSize: '19px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+            {formatRupiah(grandTotal)}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          disabled={validCart.length === 0}
+          onClick={handleOpenCheckout}
+          className="btn btn-primary"
+          style={{ width: '100%', padding: '12px', minHeight: '44px', fontSize: '13.5px' }}
+        >
+          <CreditCard size={16} />
+          <span>Bayar &amp; Cetak Nota ({validCart.length} SKU)</span>
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div className="pos-layout">
       {/* LEFT: Products Catalog */}
       <div className="pos-catalog">
-        {/* Search & Category Header */}
-        <div className="sip-card" style={{ padding: '14px 18px' }}>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
+        {/* Search, Bluetooth Printer Bar & Category Header */}
+        <div className="sip-card pos-search-card" style={{ padding: '14px 16px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <Search
                 size={16}
@@ -192,30 +436,48 @@ export default function PosView() {
               />
               <input
                 type="text"
-                placeholder="Cari nama barang atau pindai kode SKU..."
+                placeholder="Cari barang atau kode SKU..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="sip-input"
                 style={{ paddingLeft: '38px' }}
               />
             </div>
+
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="btn btn-secondary btn-sm">
+              <button type="button" onClick={() => setSearchQuery('')} className="btn btn-secondary btn-sm">
                 Reset
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setIsPrinterModalOpen(true)}
+              className="btn btn-secondary btn-sm hide-mobile"
+              style={{
+                borderColor: isConnected ? 'rgba(var(--accent-cyan-rgb), 0.5)' : 'var(--border-color)',
+                color: isConnected ? 'var(--accent-green-text)' : 'var(--text-secondary)',
+              }}
+              title="Status Printer Thermal Bluetooth"
+            >
+              {isConnected ? <BluetoothConnected size={14} /> : <Bluetooth size={14} />}
+              <span>
+                {isConnected ? runtime.deviceName || 'BT Terhubung' : 'Hubungkan Printer BT'}
+              </span>
+            </button>
           </div>
 
           {/* Category Filter Pills */}
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+          <div className="pos-category-scroll" style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
             {categories.map((cat) => {
               const isSelected = selectedCategory === cat;
               return (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setSelectedCategory(cat)}
                   style={{
-                    padding: '5px 13px',
+                    padding: '6px 13px',
                     borderRadius: 'var(--radius-full)',
                     fontSize: '12px',
                     fontWeight: 600,
@@ -228,6 +490,7 @@ export default function PosView() {
                       : 'var(--bg-subtle)',
                     color: isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)',
                     transition: 'all 0.15s ease',
+                    flexShrink: 0,
                   }}
                 >
                   {cat}
@@ -259,14 +522,15 @@ export default function PosView() {
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  padding: '14px',
+                  padding: '13px',
                   opacity: isOutOfStock ? 0.55 : 1,
-                  borderColor: inCart > 0 ? 'rgba(var(--accent-cyan-rgb), 0.55)' : undefined,
+                  borderColor: inCart > 0 ? 'rgba(var(--accent-cyan-rgb), 0.6)' : undefined,
+                  backgroundColor: inCart > 0 ? 'rgba(var(--accent-cyan-rgb), 0.04)' : undefined,
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '4px' }}>
-                    <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '4px' }}>
+                    <span className="font-mono" style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
                       {prod.sku}
                     </span>
                     <span
@@ -285,11 +549,11 @@ export default function PosView() {
 
                   <h3
                     style={{
-                      fontSize: '13.5px',
+                      fontSize: '13px',
                       fontWeight: 600,
                       marginBottom: '4px',
                       lineHeight: 1.35,
-                      minHeight: '36px',
+                      minHeight: '35px',
                       display: '-webkit-box',
                       WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical',
@@ -299,7 +563,7 @@ export default function PosView() {
                     {prod.name}
                   </h3>
 
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                     {prod.category}
                   </div>
                 </div>
@@ -308,10 +572,10 @@ export default function PosView() {
                   <div
                     className="font-mono"
                     style={{
-                      fontSize: '15px',
+                      fontSize: '14.5px',
                       fontWeight: 700,
                       color: 'var(--text-primary)',
-                      marginBottom: '10px',
+                      marginBottom: '9px',
                     }}
                   >
                     {formatRupiah(prod.sellPrice)}
@@ -323,9 +587,9 @@ export default function PosView() {
                         type="button"
                         onClick={() => updateQuantity(prod.id, -1)}
                         className="btn btn-secondary btn-sm"
-                        style={{ padding: '6px 10px' }}
+                        style={{ padding: '7px 10px', minHeight: '36px' }}
                       >
-                        <Minus size={13} />
+                        <Minus size={14} />
                       </button>
                       <div
                         className="font-mono"
@@ -333,7 +597,7 @@ export default function PosView() {
                           flex: 1,
                           textAlign: 'center',
                           fontWeight: 700,
-                          fontSize: '13px',
+                          fontSize: '12.5px',
                           color: 'var(--accent-cyan)',
                         }}
                       >
@@ -344,17 +608,18 @@ export default function PosView() {
                         disabled={inCart >= prod.stock}
                         onClick={() => updateQuantity(prod.id, 1)}
                         className="btn btn-primary btn-sm"
-                        style={{ padding: '6px 10px' }}
+                        style={{ padding: '7px 10px', minHeight: '36px' }}
                       >
-                        <Plus size={13} />
+                        <Plus size={14} />
                       </button>
                     </div>
                   ) : (
                     <button
+                      type="button"
                       disabled={isOutOfStock}
                       onClick={() => addToCart(prod)}
                       className="btn btn-secondary btn-sm"
-                      style={{ width: '100%', padding: '7px 10px' }}
+                      style={{ width: '100%', padding: '7px 10px', minHeight: '36px' }}
                     >
                       {isOutOfStock ? (
                         'Stok Habis'
@@ -386,212 +651,70 @@ export default function PosView() {
         </div>
       </div>
 
-      {/* RIGHT: Cart & Checkout Panel */}
-      <div className="sip-card pos-cart">
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          {/* Cart Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingBottom: '12px',
-              borderBottom: '1px solid var(--border-color)',
-              marginBottom: '12px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShoppingCart size={17} style={{ color: 'var(--accent-cyan)' }} />
-              <h2 style={{ fontSize: '14.5px', fontWeight: 700 }}>Keranjang Transaksi</h2>
-              {totalPcsInCart > 0 && (
-                <span className="badge badge-cyan font-mono" style={{ padding: '1px 7px', fontSize: '10.5px' }}>
-                  {totalPcsInCart}
-                </span>
-              )}
+      {/* DESKTOP RIGHT: Sticky Cart Panel (hidden on tablet/mobile) */}
+      <div className="sip-card pos-cart">{renderCartBody(false)}</div>
+
+      {/* MOBILE / TABLET FLOATING CART BAR (always accessible without scrolling!) */}
+      {validCart.length > 0 && (
+        <div className="mobile-pos-cart-bar no-print">
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {totalPcsInCart} pcs ({validCart.length} SKU) di keranjang
             </div>
-            {cart.length > 0 && (
-              <button
-                onClick={clearCart}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '11px', color: 'var(--accent-red)', padding: '3px 8px' }}
-                title="Kosongkan Keranjang"
-              >
-                <RotateCcw size={12} /> Kosongkan
-              </button>
-            )}
-          </div>
-
-          {/* Cart Item List */}
-          <div
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              paddingRight: '4px',
-            }}
-          >
-            { validCart.map((item) => {
-              const prod = productMap.get(item.productId);
-              if (!prod) return null;
-              const itemTotal = prod.sellPrice * item.quantity;
-
-              return (
-                <div
-                  key={item.productId}
-                  style={{
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: 'var(--bg-subtle)',
-                    border: '1px solid var(--border-color)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', gap: '6px' }}>
-                    <span style={{ fontSize: '12.5px', fontWeight: 600, flex: 1 }}>
-                      {prod.name}
-                    </span>
-                    <button
-                      onClick={() => removeFromCart(prod.id)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        padding: '2px',
-                      }}
-                      title="Hapus item"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      @ {formatRupiah(prod.sellPrice)}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        onClick={() => updateQuantity(prod.id, -1)}
-                        className="btn btn-secondary btn-icon"
-                        style={{ width: '24px', height: '24px', padding: 0 }}
-                      >
-                        <Minus size={11} />
-                      </button>
-
-                      <span className="font-mono" style={{ fontWeight: 700, fontSize: '12.5px', minWidth: '20px', textAlign: 'center' }}>
-                        {item.quantity}
-                      </span>
-
-                      <button
-                        onClick={() => updateQuantity(prod.id, 1)}
-                        disabled={item.quantity >= prod.stock}
-                        className="btn btn-secondary btn-icon"
-                        style={{ width: '24px', height: '24px', padding: 0 }}
-                      >
-                        <Plus size={11} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    className="font-mono"
-                    style={{
-                      textAlign: 'right',
-                      marginTop: '4px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      color: 'var(--accent-cyan)',
-                    }}
-                  >
-                    {formatRupiah(itemTotal)}
-                  </div>
-                </div>
-              );
-            })}
-
-            {validCart.length === 0 && (
-              <div
-                style={{
-                  padding: '40px 16px',
-                  textAlign: 'center',
-                  color: 'var(--text-muted)',
-                  fontSize: '12px',
-                }}
-              >
-                Keranjang masih kosong. Pilih barang dari daftar katalog untuk memulai transaksi.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Cart Bottom Summary */}
-        <div style={{ paddingTop: '12px', marginTop: '12px', borderTop: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Potongan Diskon (Rp)</span>
-            <input
-              type="number"
-              min="0"
-              value={discount || ''}
-              onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value) || 0))}
-              placeholder="0"
-              className="sip-input font-mono"
-              style={{ width: '115px', padding: '5px 9px', fontSize: '12px', textAlign: 'right' }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: 'var(--text-secondary)' }}>
-            <span>Subtotal ({totalPcsInCart} pcs):</span>
-            <span className="font-mono">{formatRupiah(cartSubtotal)}</span>
-          </div>
-
-          {finalDiscount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: 'var(--accent-red)' }}>
-              <span>Diskon:</span>
-              <span className="font-mono">- {formatRupiah(finalDiscount)}</span>
-            </div>
-          )}
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              marginTop: '8px',
-              marginBottom: '12px',
-              padding: '10px 12px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.1)',
-              border: '1px solid rgba(var(--accent-cyan-rgb), 0.28)',
-            }}
-          >
-            <span style={{ fontSize: '12.5px', fontWeight: 700 }}>Total Tagihan:</span>
-            <span className="font-mono" style={{ fontSize: '19px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+            <div className="font-mono" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent-cyan)' }}>
               {formatRupiah(grandTotal)}
-            </span>
+            </div>
           </div>
 
           <button
-            disabled={validCart.length === 0}
-            onClick={handleOpenCheckout}
+            type="button"
+            onClick={() => setIsMobileCartOpen(true)}
             className="btn btn-primary"
-            style={{ width: '100%', padding: '12px', fontSize: '13.5px' }}
+            style={{ padding: '10px 16px', minHeight: '42px', flexShrink: 0 }}
           >
-            <CreditCard size={16} />
-            <span>Bayar &amp; Cetak Nota ({validCart.length} SKU)</span>
+            <ShoppingCart size={16} />
+            <span>Keranjang</span>
+            <ChevronRight size={15} />
           </button>
         </div>
-      </div>
+      )}
+
+      {/* MOBILE CART BOTTOM SHEET */}
+      {isMobileCartOpen && (
+        <div className="modal-backdrop" onClick={() => setIsMobileCartOpen(false)}>
+          <div
+            className="modal-content modal-sheet"
+            style={{ maxWidth: '520px', padding: '18px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {renderCartBody(true)}
+          </div>
+        </div>
+      )}
 
       {/* PAYMENT MODAL */}
       {isPaymentModalOpen && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
-            <h3 style={{ fontSize: '17px', fontWeight: 700, marginBottom: '4px' }}>
-              Penyelesaian Pembayaran
-            </h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+          <div className="modal-content modal-sheet" style={{ maxWidth: '500px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '6px',
+              }}
+            >
+              <h3 style={{ fontSize: '17px', fontWeight: 700 }}>Penyelesaian Pembayaran</h3>
+              <button
+                type="button"
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="btn btn-secondary btn-icon"
+                aria-label="Tutup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
               Pilih metode pembayaran pelanggan dan verifikasi nominal yang diterima.
             </p>
 
@@ -610,7 +733,7 @@ export default function PosView() {
                 backgroundColor: 'var(--bg-subtle)',
                 border: '1px solid var(--border-color)',
                 textAlign: 'center',
-                marginBottom: '16px',
+                marginBottom: '14px',
               }}
             >
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
@@ -625,7 +748,7 @@ export default function PosView() {
             </div>
 
             {/* Payment Method Selector */}
-            <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: '14px' }}>
               <label className="form-label">Metode Pembayaran</label>
               <div className="pos-payment-grid">
                 {PAYMENT_METHODS.map((method) => {
@@ -636,7 +759,7 @@ export default function PosView() {
                       type="button"
                       onClick={() => setPaymentMethod(method)}
                       style={{
-                        padding: '10px 8px',
+                        padding: '11px 8px',
                         borderRadius: 'var(--radius-md)',
                         border: '1px solid',
                         borderColor: isSelected ? 'var(--accent-cyan)' : 'var(--border-color)',
@@ -644,7 +767,7 @@ export default function PosView() {
                           ? 'rgba(var(--accent-cyan-rgb), 0.14)'
                           : 'var(--bg-card)',
                         color: isSelected ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                        fontSize: '11px',
+                        fontSize: '11.5px',
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
@@ -675,7 +798,7 @@ export default function PosView() {
                   value={cashGiven || ''}
                   onChange={(e) => setCashGiven(Math.max(0, parseInt(e.target.value) || 0))}
                   className="sip-input font-mono"
-                  style={{ fontSize: '15px', fontWeight: 700 }}
+                  style={{ fontSize: '16px', fontWeight: 700 }}
                 />
 
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
@@ -691,7 +814,7 @@ export default function PosView() {
                       type="button"
                       onClick={() => setCashGiven(preset.val)}
                       className="btn btn-secondary btn-sm font-mono"
-                      style={{ fontSize: '11px' }}
+                      style={{ fontSize: '11.5px', minHeight: '34px' }}
                     >
                       {preset.label}
                     </button>
@@ -745,8 +868,8 @@ export default function PosView() {
                 </div>
                 <div
                   style={{
-                    width: '148px',
-                    height: '148px',
+                    width: '140px',
+                    height: '140px',
                     margin: '0 auto 10px',
                     backgroundColor: '#FFFFFF',
                     padding: '12px',
@@ -756,10 +879,10 @@ export default function PosView() {
                     justifyContent: 'center',
                   }}
                 >
-                  <QrCode size={116} color="#111111" strokeWidth={1.5} />
+                  <QrCode size={110} color="#111111" strokeWidth={1.5} />
                 </div>
                 <div className="font-mono" style={{ fontSize: '11.5px', fontWeight: 600 }}>
-                  NMID: ID10293847561 &bull; SIP BARANG
+                  NMID: ID10293847561 &bull; {settings.storeName}
                 </div>
               </div>
             )}
@@ -808,16 +931,16 @@ export default function PosView() {
                 type="button"
                 onClick={() => setIsPaymentModalOpen(false)}
                 className="btn btn-secondary"
-                style={{ flex: 1 }}
+                style={{ flex: 1, minHeight: '44px' }}
               >
                 Batal
               </button>
               <button
                 type="button"
-                onClick={handleConfirmPayment}
+                onClick={() => void handleConfirmPayment()}
                 disabled={paymentMethod === 'Tunai' && cashGiven < grandTotal}
                 className="btn btn-primary"
-                style={{ flex: 2 }}
+                style={{ flex: 2, minHeight: '44px' }}
               >
                 <Check size={16} />
                 <span>Selesaikan &amp; Cetak Struk</span>
@@ -830,9 +953,15 @@ export default function PosView() {
       {completedTransaction && (
         <ReceiptModal
           transaction={completedTransaction}
-          onClose={() => setCompletedTransaction(null)}
+          initialPrintNotice={receiptPrintNotice}
+          onClose={() => {
+            setCompletedTransaction(null);
+            setReceiptPrintNotice(null);
+          }}
         />
       )}
+
+      <PrinterModal isOpen={isPrinterModalOpen} onClose={() => setIsPrinterModalOpen(false)} />
     </div>
   );
 }

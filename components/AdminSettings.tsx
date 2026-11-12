@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { CashierAccount } from '@/lib/types';
+import { useBluetoothPrinter } from '@/lib/usePrinter';
 import {
   Shield,
   Database,
@@ -20,6 +21,10 @@ import {
   User,
   Lock,
   X,
+  Bluetooth,
+  BluetoothConnected,
+  BluetoothOff,
+  Printer,
 } from 'lucide-react';
 
 export default function AdminSettings() {
@@ -51,6 +56,44 @@ export default function AdminSettings() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const {
+    runtime: printerRuntime,
+    settings: printerSettings,
+    supportInfo: btSupport,
+    isConnected: isPrinterConnected,
+    isBusy: isPrinterBusy,
+    connect: connectPrinter,
+    disconnect: disconnectPrinter,
+    updateSettings: updatePrinterSettings,
+    testPrint,
+  } = useBluetoothPrinter();
+
+  const handleConnectBt = async () => {
+    setFeedback(null);
+    const res = await connectPrinter();
+    if (res.success) {
+      setFeedback({
+        type: 'success',
+        text: `Printer Bluetooth "${res.deviceName}" berhasil terhubung.`,
+      });
+    } else if (res.error) {
+      setFeedback({ type: 'error', text: res.error });
+    }
+  };
+
+  const handleTestBtPrint = async () => {
+    setFeedback(null);
+    const res = await testPrint();
+    if (res.success) {
+      setFeedback({
+        type: 'success',
+        text: 'Tes cetak struk berhasil dikirim ke printer Bluetooth!',
+      });
+    } else if (res.error) {
+      setFeedback({ type: 'error', text: res.error });
+    }
+  };
 
   const handleCreateCashier = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,6 +243,249 @@ export default function AdminSettings() {
           </button>
         </div>
       )}
+
+      {/* Bluetooth Thermal Printer & Store Receipt Config */}
+      <div className="sip-card" style={{ padding: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            padding: '18px 20px',
+            borderBottom: '1px solid var(--border-color)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isPrinterConnected ? (
+              <BluetoothConnected size={18} style={{ color: 'var(--accent-green-text)' }} />
+            ) : (
+              <Bluetooth size={18} style={{ color: 'var(--accent-cyan)' }} />
+            )}
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
+                Printer Thermal Bluetooth &amp; Identitas Struk
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Hubungkan printer thermal 58mm/80mm langsung via Bluetooth (Android Chrome / Desktop) &amp; atur header struk.
+              </p>
+            </div>
+          </div>
+          <span className={`badge ${isPrinterConnected ? 'badge-green' : 'badge-muted'}`}>
+            {isPrinterConnected
+              ? `Terhubung: ${printerRuntime.deviceName || printerSettings.lastDeviceName || 'Thermal BLE'}`
+              : 'Belum Terhubung'}
+          </span>
+        </div>
+
+        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {!btSupport.supported && (
+            <div className="alert-box-warning" style={{ fontSize: '12px' }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>{btSupport.reason}</span>
+            </div>
+          )}
+
+          {/* Pairing & Paper Size */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+              alignItems: 'stretch',
+            }}
+          >
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '10px',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  KONEKSI PRINTER BLUETOOTH
+                </div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, marginTop: '4px' }}>
+                  {isPrinterConnected
+                    ? printerRuntime.deviceName || printerSettings.lastDeviceName
+                    : printerSettings.lastDeviceName
+                    ? `Terakhir: ${printerSettings.lastDeviceName}`
+                    : 'Siap dipasangkan (BLE ESC/POS)'}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {!isPrinterConnected ? (
+                  <button
+                    type="button"
+                    disabled={isPrinterBusy || !btSupport.supported}
+                    onClick={() => void handleConnectBt()}
+                    className="btn btn-primary btn-sm"
+                    style={{ flex: 1, minHeight: '38px' }}
+                  >
+                    {printerRuntime.status === 'connecting' ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Bluetooth size={14} />
+                    )}
+                    <span>Hubungkan Printer</span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isPrinterBusy}
+                      onClick={() => void handleTestBtPrint()}
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 1, minHeight: '38px' }}
+                    >
+                      {printerRuntime.status === 'printing' ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Printer size={14} />
+                      )}
+                      <span>Tes Cetak</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPrinterBusy}
+                      onClick={disconnectPrinter}
+                      className="btn btn-secondary btn-sm"
+                      style={{ minHeight: '38px', color: 'var(--accent-red)' }}
+                    >
+                      <BluetoothOff size={14} />
+                      <span>Putus</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '10px',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  UKURAN KERTAS &amp; OTOMATISASI
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {(['58mm', '80mm'] as const).map((w) => {
+                    const selected = printerSettings.paperWidth === w;
+                    return (
+                      <button
+                        key={w}
+                        type="button"
+                        onClick={() => updatePrinterSettings({ paperWidth: w })}
+                        className="btn btn-sm"
+                        style={{
+                          borderColor: selected ? 'var(--accent-cyan)' : 'var(--border-color)',
+                          backgroundColor: selected
+                            ? 'rgba(var(--accent-cyan-rgb), 0.14)'
+                            : 'var(--bg-card)',
+                          color: selected ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                        }}
+                      >
+                        {w} ({w === '58mm' ? '32 kol' : '48 kol'})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '10px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <span>Cetak otomatis Bluetooth usai checkout</span>
+                <input
+                  type="checkbox"
+                  checked={printerSettings.autoPrintOnSale}
+                  onChange={(e) => updatePrinterSettings({ autoPrintOnSale: e.target.checked })}
+                  style={{ width: '17px', height: '17px', accentColor: 'var(--accent-cyan)' }}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Store Header Customization */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+              gap: '12px',
+            }}
+          >
+            <div>
+              <label className="form-label">Nama Toko di Struk</label>
+              <input
+                type="text"
+                value={printerSettings.storeName}
+                onChange={(e) => updatePrinterSettings({ storeName: e.target.value })}
+                className="sip-input"
+              />
+            </div>
+            <div>
+              <label className="form-label">Tagline / Subjudul Struk</label>
+              <input
+                type="text"
+                value={printerSettings.storeTagline}
+                onChange={(e) => updatePrinterSettings({ storeTagline: e.target.value })}
+                className="sip-input"
+              />
+            </div>
+            <div>
+              <label className="form-label">Alamat Toko</label>
+              <input
+                type="text"
+                value={printerSettings.storeAddress}
+                onChange={(e) => updatePrinterSettings({ storeAddress: e.target.value })}
+                className="sip-input"
+              />
+            </div>
+            <div>
+              <label className="form-label">Telepon / Website Struk</label>
+              <input
+                type="text"
+                value={printerSettings.storePhone}
+                onChange={(e) => updatePrinterSettings({ storePhone: e.target.value })}
+                className="sip-input"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="form-label">Pesan Footer Struk</label>
+            <input
+              type="text"
+              value={printerSettings.receiptFooter}
+              onChange={(e) => updatePrinterSettings({ receiptFooter: e.target.value })}
+              className="sip-input"
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Cashier Account Management Section */}
       <div className="sip-card" style={{ padding: 0 }}>
@@ -378,8 +664,8 @@ export default function AdminSettings() {
           </div>
         </form>
 
-        {/* Cashiers List Table */}
-        <div className="sip-table-container" style={{ border: 'none', borderRadius: 0 }}>
+        {/* Cashiers List — Desktop Table */}
+        <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
           <table className="sip-table">
             <thead>
               <tr>
@@ -445,7 +731,7 @@ export default function AdminSettings() {
                             title="Ubah Nama / Reset Kata Sandi"
                           >
                             <KeyRound size={13} />
-                            <span className="hide-mobile">Edit / Sandi</span>
+                            <span>Edit / Sandi</span>
                           </button>
 
                           <button
@@ -461,9 +747,7 @@ export default function AdminSettings() {
                             }}
                           >
                             <Power size={13} />
-                            <span className="hide-mobile">
-                              {c.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                            </span>
+                            <span>{c.isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
                           </button>
 
                           {isConfirming ? (
@@ -509,6 +793,106 @@ export default function AdminSettings() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Cashiers List — Mobile Cards */}
+        <div className="mobile-card-list" style={{ padding: '14px' }}>
+          {cashiers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '18px 8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+              Belum ada akun kasir untuk toko Anda. Gunakan formulir di atas untuk menambahkan kasir pertama.
+            </div>
+          ) : (
+            cashiers.map((c) => {
+              const isBusy = busyId === c.id;
+              const isConfirming = confirmDeleteId === c.id;
+              const formattedDate = new Date(c.createdAt).toLocaleDateString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              });
+
+              return (
+                <div key={c.id} className="mobile-data-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '14px' }}>{c.name}</div>
+                      <div className="font-mono" style={{ fontSize: '11.5px', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                        {c.email}
+                      </div>
+                    </div>
+                    <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
+                      {c.isActive ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Dibuat: {formattedDate}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid var(--border-color)' }}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => openEditModal(c)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ flex: 1, minHeight: '36px' }}
+                    >
+                      <KeyRound size={13} />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => void handleToggleStatus(c)}
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        flex: 1,
+                        minHeight: '36px',
+                        color: c.isActive ? 'var(--accent-amber-text)' : 'var(--accent-green-text)',
+                      }}
+                    >
+                      <Power size={13} />
+                      <span>{c.isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
+                    </button>
+
+                    {isConfirming ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => void handleDeleteCashier(c)}
+                          className="btn btn-danger btn-sm"
+                          style={{ minHeight: '36px' }}
+                        >
+                          Hapus!
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ minHeight: '36px' }}
+                        >
+                          Batal
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => setConfirmDeleteId(c.id)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ minHeight: '36px', color: 'var(--accent-red)' }}
+                        aria-label="Hapus Kasir"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
