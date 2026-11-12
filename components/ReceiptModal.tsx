@@ -64,7 +64,7 @@ export default function ReceiptModal({ transaction, onClose }: ReceiptModalProps
               Jl. Jenderal Sudirman Kav. 24, Jakarta
             </div>
             <div style={{ fontSize: '9px', color: '#777777' }}>
-              Telp: (021) 555-8899
+              Telp: (021) 555-8899 &bull; sipb.web.id
             </div>
           </div>
 
