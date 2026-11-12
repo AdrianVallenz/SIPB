@@ -5,7 +5,7 @@ import { useApp } from '@/context/AppContext';
 import { Shield, Database } from 'lucide-react';
 
 export default function AdminSettings() {
-  const { products, transactions, stockLogs } = useApp();
+  const { products, transactions, stockLogs, isCloudConnected } = useApp();
 
   return (
     <div className="page-container">
@@ -82,14 +82,19 @@ export default function AdminSettings() {
 
       {/* Database Status Card */}
       <div className="sip-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <Database size={18} style={{ color: 'var(--accent-cyan)' }} />
-          <div>
-            <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Status Penyimpanan Basis Data Lokal</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              Data disimpan secara persisten dan tervalidasi pada penyimpanan lokal peramban
-            </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Database size={18} style={{ color: 'var(--accent-cyan)' }} />
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Status Basis Data Cloud (Supabase PostgreSQL)</h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Sinkronisasi otomatis ke Supabase PostgreSQL (Region Asia Tenggara) dengan proteksi Row-Level Security (RLS)
+              </p>
+            </div>
           </div>
+          <span className={`badge ${isCloudConnected ? 'badge-green' : 'badge-amber'}`}>
+            {isCloudConnected ? 'Terhubung ke Supabase Cloud' : 'Mode Cache Lokal'}
+          </span>
         </div>
 
         <div className="kpi-grid">

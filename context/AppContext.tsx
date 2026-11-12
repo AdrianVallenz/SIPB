@@ -14,6 +14,16 @@ import {
   getStoredTheme,
   saveStoredTheme,
 } from '@/lib/storage';
+import {
+  signInSupabase,
+  setSupabaseAccessToken,
+  fetchCloudSnapshot,
+  syncUpsertProduct,
+  syncDeleteProduct,
+  syncInsertStockLogs,
+  syncInsertTransaction,
+  syncVoidTransaction,
+} from '@/lib/supabase';
 import { playCashierChime } from '@/lib/audio';
 
 interface ActionResult {
@@ -23,6 +33,7 @@ interface ActionResult {
 
 interface AppContextType {
   user: UserSession | null;
+  isCloudConnected: boolean;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   products: Product[];
@@ -74,10 +85,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      let snapshot = await fetchCloudSnapshot();
+      if (!snapshot.connected) {
+        const authRes = await signInSupabase(user.email, '12345678');
+        if (authRes.accessToken) {
+          snapshot = await fetchCloudSnapshot(authRes.accessToken);
+        }
+      }
+      if (!active || !snapshot.connected) return;
+      setIsCloudConnected(true);
+      if (snapshot.products && snapshot.products.length > 0) {
+        setProducts(snapshot.products);
+        saveStoredProducts(snapshot.products);
+      }
+      if (snapshot.transactions) {
+        setTransactions(snapshot.transactions);
+        saveStoredTransactions(snapshot.transactions);
+      }
+      if (snapshot.stockLogs) {
+        setStockLogs(snapshot.stockLogs);
+        saveStoredStockLogs(snapshot.stockLogs);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   const setActiveTab = (tab: string) => {
     if (!user) return;
@@ -156,6 +199,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setIsCloudConnected(false);
+    setSupabaseAccessToken(null);
     saveStoredSession(null);
   };
 
@@ -202,6 +247,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = [newProduct, ...products];
     setProducts(updated);
     saveStoredProducts(updated);
+    void syncUpsertProduct(newProduct);
 
     if (newProduct.stock > 0) {
       const log: StockLog = {
@@ -219,6 +265,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updatedLogs = [log, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs);
+      void syncInsertStockLogs([log]);
     }
 
     return { success: true };
@@ -259,6 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = products.map((p) => (p.id === sanitized.id ? sanitized : p));
     setProducts(updated);
     saveStoredProducts(updated);
+    void syncUpsertProduct(sanitized);
 
     if (existing.stock !== sanitized.stock) {
       const diff = Math.abs(sanitized.stock - existing.stock);
@@ -277,6 +325,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updatedLogs = [log, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs);
+      void syncInsertStockLogs([log]);
     }
 
     return { success: true };
@@ -289,6 +338,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = products.filter((p) => p.id !== productId);
     setProducts(updated);
     saveStoredProducts(updated);
+    void syncDeleteProduct(productId);
     return { success: true };
   };
 
@@ -326,11 +376,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       newStock = Math.max(0, cleanQty);
     }
 
-    const updated = products.map((p) =>
-      p.id === productId ? { ...p, stock: newStock, updatedAt: new Date().toISOString() } : p
-    );
+    const updatedProd = { ...prod, stock: newStock, updatedAt: new Date().toISOString() };
+    const updated = products.map((p) => (p.id === productId ? updatedProd : p));
     setProducts(updated);
     saveStoredProducts(updated);
+    void syncUpsertProduct(updatedProd);
 
     const log: StockLog = {
       id: 'log-' + Date.now().toString(36),
@@ -347,6 +397,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updatedLogs = [log, ...stockLogs];
     setStockLogs(updatedLogs);
     saveStoredStockLogs(updatedLogs);
+    void syncInsertStockLogs([log]);
 
     return { success: true };
   };
@@ -472,16 +523,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setProducts(updatedProducts);
     saveStoredProducts(updatedProducts);
+    for (const ci of cartItems) {
+      const changedProd = updatedProducts.find((p) => p.id === ci.productId);
+      if (changedProd) void syncUpsertProduct(changedProd);
+    }
 
     if (saleLogs.length > 0) {
       const updatedLogs = [...saleLogs, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs);
+      void syncInsertStockLogs(saleLogs);
     }
 
     const updatedTransactions = [newTransaction, ...transactions];
     setTransactions(updatedTransactions);
     saveStoredTransactions(updatedTransactions);
+    void syncInsertTransaction(newTransaction);
 
     playCashierChime();
 
@@ -548,15 +605,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setProducts(updatedProducts);
     saveStoredProducts(updatedProducts);
+    for (const [prodId] of itemQtyByProduct) {
+      const changedProd = updatedProducts.find((p) => p.id === prodId);
+      if (changedProd) void syncUpsertProduct(changedProd);
+    }
 
     if (voidLogs.length > 0) {
       const updatedLogs = [...voidLogs, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs);
+      void syncInsertStockLogs(voidLogs);
     }
 
     setTransactions(updatedTransactions);
     saveStoredTransactions(updatedTransactions);
+    void syncVoidTransaction(transactionId, cleanReason, nowIso);
 
     return { success: true };
   };
@@ -565,6 +628,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         user,
+        isCloudConnected,
         theme,
         toggleTheme,
         products,
