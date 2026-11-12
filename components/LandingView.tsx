@@ -1291,51 +1291,171 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
         style={{
           borderTop: '1px solid var(--border-color)',
           backgroundColor: 'var(--bg-card)',
-          padding: '24px 18px',
+          padding: '40px 18px 24px',
         }}
       >
-        <div
-          style={{
-            maxWidth: '1280px',
-            margin: '0 auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '14px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <Package size={18} style={{ color: 'var(--accent-cyan)' }} />
-            <span style={{ fontWeight: 800, fontSize: '14px' }}>
-              SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
-            </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-              &bull; Sistem Operasional Penjualan &amp; Inventaris Barang
-            </span>
+        <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+          <div className="landing-footer-grid" style={{ paddingBottom: '28px', borderBottom: '1px solid var(--border-color)' }}>
+            {/* Brand Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '9px',
+                    backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.14)',
+                    border: '1px solid rgba(var(--accent-cyan-rgb), 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--accent-cyan)',
+                  }}
+                >
+                  <Package size={18} />
+                </div>
+                <div>
+                  <span style={{ fontWeight: 800, fontSize: '15px', letterSpacing: '-0.02em' }}>
+                    SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
+                  </span>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Sistem Operasional Penjualan &amp; Inventaris
+                  </div>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '380px' }}>
+                Platform operasional retail modern dengan terminal kasir POS tercepat, pemantauan margin HPP real-time, serta isolasi database per toko berbasis Supabase PostgreSQL &amp; Row Level Security.
+              </p>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span className="badge badge-green font-mono" style={{ fontSize: '10.5px' }}>
+                  <CheckCircle2 size={11} /> Sistem Operasional Aktif
+                </span>
+                <span className="badge badge-cyan font-mono" style={{ fontSize: '10.5px' }}>
+                  Multi-Tenant RLS
+                </span>
+              </div>
+            </div>
+
+            {/* Navigation Column (No Login/Daftar buttons) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                Eksplorasi Fitur
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                <a href="#showcase" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  Showcase Modul Interaktif
+                </a>
+                <a href="#fitur" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  Keunggulan Operasional
+                </a>
+                <a href="#akses-peran" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  Kontrol Akses Admin &amp; Kasir
+                </a>
+                <a href="#arsitektur" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  Arsitektur &amp; Infrastruktur Cloud
+                </a>
+              </div>
+            </div>
+
+            {/* Endpoints & Infrastructure Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                Portal &amp; Infrastruktur
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <a
+                  href="https://sipb.web.id"
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-subtle)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    fontSize: '12.5px',
+                  }}
+                >
+                  <div>
+                    <div className="font-mono" style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                      sipb.web.id
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      Portal Showcase &amp; Dashboard Admin
+                    </div>
+                  </div>
+                  <ExternalLink size={13} style={{ color: 'var(--text-muted)' }} />
+                </a>
+
+                <a
+                  href="https://pos.sipb.web.id"
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-subtle)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    fontSize: '12.5px',
+                  }}
+                >
+                  <div>
+                    <div className="font-mono" style={{ fontWeight: 700, color: 'var(--accent-green-text)' }}>
+                      pos.sipb.web.id
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      Terminal Khusus Kasir POS
+                    </div>
+                  </div>
+                  <ExternalLink size={13} style={{ color: 'var(--text-muted)' }} />
+                </a>
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-            <a
-              href="https://sipb.web.id"
-              style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
-            >
-              <span>sipb.web.id</span>
-              <ExternalLink size={12} />
-            </a>
-            <a
-              href="https://pos.sipb.web.id"
-              style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
-            >
-              <span>pos.sipb.web.id</span>
-              <ExternalLink size={12} />
-            </a>
-            <button onClick={() => onOpenAuth('login')} className="btn btn-secondary btn-sm">
-              Masuk
-            </button>
-            <button onClick={() => onOpenAuth('register')} className="btn btn-primary btn-sm">
-              Daftar
-            </button>
+          {/* Bottom Copyright Strip */}
+          <div
+            style={{
+              paddingTop: '18px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px',
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <span>&copy; 2026 SIP Barang. Seluruh hak cipta dilindungi.</span>
+            <span className="font-mono" style={{ fontSize: '11px' }}>
+              Next.js 16 &bull; Supabase PostgreSQL (ap-southeast-1) &bull; Vercel Edge
+            </span>
           </div>
         </div>
       </footer>

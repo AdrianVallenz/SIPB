@@ -260,6 +260,25 @@ body {
   gap: 14px;
 }
 
+.landing-footer-grid {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr 1.25fr;
+  gap: 28px;
+}
+
+.dashboard-donut-layout {
+  display: grid;
+  grid-template-columns: 152px 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.dashboard-kpi-value {
+  font-size: clamp(19px, 1.85vw, 24px);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .pos-payment-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -411,9 +430,14 @@ body {
   .landing-telemetry-grid,
   .landing-bento-grid,
   .landing-role-grid,
-  .landing-tech-grid {
+  .landing-tech-grid,
+  .landing-footer-grid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+  .dashboard-donut-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
   .pos-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
