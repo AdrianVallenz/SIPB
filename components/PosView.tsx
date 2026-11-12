@@ -627,7 +627,7 @@ export default function PosView() {
             {/* Payment Method Selector */}
             <div style={{ marginBottom: '16px' }}>
               <label className="form-label">Metode Pembayaran</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+              <div className="pos-payment-grid">
                 {PAYMENT_METHODS.map((method) => {
                   const isSelected = paymentMethod === method;
                   return (

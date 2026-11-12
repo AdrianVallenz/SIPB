@@ -185,7 +185,7 @@ export default function AdminProducts() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Sub-navigation Tabs */}
           <div
             style={{
@@ -520,7 +520,7 @@ export default function AdminProducts() {
               onSubmit={isAddModalOpen ? handleSaveAdd : handleSaveEdit}
               style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
             >
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
+              <div className="form-grid-sku">
                 <div>
                   <label className="form-label">Kode SKU</label>
                   <input
@@ -546,7 +546,7 @@ export default function AdminProducts() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="form-label">Kategori</label>
                   <select
@@ -575,7 +575,7 @@ export default function AdminProducts() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="form-label">Harga Modal / Beli (Rp)</label>
                   <input
@@ -603,7 +603,7 @@ export default function AdminProducts() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-grid-2">
                 <div>
                   <label className="form-label">{isAddModalOpen ? 'Stok Awal' : 'Jumlah Stok'}</label>
                   <input

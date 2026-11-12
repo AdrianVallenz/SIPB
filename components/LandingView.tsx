@@ -113,18 +113,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div
-          style={{
-            maxWidth: '1280px',
-            margin: '0 auto',
-            padding: '0 18px',
-            height: '66px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}
-        >
+        <div className="landing-nav-inner">
           {/* Brand */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
@@ -224,18 +213,18 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               <>
                 <button
                   onClick={() => onOpenAuth('login')}
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-secondary btn-sm btn-nav-compact"
                   style={{ padding: '8px 13px' }}
                 >
-                  <LogIn size={14} />
+                  <LogIn size={14} className="hide-xs" />
                   <span>Masuk</span>
                 </button>
                 <button
                   onClick={() => onOpenAuth('register')}
-                  className="btn btn-primary btn-sm"
+                  className="btn btn-primary btn-sm btn-nav-compact"
                   style={{ padding: '8px 14px' }}
                 >
-                  <UserPlus size={14} />
+                  <UserPlus size={14} className="hide-xs" />
                   <span>Daftar</span>
                 </button>
               </>
