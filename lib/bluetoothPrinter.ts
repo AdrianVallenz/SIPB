@@ -554,12 +554,45 @@ class EscPosBuilder {
     return this;
   }
 
+  qrCode(data: string, moduleSize = 4) {
+    const clean = sanitizeThermalText(data).slice(0, 450);
+    if (!clean) return this;
+    const dataBytes = encodeAscii(clean);
+    const storeLen = dataBytes.length + 3;
+    const pL = storeLen & 0xff;
+    const pH = (storeLen >> 8) & 0xff;
+    const clampedSize = Math.max(3, Math.min(6, moduleSize));
+
+    // Select QR model 2
+    this.bytes.push(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00);
+    // Module size
+    this.bytes.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, clampedSize);
+    // Error correction level M (49)
+    this.bytes.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31);
+    // Store data in symbol storage
+    this.bytes.push(0x1d, 0x28, 0x6b, pL, pH, 0x31, 0x50, 0x30, ...dataBytes);
+    // Print symbol
+    this.bytes.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30);
+    this.bytes.push(0x0a);
+    return this;
+  }
+
   toUint8Array(): Uint8Array {
     return new Uint8Array(this.bytes);
   }
 }
 
-export function buildEscPosReceipt(trx: Transaction, settings: PrinterSettings): Uint8Array {
+export interface ThermalReceiptOptions {
+  qrData?: string;
+  qrCaption?: string;
+  customNote?: string;
+}
+
+export function buildEscPosReceipt(
+  trx: Transaction,
+  settings: PrinterSettings,
+  options?: ThermalReceiptOptions
+): Uint8Array {
   const cols = settings.paperWidth === '80mm' ? 48 : 32;
   const builder = new EscPosBuilder();
 
@@ -616,9 +649,19 @@ export function buildEscPosReceipt(trx: Transaction, settings: PrinterSettings):
 
   builder.divider(cols);
 
-  // Footer
+  // Footer & Optional Nota/QRIS QR Code
   builder.align('center');
+  if (options?.qrData) {
+    if (options.qrCaption) {
+      builder.bold(true).line(options.qrCaption).bold(false);
+    }
+    const dotSize = options.qrData.length > 100 ? (settings.paperWidth === '80mm' ? 4 : 3) : 5;
+    builder.qrCode(options.qrData, dotSize);
+  }
   builder.line(`*${trx.invoiceNo}*`);
+  if (options?.customNote) {
+    wrapTextLines(options.customNote, cols).forEach((l) => builder.line(l));
+  }
   if (settings.receiptFooter) {
     wrapTextLines(settings.receiptFooter, cols).forEach((l) => builder.line(l));
   }
@@ -660,7 +703,8 @@ export function buildEscPosTestReceipt(settings: PrinterSettings): Uint8Array {
 
 export async function printTransactionViaBluetooth(
   transaction: Transaction,
-  autoPromptIfDisconnected = true
+  autoPromptIfDisconnected = true,
+  options?: ThermalReceiptOptions
 ): Promise<{ success: boolean; error?: string }> {
   if (isPrintingLocked) {
     return {
@@ -674,7 +718,7 @@ export async function printTransactionViaBluetooth(
     const settings = getPrinterSettings();
     emitRuntimeState({ status: 'printing', lastError: null });
 
-    const payload = buildEscPosReceipt(transaction, settings);
+    const payload = buildEscPosReceipt(transaction, settings, options);
     await writeChunkedBytes(char, payload);
 
     emitRuntimeState({

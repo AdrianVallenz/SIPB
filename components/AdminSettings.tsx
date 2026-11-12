@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { CashierAccount } from '@/lib/types';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
+import QrisConfigPanel from './QrisConfigPanel';
 import {
   Shield,
   Database,
@@ -25,6 +26,7 @@ import {
   BluetoothConnected,
   BluetoothOff,
   Printer,
+  QrCode,
 } from 'lucide-react';
 
 export default function AdminSettings() {
@@ -34,6 +36,7 @@ export default function AdminSettings() {
     transactions,
     stockLogs,
     cashiers,
+    paymentSettings,
     isCloudConnected,
     createCashier,
     toggleCashierStatus,
@@ -484,6 +487,38 @@ export default function AdminSettings() {
               className="sip-input"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Store QRIS & Bank Transfer Configuration */}
+      <div className="sip-card" style={{ padding: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            padding: '18px 20px',
+            borderBottom: '1px solid var(--border-color)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <QrCode size={18} style={{ color: 'var(--accent-cyan)' }} />
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
+                QRIS Bayar Toko &amp; Rekening Pembayaran
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Unggah gambar QRIS atau tempel kode EMVCo merchant Anda untuk membuat QRIS Dinamis otomatis per transaksi (tersinkron ke seluruh perangkat kasir).
+              </p>
+            </div>
+          </div>
+          <span className="badge badge-cyan">DINAMIS EMVCo</span>
+        </div>
+
+        <div style={{ padding: '18px 20px' }}>
+          <QrisConfigPanel key={paymentSettings.updatedAt || 'init'} />
         </div>
       </div>
 

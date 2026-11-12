@@ -6,14 +6,17 @@ import {
   PaymentMethod,
   Product,
   StockLog,
+  StorePaymentSettings,
   Transaction,
   UserSession,
 } from '@/lib/types';
 import {
   DEMO_ACCOUNTS,
   DEMO_OWNER_ID,
+  getDefaultStorePaymentSettings,
   getStoredAccounts,
   getStoredCashiers,
+  getStoredPaymentSettings,
   getStoredProducts,
   getStoredSession,
   getStoredStockLogs,
@@ -22,6 +25,7 @@ import {
   removeStoredAccount,
   saveStoredAccount,
   saveStoredCashiers,
+  saveStoredPaymentSettings,
   saveStoredProducts,
   saveStoredSession,
   saveStoredStockLogs,
@@ -39,6 +43,7 @@ import {
   syncInsertStockLogs,
   syncInsertTransaction,
   syncUpdateProductStock,
+  syncUpsertPaymentSettings,
   syncUpsertProduct,
   syncVoidTransaction,
   toggleCashierCloud,
@@ -46,6 +51,7 @@ import {
 } from '@/lib/supabase';
 import { INITIAL_PRODUCTS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
+import { generateInvoiceNo } from '@/lib/format';
 
 interface ActionResult {
   success: boolean;
@@ -66,6 +72,10 @@ interface AppContextType {
   transactions: Transaction[];
   stockLogs: StockLog[];
   cashiers: CashierAccount[];
+  paymentSettings: StorePaymentSettings;
+  updatePaymentSettings: (
+    patch: Partial<Omit<StorePaymentSettings, 'ownerId' | 'updatedAt'>>
+  ) => Promise<ActionResult>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   login: (email: string, pass: string) => Promise<AuthResult>;
@@ -92,7 +102,8 @@ interface AppContextType {
     items: { productId: string; quantity: number }[],
     paymentMethod: PaymentMethod,
     discount: number,
-    amountPaid: number
+    amountPaid: number,
+    customInvoiceNo?: string
   ) => { success: boolean; transaction?: Transaction; error?: string };
   voidTransaction: (transactionId: string, reason: string) => ActionResult;
 }
@@ -131,6 +142,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cashiers, setCashiers] = useState<CashierAccount[]>(() =>
     getStoredCashiers(getStoredSession()?.ownerId || DEMO_OWNER_ID)
   );
+  const [paymentSettings, setPaymentSettings] = useState<StorePaymentSettings>(() =>
+    getStoredPaymentSettings(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+  );
   const [activeTab, setActiveTabState] = useState<string>(() => {
     const session = getStoredSession();
     return session?.role === 'admin' ? 'dashboard' : 'pos';
@@ -148,6 +162,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTransactions(getStoredTransactions(ownerId));
     setStockLogs(getStoredStockLogs(ownerId));
     setCashiers(getStoredCashiers(ownerId));
+    setPaymentSettings(getStoredPaymentSettings(ownerId));
   };
 
   useEffect(() => {
@@ -182,6 +197,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (snapshot.cashiers) {
         setCashiers(snapshot.cashiers);
         saveStoredCashiers(snapshot.cashiers, targetOwnerId);
+      }
+      if (snapshot.paymentSettings) {
+        setPaymentSettings(snapshot.paymentSettings);
+        saveStoredPaymentSettings(snapshot.paymentSettings, targetOwnerId);
+      } else {
+        setPaymentSettings(getStoredPaymentSettings(targetOwnerId));
       }
     })();
     return () => {
@@ -800,7 +821,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     cartItems: { productId: string; quantity: number }[],
     paymentMethod: PaymentMethod,
     discount: number,
-    amountPaid: number
+    amountPaid: number,
+    customInvoiceNo?: string
   ) => {
     if (!user) {
       return { success: false, error: 'Sesi pengguna tidak ditemukan. Silakan masuk kembali.' };
@@ -867,10 +889,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const finalAmountPaid = paymentMethod === 'Tunai' ? safeAmountPaid : grandTotal;
 
     const now = new Date();
-    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    const ownerTag = user.ownerId.replace(/-/g, '').slice(0, 3).toUpperCase();
-    const randomSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-    const invoiceNo = `TRX-${dateStr}-${ownerTag}${randomSuffix}`;
+    const cleanInvoiceNo = customInvoiceNo?.trim();
+    const invoiceNo =
+      cleanInvoiceNo && /^TRX-[A-Z0-9\-]{6,30}$/.test(cleanInvoiceNo)
+        ? cleanInvoiceNo
+        : generateInvoiceNo(user.ownerId);
 
     const newTransaction: Transaction = {
       id: makeId('trx'),
@@ -1030,6 +1053,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
+  const updatePaymentSettings = async (
+    patch: Partial<Omit<StorePaymentSettings, 'ownerId' | 'updatedAt'>>
+  ): Promise<ActionResult> => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const base = paymentSettings.ownerId === user.ownerId
+      ? paymentSettings
+      : getDefaultStorePaymentSettings(user.ownerId);
+
+    const nextSettings: StorePaymentSettings = {
+      ...base,
+      ...patch,
+      ownerId: user.ownerId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPaymentSettings(nextSettings);
+    saveStoredPaymentSettings(nextSettings, user.ownerId);
+
+    const syncRes = await syncUpsertPaymentSettings(nextSettings, user.ownerId);
+    if (!syncRes.ok && syncRes.error !== 'Offline') {
+      return { success: false, error: syncRes.error || 'Gagal menyinkronkan pengaturan ke cloud.' };
+    }
+
+    return { success: true };
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1041,6 +1092,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         transactions,
         stockLogs,
         cashiers,
+        paymentSettings,
+        updatePaymentSettings,
         activeTab,
         setActiveTab,
         login,

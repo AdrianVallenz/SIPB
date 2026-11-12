@@ -1,9 +1,16 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Transaction } from '@/lib/types';
 import { formatRupiah, formatDateTime } from '@/lib/format';
+import { useApp } from '@/context/AppContext';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
+import {
+  buildDynamicQrisPayload,
+  generateQrisQrDataUrl,
+  parseAndValidateQris,
+} from '@/lib/qris';
 import PrinterModal from './PrinterModal';
 import {
   Printer,
@@ -14,6 +21,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  QrCode,
   Settings2,
 } from 'lucide-react';
 
@@ -49,13 +57,68 @@ function ReceiptModalContent({
   onClose: () => void;
   initialPrintNotice?: { type: 'success' | 'error'; text: string } | null;
 }) {
+  const { paymentSettings } = useApp();
   const { runtime, settings, supportInfo, isConnected, isBusy, printTransaction } =
     useBluetoothPrinter();
+
+  const parsedMerchantQris = useMemo(
+    () =>
+      paymentSettings.qrisPayload.trim()
+        ? parseAndValidateQris(paymentSettings.qrisPayload)
+        : null,
+    [paymentSettings.qrisPayload]
+  );
+
+  const hasValidMerchantQris = Boolean(parsedMerchantQris?.valid);
+  const [showQrOnReceipt, setShowQrOnReceipt] = useState<boolean>(
+    paymentSettings.showQrisOnReceipt ?? true
+  );
+  const [qrMode, setQrMode] = useState<'qris' | 'verify'>(() =>
+    transaction.paymentMethod === 'QRIS' && hasValidMerchantQris ? 'qris' : 'verify'
+  );
+  const [qrImageState, setQrImageState] = useState<{ payload: string; url: string }>({
+    payload: '',
+    url: '',
+  });
 
   const [printNotice, setPrintNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(
     initialPrintNotice
   );
   const [showPrinterSetup, setShowPrinterSetup] = useState(false);
+
+  const activeQrPayload = useMemo(() => {
+    if (!showQrOnReceipt) return '';
+    if (qrMode === 'qris' && parsedMerchantQris?.valid) {
+      return buildDynamicQrisPayload(
+        parsedMerchantQris.cleanedPayload,
+        transaction.total,
+        true,
+        transaction.invoiceNo
+      );
+    }
+    return `NOTA|${transaction.invoiceNo}|${transaction.total}|${transaction.paymentMethod}|${transaction.status || 'COMPLETED'}`;
+  }, [showQrOnReceipt, qrMode, parsedMerchantQris, transaction]);
+
+  useEffect(() => {
+    let active = true;
+    if (!activeQrPayload) return;
+    void generateQrisQrDataUrl(activeQrPayload)
+      .then((url) => {
+        if (active) setQrImageState({ payload: activeQrPayload, url });
+      })
+      .catch(() => {
+        // Fallback smoothly
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeQrPayload]);
+
+  const currentQrDataUrl = qrImageState.payload === activeQrPayload ? qrImageState.url : '';
+  const qrCaptionText =
+    qrMode === 'qris' && hasValidMerchantQris
+      ? `QRIS NOTA • ${paymentSettings.qrisMerchantName || parsedMerchantQris?.merchantName || settings.storeName}`
+      : 'QR VERIFIKASI NOTA';
 
   const handleBrowserPrint = () => {
     if (typeof window !== 'undefined') {
@@ -65,7 +128,11 @@ function ReceiptModalContent({
 
   const handleBluetoothPrint = async () => {
     setPrintNotice(null);
-    const res = await printTransaction(transaction, true);
+    const res = await printTransaction(transaction, true, {
+      qrData: activeQrPayload || undefined,
+      qrCaption: activeQrPayload ? qrCaptionText : undefined,
+      customNote: paymentSettings.qrisCustomNote || undefined,
+    });
     if (res.success) {
       setPrintNotice({
         type: 'success',
@@ -288,27 +355,142 @@ function ReceiptModalContent({
 
             <div className="receipt-divider" />
 
-            {/* Footer & Barcode simulation */}
+            {/* Footer & Real Nota / QRIS QR Code */}
             <div style={{ textAlign: 'center', marginTop: '10px' }}>
-              <div
-                style={{
-                  height: '24px',
-                  width: '180px',
-                  margin: '0 auto 6px',
-                  background:
-                    'repeating-linear-gradient(90deg, #000, #000 2px, transparent 2px, transparent 4px, #000 4px, #000 7px, transparent 7px, transparent 9px)',
-                }}
-              />
+              {showQrOnReceipt && currentQrDataUrl ? (
+                <div style={{ marginBottom: '8px' }}>
+                  <div
+                    style={{
+                      fontSize: '8.5px',
+                      fontWeight: 800,
+                      letterSpacing: '0.06em',
+                      color: '#222222',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    {qrCaptionText}
+                  </div>
+                  <div
+                    style={{
+                      width: qrMode === 'qris' && hasValidMerchantQris ? '118px' : '88px',
+                      height: qrMode === 'qris' && hasValidMerchantQris ? '118px' : '88px',
+                      margin: '0 auto 4px',
+                      backgroundColor: '#FFFFFF',
+                      padding: '4px',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <img
+                      src={currentQrDataUrl}
+                      alt={`QR ${transaction.invoiceNo}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                    />
+                  </div>
+                  {qrMode === 'qris' && (paymentSettings.qrisNmid || parsedMerchantQris?.nmid) && (
+                    <div style={{ fontSize: '8px', color: '#555555' }}>
+                      NMID: {paymentSettings.qrisNmid || parsedMerchantQris?.nmid}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    height: '24px',
+                    width: '180px',
+                    margin: '0 auto 6px',
+                    background:
+                      'repeating-linear-gradient(90deg, #000, #000 2px, transparent 2px, transparent 4px, #000 4px, #000 7px, transparent 7px, transparent 9px)',
+                  }}
+                />
+              )}
               <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.15em' }}>
                 *{transaction.invoiceNo}*
               </div>
-              <div style={{ fontSize: '9px', color: '#555555', marginTop: '6px' }}>
+              {paymentSettings.qrisCustomNote && (
+                <div style={{ fontSize: '8.5px', color: '#333333', marginTop: '4px', fontWeight: 600 }}>
+                  {paymentSettings.qrisCustomNote}
+                </div>
+              )}
+              <div style={{ fontSize: '9px', color: '#555555', marginTop: '4px' }}>
                 {settings.receiptFooter || 'Terima Kasih Atas Kunjungan Anda'}
               </div>
               <div style={{ fontSize: '8px', color: '#777777' }}>
                 Simpan struk ini sebagai bukti transaksi pembayaran yang sah.
               </div>
             </div>
+          </div>
+
+          {/* QR Nota Options Bar (No Print) */}
+          <div
+            className="no-print"
+            style={{
+              marginTop: '12px',
+              padding: '8px 10px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-subtle)',
+              border: '1px solid var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              flexWrap: 'wrap',
+              fontSize: '11.5px',
+            }}
+          >
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showQrOnReceipt}
+                onChange={(e) => setShowQrOnReceipt(e.target.checked)}
+                style={{ width: '15px', height: '15px', accentColor: 'var(--accent-cyan)' }}
+              />
+              <QrCode size={13} style={{ color: 'var(--accent-cyan)' }} />
+              <span>QR pada Nota</span>
+            </label>
+
+            {showQrOnReceipt && hasValidMerchantQris && (
+              <div style={{ display: 'inline-flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setQrMode('qris')}
+                  className="btn btn-sm"
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    borderColor: qrMode === 'qris' ? 'var(--accent-cyan)' : 'var(--border-color)',
+                    backgroundColor:
+                      qrMode === 'qris' ? 'rgba(var(--accent-cyan-rgb), 0.14)' : 'var(--bg-card)',
+                    color: qrMode === 'qris' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  }}
+                >
+                  QRIS Nota
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrMode('verify')}
+                  className="btn btn-sm"
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    borderColor: qrMode === 'verify' ? 'var(--accent-cyan)' : 'var(--border-color)',
+                    backgroundColor:
+                      qrMode === 'verify' ? 'rgba(var(--accent-cyan-rgb), 0.14)' : 'var(--bg-card)',
+                    color: qrMode === 'verify' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                  }}
+                >
+                  QR Verifikasi
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Modal Bottom Action Buttons (No Print) */}

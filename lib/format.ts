@@ -25,3 +25,13 @@ export function formatDateTime(isoString: string, includeSeconds = false): strin
   });
 }
 
+export function generateInvoiceNo(ownerId: string = ''): string {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
+    now.getDate()
+  ).padStart(2, '0')}`;
+  const cleanOwner = ownerId.replace(/-/g, '').slice(0, 3).toUpperCase() || 'SIP';
+  const randomSuffix = Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
+  return `TRX-${dateStr}-${cleanOwner}${randomSuffix}`;
+}
+

@@ -1,4 +1,11 @@
-import { Product, Transaction, StockLog, UserSession, CashierAccount } from './types';
+import {
+  Product,
+  Transaction,
+  StockLog,
+  UserSession,
+  CashierAccount,
+  StorePaymentSettings,
+} from './types';
 import { INITIAL_PRODUCTS, INITIAL_TRANSACTIONS, INITIAL_STOCK_LOGS } from './dummyData';
 
 export const DEMO_OWNER_ID = '00000000-0000-0000-0000-000000000001';
@@ -9,6 +16,7 @@ const STORAGE_KEYS = {
   TRANSACTIONS: 'sip_transactions_v2',
   STOCK_LOGS: 'sip_stock_logs_v2',
   CASHIERS: 'sip_cashiers_v2',
+  PAYMENT_SETTINGS: 'sip_payment_settings_v1',
   SESSION: 'sip_session_v2',
   THEME: 'sip_theme_v1',
   ACCOUNTS: 'sip_registered_accounts_v2',
@@ -357,5 +365,76 @@ export const saveStoredTheme = (theme: 'dark' | 'light'): void => {
     localStorage.setItem(STORAGE_KEYS.THEME, theme);
   } catch (err) {
     console.error('Failed to save theme to storage', err);
+  }
+};
+
+export const getDefaultStorePaymentSettings = (
+  ownerId: string = DEMO_OWNER_ID
+): StorePaymentSettings => ({
+  ownerId,
+  qrisPayload: '',
+  qrisImageData: '',
+  qrisMerchantName: '',
+  qrisNmid: '',
+  qrisTheme: 'classic',
+  qrisCustomNote: '',
+  showQrisOnReceipt: true,
+  bankName: '',
+  bankAccountNumber: '',
+  bankAccountHolder: '',
+  updatedAt: '',
+});
+
+export const getStoredPaymentSettings = (
+  ownerId: string = DEMO_OWNER_ID
+): StorePaymentSettings => {
+  const defaults = getDefaultStorePaymentSettings(ownerId);
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const raw = localStorage.getItem(tenantKey(STORAGE_KEYS.PAYMENT_SETTINGS, ownerId));
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Partial<StorePaymentSettings>;
+    if (!parsed || typeof parsed !== 'object') return defaults;
+    const validTheme =
+      parsed.qrisTheme === 'ocean' ||
+      parsed.qrisTheme === 'emerald' ||
+      parsed.qrisTheme === 'dark'
+        ? parsed.qrisTheme
+        : 'classic';
+    return {
+      ownerId,
+      qrisPayload: typeof parsed.qrisPayload === 'string' ? parsed.qrisPayload : '',
+      qrisImageData: typeof parsed.qrisImageData === 'string' ? parsed.qrisImageData : '',
+      qrisMerchantName:
+        typeof parsed.qrisMerchantName === 'string' ? parsed.qrisMerchantName : '',
+      qrisNmid: typeof parsed.qrisNmid === 'string' ? parsed.qrisNmid : '',
+      qrisTheme: validTheme,
+      qrisCustomNote: typeof parsed.qrisCustomNote === 'string' ? parsed.qrisCustomNote : '',
+      showQrisOnReceipt:
+        typeof parsed.showQrisOnReceipt === 'boolean' ? parsed.showQrisOnReceipt : true,
+      bankName: typeof parsed.bankName === 'string' ? parsed.bankName : '',
+      bankAccountNumber:
+        typeof parsed.bankAccountNumber === 'string' ? parsed.bankAccountNumber : '',
+      bankAccountHolder:
+        typeof parsed.bankAccountHolder === 'string' ? parsed.bankAccountHolder : '',
+      updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+    };
+  } catch {
+    return defaults;
+  }
+};
+
+export const saveStoredPaymentSettings = (
+  settings: StorePaymentSettings,
+  ownerId: string = DEMO_OWNER_ID
+): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(
+      tenantKey(STORAGE_KEYS.PAYMENT_SETTINGS, ownerId),
+      JSON.stringify({ ...settings, ownerId })
+    );
+  } catch (err) {
+    console.error('Failed to save store payment settings to storage', err);
   }
 };

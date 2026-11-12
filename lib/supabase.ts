@@ -5,6 +5,7 @@ import {
   ProductCategory,
   Role,
   StockLog,
+  StorePaymentSettings,
   Transaction,
   TransactionItem,
 } from './types';
@@ -365,22 +366,39 @@ interface DbCashierRow {
   created_at: string;
 }
 
+interface DbStorePaymentSettingsRow {
+  owner_id: string;
+  qris_payload: string;
+  qris_image_data: string;
+  qris_merchant_name: string;
+  qris_nmid: string;
+  qris_theme?: string;
+  qris_custom_note?: string;
+  show_qris_on_receipt?: boolean;
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_holder: string;
+  updated_at: string;
+}
+
 export async function fetchCloudSnapshot(token?: string | null): Promise<{
   products?: Product[];
   transactions?: Transaction[];
   stockLogs?: StockLog[];
   cashiers?: CashierAccount[];
+  paymentSettings?: StorePaymentSettings | null;
   connected: boolean;
 }> {
   const activeToken = token ?? getSupabaseAccessToken();
   if (!activeToken) return { connected: false };
 
   try {
-    const [prodRes, trxRes, logRes, cashRes] = await Promise.all([
+    const [prodRes, trxRes, logRes, cashRes, payRes] = await Promise.all([
       fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?select=*&order=updated_at.desc`, {}, activeToken),
       fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions?select=*&order=created_at.desc`, {}, activeToken),
       fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/stock_logs?select=*&order=created_at.desc`, {}, activeToken),
       fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/store_cashiers?select=*&order=created_at.desc`, {}, activeToken),
+      fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/store_payment_settings?select=*&limit=1`, {}, activeToken),
     ]);
 
     if (!prodRes.ok || !trxRes.ok || !logRes.ok) {
@@ -394,6 +412,9 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
     ])) as [DbProductRow[], DbTransactionRow[], DbStockLogRow[]];
 
     const cashRows: DbCashierRow[] = cashRes.ok ? ((await cashRes.json()) as DbCashierRow[]) : [];
+    const payRows: DbStorePaymentSettingsRow[] = payRes.ok
+      ? ((await payRes.json()) as DbStorePaymentSettingsRow[])
+      : [];
 
     const products: Product[] = prodRows.map((r) => ({
       id: r.id,
@@ -453,7 +474,31 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
       createdAt: c.created_at,
     }));
 
-    return { products, transactions, stockLogs, cashiers, connected: true };
+    const firstPay = payRows[0];
+    const validTheme =
+      firstPay?.qris_theme === 'ocean' ||
+      firstPay?.qris_theme === 'emerald' ||
+      firstPay?.qris_theme === 'dark'
+        ? firstPay.qris_theme
+        : 'classic';
+    const paymentSettings: StorePaymentSettings | null = firstPay
+      ? {
+          ownerId: firstPay.owner_id,
+          qrisPayload: firstPay.qris_payload || '',
+          qrisImageData: firstPay.qris_image_data || '',
+          qrisMerchantName: firstPay.qris_merchant_name || '',
+          qrisNmid: firstPay.qris_nmid || '',
+          qrisTheme: validTheme,
+          qrisCustomNote: firstPay.qris_custom_note || '',
+          showQrisOnReceipt: firstPay.show_qris_on_receipt ?? true,
+          bankName: firstPay.bank_name || '',
+          bankAccountNumber: firstPay.bank_account_number || '',
+          bankAccountHolder: firstPay.bank_account_holder || '',
+          updatedAt: firstPay.updated_at || '',
+        }
+      : null;
+
+    return { products, transactions, stockLogs, cashiers, paymentSettings, connected: true };
   } catch {
     return { connected: false };
   }
@@ -599,5 +644,40 @@ export async function syncVoidTransaction(
     });
   } catch {
     // Ignore offline error
+  }
+}
+
+export async function syncUpsertPaymentSettings(
+  settings: StorePaymentSettings,
+  ownerId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/store_payment_settings`, {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        owner_id: settings.ownerId || ownerId,
+        qris_payload: settings.qrisPayload || '',
+        qris_image_data: settings.qrisImageData || '',
+        qris_merchant_name: settings.qrisMerchantName || '',
+        qris_nmid: settings.qrisNmid || '',
+        qris_theme: settings.qrisTheme || 'classic',
+        qris_custom_note: settings.qrisCustomNote || '',
+        show_qris_on_receipt: settings.showQrisOnReceipt ?? true,
+        bank_name: settings.bankName || '',
+        bank_account_number: settings.bankAccountNumber || '',
+        bank_account_holder: settings.bankAccountHolder || '',
+        updated_at: settings.updatedAt || new Date().toISOString(),
+      }),
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: err.message || 'Gagal menyimpan pengaturan QRIS ke cloud.' };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Offline' };
   }
 }

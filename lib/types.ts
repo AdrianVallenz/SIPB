@@ -100,3 +100,20 @@ export interface StockLog {
   createdAt: string;
   operator: string;
 }
+
+export type QrisCardTheme = 'classic' | 'ocean' | 'emerald' | 'dark';
+
+export interface StorePaymentSettings {
+  ownerId: string;
+  qrisPayload: string;
+  qrisImageData: string;
+  qrisMerchantName: string;
+  qrisNmid: string;
+  qrisTheme: QrisCardTheme;
+  qrisCustomNote: string;
+  showQrisOnReceipt: boolean;
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountHolder: string;
+  updatedAt: string;
+}

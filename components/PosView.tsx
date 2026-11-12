@@ -3,10 +3,13 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, PRODUCT_CATEGORIES, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
-import { formatRupiah } from '@/lib/format';
+import { formatRupiah, generateInvoiceNo } from '@/lib/format';
+import { buildDynamicQrisPayload, parseAndValidateQris } from '@/lib/qris';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import ReceiptModal from './ReceiptModal';
 import PrinterModal from './PrinterModal';
+import QrisPaymentBox from './QrisPaymentBox';
+import QrisConfigPanel from './QrisConfigPanel';
 import { playBeep } from '@/lib/audio';
 import {
   Search,
@@ -33,7 +36,7 @@ interface CartItemState {
 }
 
 export default function PosView() {
-  const { products, processSale } = useApp();
+  const { user, products, paymentSettings, processSale } = useApp();
   const { runtime, settings, isConnected, printTransaction } = useBluetoothPrinter();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,11 +48,13 @@ export default function PosView() {
   // Mobile Cart Sheet & Printer Modal
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [isPrinterModalOpen, setIsPrinterModalOpen] = useState(false);
+  const [isQrisSetupOpen, setIsQrisSetupOpen] = useState(false);
 
   // Payment Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Tunai');
   const [cashGiven, setCashGiven] = useState<number>(0);
+  const [draftInvoiceNo, setDraftInvoiceNo] = useState<string>('');
   const [paymentError, setPaymentError] = useState<string>('');
 
   // Finished Transaction Receipt & Auto-print Notice
@@ -168,13 +173,20 @@ export default function PosView() {
     if (validCart.length === 0) return;
     setPaymentError('');
     setCashGiven(grandTotal);
+    setDraftInvoiceNo(generateInvoiceNo(user?.ownerId || ''));
     setIsMobileCartOpen(false);
     setIsPaymentModalOpen(true);
   };
 
   const handleConfirmPayment = async () => {
     setPaymentError('');
-    const res = processSale(validCart, paymentMethod, finalDiscount, cashGiven);
+    const res = processSale(
+      validCart,
+      paymentMethod,
+      finalDiscount,
+      cashGiven,
+      draftInvoiceNo
+    );
     if (res.success && res.transaction) {
       setIsPaymentModalOpen(false);
       setIsMobileCartOpen(false);
@@ -183,7 +195,32 @@ export default function PosView() {
 
       let autoNotice: { type: 'success' | 'error'; text: string } | null = null;
       if (settings.autoPrintOnSale && isConnected) {
-        const printRes = await printTransaction(res.transaction, false);
+        let qrData: string | undefined;
+        let qrCaption: string | undefined;
+        if (paymentSettings.showQrisOnReceipt ?? true) {
+          const parsedMerchant = paymentSettings.qrisPayload.trim()
+            ? parseAndValidateQris(paymentSettings.qrisPayload)
+            : null;
+          if (res.transaction.paymentMethod === 'QRIS' && parsedMerchant?.valid) {
+            qrData = buildDynamicQrisPayload(
+              parsedMerchant.cleanedPayload,
+              res.transaction.total,
+              true,
+              res.transaction.invoiceNo
+            );
+            qrCaption = `QRIS NOTA • ${
+              paymentSettings.qrisMerchantName || parsedMerchant.merchantName || settings.storeName
+            }`;
+          } else {
+            qrData = `NOTA|${res.transaction.invoiceNo}|${res.transaction.total}|${res.transaction.paymentMethod}|${res.transaction.status || 'COMPLETED'}`;
+            qrCaption = 'QR VERIFIKASI NOTA';
+          }
+        }
+        const printRes = await printTransaction(res.transaction, false, {
+          qrData,
+          qrCaption,
+          customNote: paymentSettings.qrisCustomNote || undefined,
+        });
         autoNotice = printRes.success
           ? {
               type: 'success',
@@ -855,38 +892,18 @@ export default function PosView() {
             )}
 
             {paymentMethod === 'QRIS' && (
-              <div
-                style={{
-                  padding: '16px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--bg-subtle)',
-                  border: '1px solid var(--border-color)',
-                  textAlign: 'center',
-                  marginBottom: '16px',
-                }}
-              >
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                  Pindai kode QRIS berikut menggunakan aplikasi pembayaran pelanggan:
-                </div>
-                <div
-                  style={{
-                    width: '140px',
-                    height: '140px',
-                    margin: '0 auto 10px',
-                    backgroundColor: '#FFFFFF',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <QrCode size={110} color="#111111" strokeWidth={1.5} />
-                </div>
-                <div className="font-mono" style={{ fontSize: '11.5px', fontWeight: 600 }}>
-                  NMID: ID10293847561 &bull; {settings.storeName}
-                </div>
-              </div>
+              <QrisPaymentBox
+                invoiceNo={draftInvoiceNo}
+                subtotal={cartSubtotal}
+                discount={finalDiscount}
+                grandTotal={grandTotal}
+                totalPcs={totalPcsInCart}
+                itemCount={validCart.length}
+                storeName={settings.storeName}
+                storeTagline={settings.storeTagline}
+                isAdmin={user?.role === 'admin'}
+                onOpenQrisSetup={() => setIsQrisSetupOpen(true)}
+              />
             )}
 
             {paymentMethod === 'Transfer Bank' && (
@@ -901,9 +918,16 @@ export default function PosView() {
                 }}
               >
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>Rekening Resmi Toko:</div>
-                <div className="font-mono" style={{ fontSize: '13px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                  BCA 8820-192-381 &mdash; a.n. SIP Operasional Barang
-                </div>
+                {paymentSettings.bankAccountNumber ? (
+                  <div className="font-mono" style={{ fontSize: '13px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                    {[paymentSettings.bankName, paymentSettings.bankAccountNumber].filter(Boolean).join(' ')}
+                    {paymentSettings.bankAccountHolder ? ` — a.n. ${paymentSettings.bankAccountHolder}` : ''}
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    Nomor rekening toko belum diisi oleh Admin (dapat diatur di Pengaturan).
+                  </div>
+                )}
                 <div style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
                   Pastikan mutasi pembayaran telah diterima sebelum menyelesaikan nota.
                 </div>
@@ -964,6 +988,49 @@ export default function PosView() {
       )}
 
       <PrinterModal isOpen={isPrinterModalOpen} onClose={() => setIsPrinterModalOpen(false)} />
+
+      {/* Quick QRIS Store Configuration Modal for Admin */}
+      {isQrisSetupOpen && user?.role === 'admin' && (
+        <div
+          className="modal-backdrop"
+          style={{ zIndex: 135 }}
+          onClick={() => setIsQrisSetupOpen(false)}
+        >
+          <div
+            className="modal-card modal-sheet"
+            style={{ maxWidth: '640px', width: '100%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <QrCode size={18} style={{ color: 'var(--accent-cyan)' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 700 }}>
+                  Pengaturan QRIS Bayar Toko
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQrisSetupOpen(false)}
+                className="btn btn-secondary btn-icon"
+                aria-label="Tutup pengaturan QRIS"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <QrisConfigPanel
+              key={paymentSettings.updatedAt || 'init'}
+              onSaved={() => setIsQrisSetupOpen(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
