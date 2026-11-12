@@ -1107,10 +1107,10 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               DUAL-ROLE ACCESS CONTROL
             </span>
             <h2 style={{ fontSize: 'clamp(21px, 3vw, 26px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              Pilih Sesi Demo atau Daftar Akun Sesuai Peran
+              Pilih Sesi Demo atau Daftar Akun Administrator
             </h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Klik salah satu tombol di bawah untuk langsung mencoba sistem atau mendaftarkan akun baru.
+              Pendaftaran akun baru otomatis menjadi Administrator pemilik toko dengan database terpisah. Akun Kasir POS dibuat langsung oleh Admin di dalam sistem.
             </p>
           </div>
 
@@ -1144,7 +1144,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                     'CRUD Master Produk, Harga Modal (HPP), & Penyesuaian Stok (Opname)',
                     'Laporan Keuangan Lengkap, Filter Periode, & Ekspor CSV Excel',
                     'Otorisasi Pembatalan Nota (Void Transaksi) & Pengembalian Stok',
-                    'Manajemen Backup/Restore Database JSON & Status Cloud Supabase',
+                    'Pembuatan Akun Kasir POS & Isolasi Database Per Akun Supabase',
                   ].map((item) => (
                     <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: '9px', fontSize: '13px' }}>
                       <CheckCircle2 size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />

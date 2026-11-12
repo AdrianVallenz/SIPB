@@ -1,10 +1,21 @@
 export type Role = 'admin' | 'user';
 
 export interface UserSession {
+  id: string;
+  ownerId: string;
   email: string;
   name: string;
   role: Role;
   loginAt: string;
+}
+
+export interface CashierAccount {
+  id: string;
+  ownerId: string;
+  email: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export type ProductCategory =
@@ -24,6 +35,7 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
 
 export interface Product {
   id: string;
+  ownerId?: string;
   sku: string;
   name: string;
   category: ProductCategory;
@@ -57,6 +69,7 @@ export interface TransactionItem {
 
 export interface Transaction {
   id: string;
+  ownerId?: string;
   invoiceNo: string;
   createdAt: string;
   cashierEmail: string;
@@ -76,6 +89,7 @@ export interface Transaction {
 
 export interface StockLog {
   id: string;
+  ownerId?: string;
   productId: string;
   productName: string;
   type: 'IN' | 'OUT' | 'ADJUSTMENT';

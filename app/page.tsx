@@ -32,10 +32,10 @@ function AppContent() {
     setScreenMode('login');
   };
 
-  const handleEnterApp = (role?: 'admin' | 'user', targetTab?: string) => {
+  const handleEnterApp = async (role?: 'admin' | 'user', targetTab?: string) => {
     if (role && (!user || user.role !== role)) {
       const targetEmail = role === 'admin' ? 'admin@sip.com' : 'user@sip.com';
-      login(targetEmail, '12345678');
+      await login(targetEmail, '12345678');
     }
     if (targetTab) {
       setActiveTab(targetTab);

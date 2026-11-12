@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar() {
-  const { user, activeTab, setActiveTab, products } = useApp();
+  const { user, activeTab, setActiveTab, products, cashiers } = useApp();
 
   if (!user) return null;
 
@@ -49,9 +49,10 @@ export default function Sidebar() {
     },
     {
       id: 'settings',
-      label: 'Pengaturan Sistem',
+      label: 'Pengaturan & Kasir',
       icon: <Settings size={17} />,
-      badge: null,
+      badge: cashiers.length > 0 ? `${cashiers.length}` : null,
+      badgeColor: 'badge-cyan',
     },
   ];
 

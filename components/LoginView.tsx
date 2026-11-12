@@ -18,7 +18,8 @@ import {
   UserPlus,
   LogIn,
   User,
-  CheckCircle2,
+  Database,
+  Loader2,
 } from 'lucide-react';
 
 interface LoginViewProps {
@@ -37,41 +38,53 @@ export default function LoginView({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'user' | 'admin'>('user');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError('');
+    setIsSubmitting(true);
 
-    if (authMode === 'login') {
-      const res = login(email, password);
+    try {
+      if (authMode === 'login') {
+        const res = await login(email, password);
+        if (!res.success) {
+          setError(res.message || 'Autentikasi gagal.');
+        } else {
+          onLoginSuccess?.();
+        }
+      } else {
+        const res = await register(name, email, password);
+        if (!res.success) {
+          setError(res.message || 'Pendaftaran gagal.');
+        } else {
+          onLoginSuccess?.();
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQuickDemo = async (targetRole: 'admin' | 'user') => {
+    if (isSubmitting) return;
+    const targetEmail = targetRole === 'admin' ? 'admin@sip.com' : 'user@sip.com';
+    setEmail(targetEmail);
+    setPassword('12345678');
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const res = await login(targetEmail, '12345678');
       if (!res.success) {
         setError(res.message || 'Autentikasi gagal.');
       } else {
         onLoginSuccess?.();
       }
-    } else {
-      const res = register(name, email, password, role);
-      if (!res.success) {
-        setError(res.message || 'Pendaftaran gagal.');
-      } else {
-        onLoginSuccess?.();
-      }
-    }
-  };
-
-  const handleQuickDemo = (targetRole: 'admin' | 'user') => {
-    const targetEmail = targetRole === 'admin' ? 'admin@sip.com' : 'user@sip.com';
-    setEmail(targetEmail);
-    setPassword('12345678');
-    setError('');
-    const res = login(targetEmail, '12345678');
-    if (!res.success) {
-      setError(res.message || 'Autentikasi gagal.');
-    } else {
-      onLoginSuccess?.();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -106,7 +119,8 @@ export default function LoginView({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: theme === 'dark' ? 'rgba(15, 17, 21, 0.85)' : 'rgba(255, 255, 255, 0.88)',
+          backgroundColor:
+            theme === 'dark' ? 'rgba(15, 17, 21, 0.85)' : 'rgba(255, 255, 255, 0.88)',
           backdropFilter: 'blur(10px)',
           borderBottom: '1px solid var(--border-color)',
           zIndex: 40,
@@ -133,7 +147,7 @@ export default function LoginView({
             {authMode === 'login' ? (
               <>
                 <UserPlus size={13} />
-                <span>Daftar Akun</span>
+                <span>Daftar Admin Baru</span>
               </>
             ) : (
               <>
@@ -159,7 +173,7 @@ export default function LoginView({
         </div>
       </div>
 
-      <div style={{ width: '100%', maxWidth: '440px' }}>
+      <div style={{ width: '100%', maxWidth: '450px' }}>
         {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <div
@@ -179,7 +193,14 @@ export default function LoginView({
           >
             <Package size={24} />
           </div>
-          <h1 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '4px' }}>
+          <h1
+            style={{
+              fontSize: '22px',
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              marginBottom: '4px',
+            }}
+          >
             SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -247,18 +268,20 @@ export default function LoginView({
               }}
             >
               <UserPlus size={14} />
-              <span>Daftar Baru</span>
+              <span>Daftar Admin</span>
             </button>
           </div>
 
           <div style={{ marginBottom: '16px' }}>
             <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '3px' }}>
-              {authMode === 'login' ? 'Masuk ke Sistem Operasional' : 'Registrasi Operator / Admin Baru'}
+              {authMode === 'login'
+                ? 'Masuk ke Sistem Operasional'
+                : 'Daftar Akun Administrator Toko Baru'}
             </h2>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               {authMode === 'login'
-                ? 'Gunakan kredensial akun Anda atau pilih sesi demo instan di bawah.'
-                : 'Buat akun baru untuk langsung mengakses fitur Kasir POS atau Dashboard Admin.'}
+                ? 'Masuk sebagai Administrator toko atau menggunakan akun Kasir yang dibuat oleh Admin Anda.'
+                : 'Pendaftaran mandiri otomatis menjadi akun Administrator dengan ruang database toko tersendiri.'}
             </p>
           </div>
 
@@ -269,10 +292,13 @@ export default function LoginView({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
+          >
             {authMode === 'register' && (
               <div>
-                <label className="form-label">Nama Lengkap Petugas</label>
+                <label className="form-label">Nama Pemilik / Nama Toko</label>
                 <div style={{ position: 'relative' }}>
                   <User
                     size={15}
@@ -287,7 +313,7 @@ export default function LoginView({
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: Budi Santoso"
+                    placeholder="Contoh: Toko Maju Jaya"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="sip-input"
@@ -325,7 +351,10 @@ export default function LoginView({
 
             <div>
               <label className="form-label">
-                Kata Sandi {authMode === 'register' && <span style={{ fontWeight: 400 }}>(Min. 6 karakter)</span>}
+                Kata Sandi{' '}
+                {authMode === 'register' && (
+                  <span style={{ fontWeight: 400 }}>(Min. 6 karakter)</span>
+                )}
               </label>
               <div style={{ position: 'relative' }}>
                 <Lock
@@ -372,75 +401,53 @@ export default function LoginView({
             </div>
 
             {authMode === 'register' && (
-              <div>
-                <label className="form-label">Pilih Peran Operasional</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setRole('user')}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: '3px',
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid',
-                      borderColor: role === 'user' ? 'var(--accent-cyan)' : 'var(--border-color)',
-                      backgroundColor:
-                        role === 'user' ? 'rgba(var(--accent-cyan-rgb), 0.1)' : 'var(--bg-subtle)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700, fontSize: '12px', color: role === 'user' ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
-                        <ShoppingCart size={14} /> Kasir POS
-                      </span>
-                      {role === 'user' && <CheckCircle2 size={13} style={{ color: 'var(--accent-cyan)' }} />}
-                    </div>
-                    <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
-                      Transaksi &amp; Struk
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setRole('admin')}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      gap: '3px',
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid',
-                      borderColor: role === 'admin' ? 'var(--accent-cyan)' : 'var(--border-color)',
-                      backgroundColor:
-                        role === 'admin' ? 'rgba(var(--accent-cyan-rgb), 0.1)' : 'var(--bg-subtle)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 700, fontSize: '12px', color: role === 'admin' ? 'var(--accent-cyan)' : 'var(--text-primary)' }}>
-                        <ShieldCheck size={14} /> Administrator
-                      </span>
-                      {role === 'admin' && <CheckCircle2 size={13} style={{ color: 'var(--accent-cyan)' }} />}
-                    </div>
-                    <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
-                      Full Akses &amp; Gudang
-                    </span>
-                  </button>
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid rgba(var(--accent-cyan-rgb), 0.35)',
+                  backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                }}
+              >
+                <Database
+                  size={16}
+                  style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }}
+                />
+                <div style={{ fontSize: '11.5px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    Otomatis Menjadi Akun Administrator:
+                  </strong>{' '}
+                  Database produk, stok, &amp; transaksi dipisahkan per akun. Anda dapat membuat
+                  akun <strong>Kasir POS</strong> khusus toko Anda melalui{' '}
+                  <strong>Pengaturan Sistem</strong> setelah masuk.
                 </div>
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary" style={{ marginTop: '4px', padding: '11px' }}>
-              <span>{authMode === 'login' ? 'Masuk Sekarang' : 'Daftar & Masuk Sekarang'}</span>
-              <ArrowRight size={15} />
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{ marginTop: '4px', padding: '11px' }}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  <span>Memproses Autentikasi...</span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {authMode === 'login'
+                      ? 'Masuk Sekarang'
+                      : 'Buat Akun Administrator & Masuk'}
+                  </span>
+                  <ArrowRight size={15} />
+                </>
+              )}
             </button>
           </form>
 
@@ -465,7 +472,8 @@ export default function LoginView({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <button
               type="button"
-              onClick={() => handleQuickDemo('admin')}
+              disabled={isSubmitting}
+              onClick={() => void handleQuickDemo('admin')}
               className="btn btn-secondary"
               style={{
                 flexDirection: 'column',
@@ -476,18 +484,29 @@ export default function LoginView({
                 backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: 'var(--accent-cyan)',
+                }}
+              >
                 <ShieldCheck size={15} />
-                <span style={{ fontWeight: 700, fontSize: '12px' }}>Administrator</span>
+                <span style={{ fontWeight: 700, fontSize: '12px' }}>Demo Admin</span>
               </div>
-              <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
+              <span
+                className="font-mono"
+                style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}
+              >
                 admin@sip.com
               </span>
             </button>
 
             <button
               type="button"
-              onClick={() => handleQuickDemo('user')}
+              disabled={isSubmitting}
+              onClick={() => void handleQuickDemo('user')}
               className="btn btn-secondary"
               style={{
                 flexDirection: 'column',
@@ -498,18 +517,35 @@ export default function LoginView({
                 backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-green-text)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: 'var(--accent-green-text)',
+                }}
+              >
                 <ShoppingCart size={15} />
-                <span style={{ fontWeight: 700, fontSize: '12px' }}>Kasir POS</span>
+                <span style={{ fontWeight: 700, fontSize: '12px' }}>Demo Kasir</span>
               </div>
-              <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
+              <span
+                className="font-mono"
+                style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}
+              >
                 user@sip.com
               </span>
             </button>
           </div>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '18px' }}>
+        <p
+          style={{
+            textAlign: 'center',
+            fontSize: '11.5px',
+            color: 'var(--text-muted)',
+            marginTop: '18px',
+          }}
+        >
           &copy; {new Date().getFullYear()} SIP Barang &bull; Sistem Operasional Terpadu
         </p>
       </div>

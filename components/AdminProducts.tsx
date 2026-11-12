@@ -15,10 +15,12 @@ import {
   CheckCircle2,
   ClipboardList,
   Boxes,
+  Sparkles,
 } from 'lucide-react';
 
 export default function AdminProducts() {
-  const { products, stockLogs, addProduct, updateProduct, deleteProduct, adjustStock } = useApp();
+  const { products, stockLogs, addProduct, updateProduct, deleteProduct, adjustStock, loadSampleCatalog } = useApp();
+  const [isImportingSample, setIsImportingSample] = useState(false);
 
   const [viewMode, setViewMode] = useState<'catalog' | 'logs'>('catalog');
   const [searchQuery, setSearchQuery] = useState('');
@@ -407,8 +409,48 @@ export default function AdminProducts() {
 
                   {filteredProducts.length === 0 && (
                     <tr>
-                      <td colSpan={9} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
-                        Tidak ada produk yang sesuai dengan kriteria pencarian.
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                        {products.length === 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              Katalog Toko Anda Masih Kosong
+                            </div>
+                            <p style={{ fontSize: '12.5px', maxWidth: '420px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                              Setiap akun Administrator memiliki database produk terpisah. Mulai dengan menambahkan produk pertama atau muat contoh katalog awal.
+                            </p>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={handleOpenAdd}
+                                className="btn btn-primary btn-sm"
+                              >
+                                <Plus size={14} />
+                                <span>Tambah Produk Pertama</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isImportingSample}
+                                onClick={async () => {
+                                  setIsImportingSample(true);
+                                  try {
+                                    const res = await loadSampleCatalog();
+                                    if (res.success) {
+                                      showFeedback('8 produk contoh berhasil ditambahkan ke katalog toko Anda.');
+                                    }
+                                  } finally {
+                                    setIsImportingSample(false);
+                                  }
+                                }}
+                                className="btn btn-secondary btn-sm"
+                              >
+                                <Sparkles size={14} style={{ color: 'var(--accent-cyan)' }} />
+                                <span>{isImportingSample ? 'Memuat Contoh...' : 'Muat 8 Produk Contoh'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          'Tidak ada produk yang sesuai dengan kriteria pencarian.'
+                        )}
                       </td>
                     </tr>
                   )}

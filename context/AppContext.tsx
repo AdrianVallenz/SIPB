@@ -1,36 +1,60 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react';
-import { Product, Transaction, StockLog, UserSession, PaymentMethod } from '@/lib/types';
 import {
-  getStoredProducts,
-  saveStoredProducts,
-  getStoredTransactions,
-  saveStoredTransactions,
-  getStoredStockLogs,
-  saveStoredStockLogs,
-  getStoredSession,
-  saveStoredSession,
-  getStoredTheme,
-  saveStoredTheme,
+  CashierAccount,
+  PaymentMethod,
+  Product,
+  StockLog,
+  Transaction,
+  UserSession,
+} from '@/lib/types';
+import {
+  DEMO_ACCOUNTS,
+  DEMO_OWNER_ID,
   getStoredAccounts,
+  getStoredCashiers,
+  getStoredProducts,
+  getStoredSession,
+  getStoredStockLogs,
+  getStoredTheme,
+  getStoredTransactions,
+  removeStoredAccount,
   saveStoredAccount,
+  saveStoredCashiers,
+  saveStoredProducts,
+  saveStoredSession,
+  saveStoredStockLogs,
+  saveStoredTheme,
+  saveStoredTransactions,
 } from '@/lib/storage';
 import {
-  signInSupabase,
-  setSupabaseAccessToken,
+  createCashierCloud,
+  deleteCashierCloud,
   fetchCloudSnapshot,
-  syncUpsertProduct,
+  registerAdminCloud,
+  setSupabaseAccessToken,
+  signInSupabase,
   syncDeleteProduct,
   syncInsertStockLogs,
   syncInsertTransaction,
+  syncUpdateProductStock,
+  syncUpsertProduct,
   syncVoidTransaction,
+  toggleCashierCloud,
+  updateCashierCloud,
 } from '@/lib/supabase';
+import { INITIAL_PRODUCTS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
 
 interface ActionResult {
   success: boolean;
   error?: string;
+}
+
+interface AuthResult {
+  success: boolean;
+  message?: string;
 }
 
 interface AppContextType {
@@ -41,16 +65,20 @@ interface AppContextType {
   products: Product[];
   transactions: Transaction[];
   stockLogs: StockLog[];
+  cashiers: CashierAccount[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  login: (email: string, pass: string) => { success: boolean; message?: string };
-  register: (
-    name: string,
-    email: string,
-    pass: string,
-    role: 'admin' | 'user'
-  ) => { success: boolean; message?: string };
+  login: (email: string, pass: string) => Promise<AuthResult>;
+  register: (name: string, email: string, pass: string) => Promise<AuthResult>;
   logout: () => void;
+  createCashier: (name: string, email: string, password: string) => Promise<ActionResult>;
+  toggleCashierStatus: (cashierId: string, isActive: boolean) => Promise<ActionResult>;
+  updateCashier: (
+    cashierId: string,
+    patch: { name?: string; password?: string }
+  ) => Promise<ActionResult>;
+  deleteCashier: (cashierId: string) => Promise<ActionResult>;
+  loadSampleCatalog: () => Promise<ActionResult>;
   addProduct: (product: Omit<Product, 'id' | 'updatedAt'>) => ActionResult;
   updateProduct: (product: Product) => ActionResult;
   deleteProduct: (productId: string) => ActionResult;
@@ -75,6 +103,13 @@ const ADMIN_TABS = new Set(['dashboard', 'products', 'reports', 'pos', 'settings
 const USER_TABS = new Set(['pos', 'my-transactions']);
 const emptySubscribe = () => () => {};
 
+function makeId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const isInitialized = useSyncExternalStore(
     emptySubscribe,
@@ -84,9 +119,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [user, setUser] = useState<UserSession | null>(() => getStoredSession());
   const [theme, setTheme] = useState<'dark' | 'light'>(() => getStoredTheme());
-  const [products, setProducts] = useState<Product[]>(() => getStoredProducts());
-  const [transactions, setTransactions] = useState<Transaction[]>(() => getStoredTransactions());
-  const [stockLogs, setStockLogs] = useState<StockLog[]>(() => getStoredStockLogs());
+  const [products, setProducts] = useState<Product[]>(() =>
+    getStoredProducts(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+  );
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    getStoredTransactions(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+  );
+  const [stockLogs, setStockLogs] = useState<StockLog[]>(() =>
+    getStoredStockLogs(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+  );
+  const [cashiers, setCashiers] = useState<CashierAccount[]>(() =>
+    getStoredCashiers(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+  );
   const [activeTab, setActiveTabState] = useState<string>(() => {
     const session = getStoredSession();
     return session?.role === 'admin' ? 'dashboard' : 'pos';
@@ -99,12 +143,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  const hydrateTenantCache = (ownerId: string) => {
+    setProducts(getStoredProducts(ownerId));
+    setTransactions(getStoredTransactions(ownerId));
+    setStockLogs(getStoredStockLogs(ownerId));
+    setCashiers(getStoredCashiers(ownerId));
+  };
+
   useEffect(() => {
     if (!user) return;
     let active = true;
+    const targetOwnerId = user.ownerId;
     (async () => {
       let snapshot = await fetchCloudSnapshot();
-      if (!snapshot.connected) {
+      if (
+        !snapshot.connected &&
+        (user.email === 'admin@sip.com' || user.email === 'user@sip.com')
+      ) {
         const authRes = await signInSupabase(user.email, '12345678');
         if (authRes.accessToken) {
           snapshot = await fetchCloudSnapshot(authRes.accessToken);
@@ -112,17 +167,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (!active || !snapshot.connected) return;
       setIsCloudConnected(true);
-      if (snapshot.products && snapshot.products.length > 0) {
+      if (snapshot.products) {
         setProducts(snapshot.products);
-        saveStoredProducts(snapshot.products);
+        saveStoredProducts(snapshot.products, targetOwnerId);
       }
       if (snapshot.transactions) {
         setTransactions(snapshot.transactions);
-        saveStoredTransactions(snapshot.transactions);
+        saveStoredTransactions(snapshot.transactions, targetOwnerId);
       }
       if (snapshot.stockLogs) {
         setStockLogs(snapshot.stockLogs);
-        saveStoredStockLogs(snapshot.stockLogs);
+        saveStoredStockLogs(snapshot.stockLogs, targetOwnerId);
+      }
+      if (snapshot.cashiers) {
+        setCashiers(snapshot.cashiers);
+        saveStoredCashiers(snapshot.cashiers, targetOwnerId);
       }
     })();
     return () => {
@@ -147,7 +206,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute('data-theme', nextTheme);
   };
 
-  const login = (email: string, pass: string): { success: boolean; message?: string } => {
+  const activateSession = (session: UserSession) => {
+    setFailedAttempts(0);
+    setLockoutUntil(0);
+    setIsCloudConnected(false);
+    hydrateTenantCache(session.ownerId);
+    saveStoredSession(session);
+    setUser(session);
+    setActiveTabState(session.role === 'admin' ? 'dashboard' : 'pos');
+  };
+
+  const login = async (email: string, pass: string): Promise<AuthResult> => {
     const now = Date.now();
     if (lockoutUntil > now) {
       const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
@@ -158,53 +227,71 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !pass) {
+      return { success: false, message: 'Email dan kata sandi wajib diisi.' };
+    }
 
-    if (cleanEmail === 'admin@sip.com' && pass === '12345678') {
+    // 1. Instant fast-path for built-in demo credentials + background Supabase token fetch
+    const demoAccount = DEMO_ACCOUNTS[cleanEmail];
+    if (demoAccount && pass === '12345678') {
       const session: UserSession = {
-        email: 'admin@sip.com',
-        name: 'Administrator Toko',
-        role: 'admin',
+        id: demoAccount.id,
+        ownerId: demoAccount.ownerId,
+        email: cleanEmail,
+        name: demoAccount.name,
+        role: demoAccount.role,
         loginAt: new Date().toISOString(),
       };
-      setFailedAttempts(0);
-      setLockoutUntil(0);
-      setUser(session);
-      saveStoredSession(session);
-      setActiveTabState('dashboard');
+      void signInSupabase(cleanEmail, pass);
+      activateSession(session);
       return { success: true };
     }
 
-    if (cleanEmail === 'user@sip.com' && pass === '12345678') {
+    // 2. Authenticate against Supabase Cloud Auth
+    const authRes = await signInSupabase(cleanEmail, pass);
+    if (authRes.banned) {
+      return {
+        success: false,
+        message: authRes.error || 'Akun kasir dinonaktifkan oleh Administrator.',
+      };
+    }
+
+    if (authRes.accessToken && authRes.user) {
       const session: UserSession = {
-        email: 'user@sip.com',
-        name: 'Kasir Penjualan',
-        role: 'user',
+        id: authRes.user.id,
+        ownerId: authRes.user.ownerId || authRes.user.id,
+        email: authRes.user.email,
+        name: authRes.user.name,
+        role: authRes.user.role,
         loginAt: new Date().toISOString(),
       };
-      setFailedAttempts(0);
-      setLockoutUntil(0);
-      setUser(session);
-      saveStoredSession(session);
-      setActiveTabState('pos');
+      activateSession(session);
       return { success: true };
     }
 
-    const customAcc = getStoredAccounts().find(
-      (a) => a.email.toLowerCase() === cleanEmail && a.password === pass
-    );
-    if (customAcc) {
-      const session: UserSession = {
-        email: customAcc.email.toLowerCase(),
-        name: customAcc.name,
-        role: customAcc.role,
-        loginAt: new Date().toISOString(),
-      };
-      setFailedAttempts(0);
-      setLockoutUntil(0);
-      setUser(session);
-      saveStoredSession(session);
-      setActiveTabState(customAcc.role === 'admin' ? 'dashboard' : 'pos');
-      return { success: true };
+    // 3. Offline fallback ONLY when offline or for offline-created local accounts
+    if (authRes.offline) {
+      const customAcc = getStoredAccounts().find(
+        (a) => a.email.toLowerCase() === cleanEmail && a.password === pass
+      );
+      if (customAcc) {
+        if (customAcc.isActive === false) {
+          return {
+            success: false,
+            message: 'Akun kasir sedang dinonaktifkan oleh Administrator.',
+          };
+        }
+        const session: UserSession = {
+          id: customAcc.id,
+          ownerId: customAcc.ownerId,
+          email: customAcc.email.toLowerCase(),
+          name: customAcc.name,
+          role: customAcc.role,
+          loginAt: new Date().toISOString(),
+        };
+        activateSession(session);
+        return { success: true };
+      }
     }
 
     const nextAttempts = failedAttempts + 1;
@@ -220,21 +307,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return {
       success: false,
-      message: 'Kredensial tidak valid. Periksa kembali email dan kata sandi Anda.',
+      message: authRes.error || 'Kredensial tidak valid. Periksa kembali email dan kata sandi Anda.',
     };
   };
 
-  const register = (
-    name: string,
-    email: string,
-    pass: string,
-    role: 'admin' | 'user'
-  ): { success: boolean; message?: string } => {
+  const register = async (name: string, email: string, pass: string): Promise<AuthResult> => {
     const cleanName = name.trim();
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanName || cleanName.length < 2) {
-      return { success: false, message: 'Nama lengkap minimal terdiri dari 2 karakter.' };
+      return { success: false, message: 'Nama lengkap / nama toko minimal 2 karakter.' };
     }
     if (!cleanEmail || !cleanEmail.includes('@')) {
       return { success: false, message: 'Format alamat email tidak valid.' };
@@ -243,32 +325,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: false, message: 'Kata sandi minimal terdiri dari 6 karakter.' };
     }
     if (cleanEmail === 'admin@sip.com' || cleanEmail === 'user@sip.com') {
-      return { success: false, message: 'Email ini sudah terdaftar sebagai akun sistem utama.' };
+      return { success: false, message: 'Email ini sudah terdaftar sebagai akun demo sistem.' };
     }
+
+    // Always register self-signup users as Administrator of their own isolated store
+    const cloudReg = await registerAdminCloud(cleanName, cleanEmail, pass);
+    if (cloudReg.ok && cloudReg.user) {
+      await signInSupabase(cleanEmail, pass);
+      const session: UserSession = {
+        id: cloudReg.user.id,
+        ownerId: cloudReg.user.ownerId,
+        email: cleanEmail,
+        name: cleanName,
+        role: 'admin',
+        loginAt: new Date().toISOString(),
+      };
+      activateSession(session);
+      return { success: true };
+    }
+
+    if (!cloudReg.offline) {
+      return {
+        success: false,
+        message: cloudReg.error || 'Pendaftaran gagal. Gunakan email lain atau silakan masuk.',
+      };
+    }
+
+    // Offline fallback
     if (getStoredAccounts().some((a) => a.email.toLowerCase() === cleanEmail)) {
       return { success: false, message: 'Alamat email ini sudah terdaftar. Silakan masuk.' };
     }
 
+    const newId =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `adm-${Date.now().toString(36)}`;
     const nowIso = new Date().toISOString();
+
     saveStoredAccount({
+      id: newId,
+      ownerId: newId,
       email: cleanEmail,
       name: cleanName,
       password: pass,
-      role,
+      role: 'admin',
+      isActive: true,
       createdAt: nowIso,
     });
 
-    const session: UserSession = {
+    activateSession({
+      id: newId,
+      ownerId: newId,
       email: cleanEmail,
       name: cleanName,
-      role,
+      role: 'admin',
       loginAt: nowIso,
-    };
-    setFailedAttempts(0);
-    setLockoutUntil(0);
-    setUser(session);
-    saveStoredSession(session);
-    setActiveTabState(role === 'admin' ? 'dashboard' : 'pos');
+    });
     return { success: true };
   };
 
@@ -277,18 +389,206 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsCloudConnected(false);
     setSupabaseAccessToken(null);
     saveStoredSession(null);
+    hydrateTenantCache(DEMO_OWNER_ID);
   };
 
   const requireAdmin = (): ActionResult | null => {
     if (!user || user.role !== 'admin') {
-      return { success: false, error: 'Akses ditolak: tindakan ini memerlukan otorisasi Administrator.' };
+      return {
+        success: false,
+        error: 'Akses ditolak: tindakan ini memerlukan otorisasi Administrator.',
+      };
     }
     return null;
   };
 
+  const createCashier = async (
+    name: string,
+    email: string,
+    password: string
+  ): Promise<ActionResult> => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanName || cleanName.length < 2) {
+      return { success: false, error: 'Nama kasir minimal 2 karakter.' };
+    }
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, error: 'Format email kasir tidak valid.' };
+    }
+    if (!password || password.length < 6) {
+      return { success: false, error: 'Kata sandi kasir minimal 6 karakter.' };
+    }
+    if (cleanEmail === 'admin@sip.com' || cleanEmail === 'user@sip.com') {
+      return { success: false, error: 'Email tersebut reserved untuk akun demo sistem.' };
+    }
+
+    const cloudRes = await createCashierCloud(cleanName, cleanEmail, password);
+    if (cloudRes.ok && cloudRes.cashier) {
+      const updated = [cloudRes.cashier, ...cashiers.filter((c) => c.id !== cloudRes.cashier!.id)];
+      setCashiers(updated);
+      saveStoredCashiers(updated, user.ownerId);
+      return { success: true };
+    }
+
+    if (!cloudRes.offline) {
+      return { success: false, error: cloudRes.error || 'Gagal membuat akun kasir.' };
+    }
+
+    if (
+      cashiers.some((c) => c.email.toLowerCase() === cleanEmail) ||
+      getStoredAccounts().some((a) => a.email.toLowerCase() === cleanEmail)
+    ) {
+      return { success: false, error: 'Email kasir sudah digunakan.' };
+    }
+
+    const id =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `kasir-${Date.now().toString(36)}`;
+    const nowIso = new Date().toISOString();
+    const newCashier: CashierAccount = {
+      id,
+      ownerId: user.ownerId,
+      email: cleanEmail,
+      name: cleanName,
+      isActive: true,
+      createdAt: nowIso,
+    };
+
+    saveStoredAccount({
+      id,
+      ownerId: user.ownerId,
+      email: cleanEmail,
+      name: cleanName,
+      password,
+      role: 'user',
+      isActive: true,
+      createdAt: nowIso,
+    });
+    const updated = [newCashier, ...cashiers];
+    setCashiers(updated);
+    saveStoredCashiers(updated, user.ownerId);
+    return { success: true };
+  };
+
+  const toggleCashierStatus = async (
+    cashierId: string,
+    isActive: boolean
+  ): Promise<ActionResult> => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const cloudRes = await toggleCashierCloud(cashierId, isActive);
+    if (!cloudRes.ok && !cloudRes.offline) {
+      return { success: false, error: cloudRes.error || 'Gagal mengubah status kasir.' };
+    }
+
+    const updated = cashiers.map((c) => (c.id === cashierId ? { ...c, isActive } : c));
+    setCashiers(updated);
+    saveStoredCashiers(updated, user.ownerId);
+
+    const localAcc = getStoredAccounts().find((a) => a.id === cashierId);
+    if (localAcc) {
+      saveStoredAccount({ ...localAcc, isActive });
+    }
+    return { success: true };
+  };
+
+  const updateCashier = async (
+    cashierId: string,
+    patch: { name?: string; password?: string }
+  ): Promise<ActionResult> => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const cleanName = patch.name?.trim();
+    const cleanPass = patch.password;
+    if (!cleanName && !cleanPass) {
+      return { success: false, error: 'Isi nama baru atau kata sandi baru.' };
+    }
+    if (cleanPass && cleanPass.length < 6) {
+      return { success: false, error: 'Kata sandi baru minimal 6 karakter.' };
+    }
+
+    const cloudRes = await updateCashierCloud(cashierId, {
+      ...(cleanName ? { name: cleanName } : {}),
+      ...(cleanPass ? { password: cleanPass } : {}),
+    });
+    if (!cloudRes.ok && !cloudRes.offline) {
+      return { success: false, error: cloudRes.error || 'Gagal memperbarui akun kasir.' };
+    }
+
+    if (cleanName) {
+      const updated = cashiers.map((c) =>
+        c.id === cashierId ? { ...c, name: cleanName } : c
+      );
+      setCashiers(updated);
+      saveStoredCashiers(updated, user.ownerId);
+    }
+    const localAcc = getStoredAccounts().find((a) => a.id === cashierId);
+    if (localAcc) {
+      saveStoredAccount({
+        ...localAcc,
+        name: cleanName || localAcc.name,
+        password: cleanPass || localAcc.password,
+      });
+    }
+    return { success: true };
+  };
+
+  const deleteCashier = async (cashierId: string): Promise<ActionResult> => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const cloudRes = await deleteCashierCloud(cashierId);
+    if (!cloudRes.ok && !cloudRes.offline) {
+      return { success: false, error: cloudRes.error || 'Gagal menghapus akun kasir.' };
+    }
+
+    const updated = cashiers.filter((c) => c.id !== cashierId);
+    setCashiers(updated);
+    saveStoredCashiers(updated, user.ownerId);
+    removeStoredAccount(cashierId);
+    return { success: true };
+  };
+
+  const loadSampleCatalog = async (): Promise<ActionResult> => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    if (products.length > 0) {
+      return {
+        success: false,
+        error: 'Katalog sudah memiliki data produk. Paket contoh hanya untuk toko kosong.',
+      };
+    }
+
+    const tag = user.ownerId.replace(/-/g, '').slice(0, 4).toUpperCase();
+    const nowIso = new Date().toISOString();
+    const sampleProducts: Product[] = INITIAL_PRODUCTS.slice(0, 8).map((p, idx) => ({
+      ...p,
+      id: makeId(`prd-${idx + 1}`),
+      ownerId: user.ownerId,
+      sku: `${p.sku}-${tag}`,
+      updatedAt: nowIso,
+    }));
+
+    setProducts(sampleProducts);
+    saveStoredProducts(sampleProducts, user.ownerId);
+
+    for (const prod of sampleProducts) {
+      await syncUpsertProduct(prod, user.ownerId);
+    }
+
+    return { success: true };
+  };
+
   const addProduct = (newProdData: Omit<Product, 'id' | 'updatedAt'>): ActionResult => {
     const authErr = requireAdmin();
-    if (authErr) return authErr;
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
 
     const cleanSku = newProdData.sku.trim().toUpperCase();
     const cleanName = newProdData.name.trim();
@@ -307,6 +607,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const newProduct: Product = {
       ...newProdData,
+      ownerId: user.ownerId,
       sku: cleanSku,
       name: cleanName,
       buyPrice,
@@ -315,40 +616,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       minStock,
       unit: newProdData.unit.trim() || 'pcs',
       description: newProdData.description?.trim() || '',
-      id: 'prd-' + Date.now().toString(36),
+      id: makeId('prd'),
       updatedAt: new Date().toISOString(),
     };
 
     const updated = [newProduct, ...products];
     setProducts(updated);
-    saveStoredProducts(updated);
-    void syncUpsertProduct(newProduct);
+    saveStoredProducts(updated, user.ownerId);
 
-    if (newProduct.stock > 0) {
-      const log: StockLog = {
-        id: 'log-' + Date.now().toString(36),
-        productId: newProduct.id,
-        productName: newProduct.name,
-        type: 'IN',
-        quantity: newProduct.stock,
-        previousStock: 0,
-        newStock: newProduct.stock,
-        reason: 'Saldo awal penambahan produk baru',
-        createdAt: new Date().toISOString(),
-        operator: user?.email || 'admin@sip.com',
-      };
-      const updatedLogs = [log, ...stockLogs];
+    const initialLog: StockLog | null =
+      newProduct.stock > 0
+        ? {
+            id: makeId('log'),
+            ownerId: user.ownerId,
+            productId: newProduct.id,
+            productName: newProduct.name,
+            type: 'IN',
+            quantity: newProduct.stock,
+            previousStock: 0,
+            newStock: newProduct.stock,
+            reason: 'Saldo awal penambahan produk baru',
+            createdAt: new Date().toISOString(),
+            operator: user.email,
+          }
+        : null;
+
+    if (initialLog) {
+      const updatedLogs = [initialLog, ...stockLogs];
       setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs);
-      void syncInsertStockLogs([log]);
+      saveStoredStockLogs(updatedLogs, user.ownerId);
     }
+
+    void syncUpsertProduct(newProduct, user.ownerId).then((res) => {
+      if (res.ok && initialLog) {
+        void syncInsertStockLogs([initialLog], user.ownerId);
+      }
+    });
 
     return { success: true };
   };
 
   const updateProduct = (updatedProd: Product): ActionResult => {
     const authErr = requireAdmin();
-    if (authErr) return authErr;
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
 
     const existing = products.find((p) => p.id === updatedProd.id);
     if (!existing) {
@@ -367,6 +677,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const sanitized: Product = {
       ...updatedProd,
+      ownerId: user.ownerId,
       sku: cleanSku,
       name: cleanName,
       buyPrice: Math.max(0, Math.round(Number(updatedProd.buyPrice) || 0)),
@@ -380,13 +691,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const updated = products.map((p) => (p.id === sanitized.id ? sanitized : p));
     setProducts(updated);
-    saveStoredProducts(updated);
-    void syncUpsertProduct(sanitized);
+    saveStoredProducts(updated, user.ownerId);
+    void syncUpsertProduct(sanitized, user.ownerId);
 
     if (existing.stock !== sanitized.stock) {
       const diff = Math.abs(sanitized.stock - existing.stock);
       const log: StockLog = {
-        id: 'log-' + Date.now().toString(36),
+        id: makeId('log'),
+        ownerId: user.ownerId,
         productId: sanitized.id,
         productName: sanitized.name,
         type: 'ADJUSTMENT',
@@ -395,12 +707,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         newStock: sanitized.stock,
         reason: 'Koreksi stok melalui edit master produk',
         createdAt: new Date().toISOString(),
-        operator: user?.email || 'admin@sip.com',
+        operator: user.email,
       };
       const updatedLogs = [log, ...stockLogs];
       setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs);
-      void syncInsertStockLogs([log]);
+      saveStoredStockLogs(updatedLogs, user.ownerId);
+      void syncInsertStockLogs([log], user.ownerId);
     }
 
     return { success: true };
@@ -408,11 +720,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteProduct = (productId: string): ActionResult => {
     const authErr = requireAdmin();
-    if (authErr) return authErr;
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
 
     const updated = products.filter((p) => p.id !== productId);
     setProducts(updated);
-    saveStoredProducts(updated);
+    saveStoredProducts(updated, user.ownerId);
     void syncDeleteProduct(productId);
     return { success: true };
   };
@@ -424,7 +736,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     reason: string
   ): ActionResult => {
     const authErr = requireAdmin();
-    if (authErr) return authErr;
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
 
     const prod = products.find((p) => p.id === productId);
     if (!prod) return { success: false, error: 'Produk tidak ditemukan.' };
@@ -451,14 +763,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       newStock = Math.max(0, cleanQty);
     }
 
-    const updatedProd = { ...prod, stock: newStock, updatedAt: new Date().toISOString() };
+    const updatedProd: Product = {
+      ...prod,
+      ownerId: user.ownerId,
+      stock: newStock,
+      updatedAt: new Date().toISOString(),
+    };
     const updated = products.map((p) => (p.id === productId ? updatedProd : p));
     setProducts(updated);
-    saveStoredProducts(updated);
-    void syncUpsertProduct(updatedProd);
+    saveStoredProducts(updated, user.ownerId);
+    void syncUpsertProduct(updatedProd, user.ownerId);
 
     const log: StockLog = {
-      id: 'log-' + Date.now().toString(36),
+      id: makeId('log'),
+      ownerId: user.ownerId,
       productId: prod.id,
       productName: prod.name,
       type,
@@ -467,12 +785,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       newStock,
       reason: reason.trim() || (type === 'IN' ? 'Restock barang masuk' : 'Penyesuaian stok gudang'),
       createdAt: new Date().toISOString(),
-      operator: user?.email || 'admin@sip.com',
+      operator: user.email,
     };
     const updatedLogs = [log, ...stockLogs];
     setStockLogs(updatedLogs);
-    saveStoredStockLogs(updatedLogs);
-    void syncInsertStockLogs([log]);
+    saveStoredStockLogs(updatedLogs, user.ownerId);
+    void syncInsertStockLogs([log], user.ownerId);
 
     return { success: true };
   };
@@ -549,11 +867,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const invoiceNo = `TRX-${dateStr}-${randomSuffix}`;
+    const ownerTag = user.ownerId.replace(/-/g, '').slice(0, 3).toUpperCase();
+    const randomSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const invoiceNo = `TRX-${dateStr}-${ownerTag}${randomSuffix}`;
 
     const newTransaction: Transaction = {
-      id: 'trx-' + Date.now().toString(36),
+      id: makeId('trx'),
+      ownerId: user.ownerId,
       invoiceNo,
       createdAt: now.toISOString(),
       cashierEmail: user.email,
@@ -576,7 +896,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const qty = Math.floor(cartItem.quantity);
         const newStock = p.stock - qty;
         saleLogs.push({
-          id: `log-${now.getTime().toString(36)}-${p.id}`,
+          id: makeId('log'),
+          ownerId: user.ownerId,
           productId: p.id,
           productName: p.name,
           type: 'OUT',
@@ -597,23 +918,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     setProducts(updatedProducts);
-    saveStoredProducts(updatedProducts);
+    saveStoredProducts(updatedProducts, user.ownerId);
+
+    // Use PATCH for stock updates so Cashier RLS succeeds without Admin INSERT privileges
     for (const ci of cartItems) {
       const changedProd = updatedProducts.find((p) => p.id === ci.productId);
-      if (changedProd) void syncUpsertProduct(changedProd);
+      if (changedProd) {
+        void syncUpdateProductStock(changedProd.id, changedProd.stock, changedProd.updatedAt);
+      }
     }
 
     if (saleLogs.length > 0) {
       const updatedLogs = [...saleLogs, ...stockLogs];
       setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs);
-      void syncInsertStockLogs(saleLogs);
+      saveStoredStockLogs(updatedLogs, user.ownerId);
+      void syncInsertStockLogs(saleLogs, user.ownerId);
     }
 
     const updatedTransactions = [newTransaction, ...transactions];
     setTransactions(updatedTransactions);
-    saveStoredTransactions(updatedTransactions);
-    void syncInsertTransaction(newTransaction);
+    saveStoredTransactions(updatedTransactions, user.ownerId);
+    void syncInsertTransaction(newTransaction, user.ownerId);
 
     playCashierChime();
 
@@ -622,7 +947,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const voidTransaction = (transactionId: string, reason: string): ActionResult => {
     const authErr = requireAdmin();
-    if (authErr) return authErr;
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
 
     const targetTrx = transactions.find((t) => t.id === transactionId);
     if (!targetTrx) {
@@ -636,10 +961,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const nowIso = new Date().toISOString();
     const voidLogs: StockLog[] = [];
 
-    // Restore stock for each item in the voided transaction
     const itemQtyByProduct = new Map<string, number>();
     for (const item of targetTrx.items) {
-      itemQtyByProduct.set(item.productId, (itemQtyByProduct.get(item.productId) || 0) + item.quantity);
+      itemQtyByProduct.set(
+        item.productId,
+        (itemQtyByProduct.get(item.productId) || 0) + item.quantity
+      );
     }
 
     const updatedProducts = products.map((p) => {
@@ -647,7 +974,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (returnQty && returnQty > 0) {
         const newStock = p.stock + returnQty;
         voidLogs.push({
-          id: `log-void-${Date.now().toString(36)}-${p.id}`,
+          id: makeId('log-void'),
+          ownerId: user.ownerId,
           productId: p.id,
           productName: p.name,
           type: 'IN',
@@ -656,7 +984,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           newStock,
           reason: `Void Nota ${targetTrx.invoiceNo}: ${cleanReason}`,
           createdAt: nowIso,
-          operator: user?.email || 'admin@sip.com',
+          operator: user.email,
         });
         return {
           ...p,
@@ -679,21 +1007,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
 
     setProducts(updatedProducts);
-    saveStoredProducts(updatedProducts);
+    saveStoredProducts(updatedProducts, user.ownerId);
     for (const [prodId] of itemQtyByProduct) {
       const changedProd = updatedProducts.find((p) => p.id === prodId);
-      if (changedProd) void syncUpsertProduct(changedProd);
+      if (changedProd) {
+        void syncUpdateProductStock(changedProd.id, changedProd.stock, changedProd.updatedAt);
+      }
     }
 
     if (voidLogs.length > 0) {
       const updatedLogs = [...voidLogs, ...stockLogs];
       setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs);
-      void syncInsertStockLogs(voidLogs);
+      saveStoredStockLogs(updatedLogs, user.ownerId);
+      void syncInsertStockLogs(voidLogs, user.ownerId);
     }
 
     setTransactions(updatedTransactions);
-    saveStoredTransactions(updatedTransactions);
+    saveStoredTransactions(updatedTransactions, user.ownerId);
     void syncVoidTransaction(transactionId, cleanReason, nowIso);
 
     return { success: true };
@@ -709,11 +1039,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         products,
         transactions,
         stockLogs,
+        cashiers,
         activeTab,
         setActiveTab,
         login,
         register,
         logout,
+        createCashier,
+        toggleCashierStatus,
+        updateCashier,
+        deleteCashier,
+        loadSampleCatalog,
         addProduct,
         updateProduct,
         deleteProduct,
