@@ -14,9 +14,15 @@ import {
   Package,
   Eye,
   EyeOff,
+  ArrowLeft,
 } from 'lucide-react';
 
-export default function LoginView() {
+interface LoginViewProps {
+  onBackToShowcase?: () => void;
+  onLoginSuccess?: () => void;
+}
+
+export default function LoginView({ onBackToShowcase, onLoginSuccess }: LoginViewProps) {
   const { login, theme, toggleTheme } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,6 +35,8 @@ export default function LoginView() {
     const res = login(email, password);
     if (!res.success) {
       setError(res.message || 'Autentikasi gagal.');
+    } else {
+      onLoginSuccess?.();
     }
   };
 
@@ -40,6 +48,8 @@ export default function LoginView() {
     const res = login(targetEmail, '12345678');
     if (!res.success) {
       setError(res.message || 'Autentikasi gagal.');
+    } else {
+      onLoginSuccess?.();
     }
   };
 
@@ -57,6 +67,20 @@ export default function LoginView() {
         position: 'relative',
       }}
     >
+      {/* Back to Showcase Button */}
+      {onBackToShowcase && (
+        <div style={{ position: 'absolute', top: 20, left: 24 }}>
+          <button
+            onClick={onBackToShowcase}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '7px 13px' }}
+          >
+            <ArrowLeft size={14} />
+            <span>Halaman Showcase</span>
+          </button>
+        </div>
+      )}
+
       {/* Theme Toggle */}
       <div style={{ position: 'absolute', top: 20, right: 24 }}>
         <button

@@ -123,10 +123,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const setActiveTab = (tab: string) => {
-    if (!user) return;
-    if (user.role === 'admin' && ADMIN_TABS.has(tab)) {
+    const activeUser = user || getStoredSession();
+    if (!activeUser) return;
+    if (activeUser.role === 'admin' && ADMIN_TABS.has(tab)) {
       setActiveTabState(tab);
-    } else if (user.role === 'user' && USER_TABS.has(tab)) {
+    } else if (activeUser.role === 'user' && USER_TABS.has(tab)) {
       setActiveTabState(tab);
     }
   };

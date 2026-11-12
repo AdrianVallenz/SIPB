@@ -2,9 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
-import { Sun, Moon, LogOut, ShieldCheck, ShoppingBag, Clock, Package } from 'lucide-react';
+import { Sun, Moon, LogOut, ShieldCheck, ShoppingBag, Clock, Package, Sparkles } from 'lucide-react';
 
-export default function Header() {
+interface HeaderProps {
+  onOpenShowcase?: () => void;
+}
+
+export default function Header({ onOpenShowcase }: HeaderProps) {
   const { user, theme, toggleTheme, logout } = useApp();
   const [timeString, setTimeString] = useState('');
 
@@ -74,8 +78,23 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Right Controls: Clock, Theme Toggle, User Profile, Logout */}
+      {/* Right Controls: Showcase Button, Clock, Theme Toggle, User Profile, Logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {onOpenShowcase && (
+          <button
+            onClick={onOpenShowcase}
+            className="btn btn-secondary btn-sm"
+            title="Lihat Halaman Showcase & Fitur Sistem"
+            style={{
+              borderColor: 'rgba(var(--accent-cyan-rgb), 0.35)',
+              color: 'var(--accent-cyan)',
+            }}
+          >
+            <Sparkles size={13} />
+            <span className="hide-mobile">Showcase</span>
+          </button>
+        )}
+
         {timeString && (
           <div
             className="font-mono hide-mobile"
