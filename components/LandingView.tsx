@@ -359,7 +359,19 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
             }}
           >
             Kendalikan Kasir POS, Stok Gudang, &amp;{' '}
-            <span style={{ color: 'var(--accent-cyan)' }}>Audit Laba Bersih</span> Secara Real-Time.
+            <span
+              style={{
+                background:
+                  theme === 'dark'
+                    ? 'linear-gradient(135deg, #34D399 0%, #10B981 100%)'
+                    : 'linear-gradient(135deg, #047857 0%, #10B981 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Audit Laba Bersih
+            </span>{' '}
+            Secara Real-Time.
           </h1>
 
           <p
@@ -371,9 +383,10 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               lineHeight: 1.65,
             }}
           >
-            <strong>SIP Barang</strong> dirancang untuk kecepatan transaksi kasir ritel dan akurasi manajemen gudang.
-            Dilengkapi kalkulasi HPP &amp; margin otomatis, otorisasi multi-peran (Admin &amp; Kasir), cetak struk termal,
-            serta sinkronisasi database <strong>Supabase Cloud PostgreSQL</strong>.
+            <strong>SIP Barang</strong> dirancang untuk kecepatan transaksi kasir di smartphone maupun desktop.
+            Dilengkapi kalkulasi HPP &amp; margin otomatis, otorisasi multi-peran (Admin &amp; Kasir), cetak struk
+            langsung ke <strong>Printer Thermal Bluetooth (58mm/80mm)</strong>, serta sinkronisasi database{' '}
+            <strong>Supabase Cloud PostgreSQL</strong>.
           </p>
 
           {/* Hero Action Buttons */}

@@ -524,8 +524,10 @@ export default function PosView() {
                   justifyContent: 'space-between',
                   padding: '13px',
                   opacity: isOutOfStock ? 0.55 : 1,
-                  borderColor: inCart > 0 ? 'rgba(var(--accent-cyan-rgb), 0.6)' : undefined,
-                  backgroundColor: inCart > 0 ? 'rgba(var(--accent-cyan-rgb), 0.04)' : undefined,
+                  borderColor: inCart > 0 ? 'rgba(var(--accent-cyan-rgb), 0.65)' : undefined,
+                  borderTop: inCart > 0 ? '3px solid var(--accent-cyan)' : undefined,
+                  backgroundColor: inCart > 0 ? 'rgba(var(--accent-cyan-rgb), 0.06)' : undefined,
+                  boxShadow: inCart > 0 ? 'var(--shadow-glow)' : undefined,
                 }}
               >
                 <div>

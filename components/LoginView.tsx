@@ -103,7 +103,9 @@ export default function LoginView({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'var(--bg-primary)',
-        padding: '72px 16px 32px',
+        backgroundImage:
+          'radial-gradient(ellipse 75% 45% at 50% 0%, rgba(var(--accent-cyan-rgb), 0.12) 0%, transparent 70%)',
+        padding: '76px 16px 32px',
         position: 'relative',
       }}
     >
@@ -115,13 +117,13 @@ export default function LoginView({
           left: 0,
           right: 0,
           height: '60px',
-          padding: '0 20px',
+          padding: '0 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor:
-            theme === 'dark' ? 'rgba(15, 17, 21, 0.85)' : 'rgba(255, 255, 255, 0.88)',
-          backdropFilter: 'blur(10px)',
+          backgroundColor: 'var(--bg-header)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
           borderBottom: '1px solid var(--border-color)',
           zIndex: 40,
         }}
@@ -131,10 +133,11 @@ export default function LoginView({
             <button
               onClick={onBackToShowcase}
               className="btn btn-secondary btn-sm"
-              style={{ padding: '7px 13px' }}
+              style={{ padding: '7px 12px' }}
             >
               <ArrowLeft size={14} />
-              <span>Halaman Utama (Showcase)</span>
+              <span className="hide-mobile">Halaman Utama (Showcase)</span>
+              <span className="show-mobile-only" style={{ fontSize: '12px' }}>Beranda</span>
             </button>
           )}
         </div>
@@ -147,7 +150,7 @@ export default function LoginView({
             {authMode === 'login' ? (
               <>
                 <UserPlus size={13} />
-                <span>Daftar Admin Baru</span>
+                <span>Daftar Admin</span>
               </>
             ) : (
               <>
