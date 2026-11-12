@@ -17,29 +17,31 @@ import {
   Moon,
   Layers,
   Zap,
-  Lock,
   Printer,
   Globe,
   TrendingUp,
   AlertTriangle,
   LogIn,
-  Play,
+  UserPlus,
   ExternalLink,
   Search,
   History,
+  Menu,
+  X,
 } from 'lucide-react';
 
 interface LandingViewProps {
-  onOpenLogin: () => void;
+  onOpenAuth: (mode: 'login' | 'register') => void;
   onEnterApp: (role?: 'admin' | 'user', targetTab?: string) => void;
 }
 
 type ShowcaseTab = 'dashboard' | 'pos' | 'inventory' | 'reports';
 
-export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProps) {
+export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps) {
   const { user, theme, toggleTheme, products, transactions, stockLogs, isCloudConnected } = useApp();
   const [activeShowcase, setActiveShowcase] = useState<ShowcaseTab>('dashboard');
   const [selectedSimPayment, setSelectedSimPayment] = useState<'Tunai' | 'QRIS' | 'Transfer Bank' | 'Kartu Debit'>('QRIS');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Compute live showcase stats from real state
   const stats = useMemo(() => {
@@ -105,29 +107,30 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
           position: 'sticky',
           top: 0,
           zIndex: 100,
-          backgroundColor: theme === 'dark' ? 'rgba(18, 18, 18, 0.85)' : 'rgba(255, 255, 255, 0.88)',
+          backgroundColor: theme === 'dark' ? 'rgba(15, 17, 21, 0.88)' : 'rgba(255, 255, 255, 0.92)',
           backdropFilter: 'blur(12px)',
           borderBottom: '1px solid var(--border-color)',
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
         <div
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            padding: '0 24px',
-            height: '68px',
+            padding: '0 18px',
+            height: '66px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '16px',
+            gap: '12px',
           }}
         >
           {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '38px',
-                height: '38px',
+                width: '36px',
+                height: '36px',
                 borderRadius: '10px',
                 backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.14)',
                 border: '1.5px solid var(--accent-cyan)',
@@ -136,34 +139,35 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                 justifyContent: 'center',
                 color: 'var(--accent-cyan)',
                 boxShadow: 'var(--shadow-glow)',
+                flexShrink: 0,
               }}
             >
-              <Package size={20} />
+              <Package size={19} />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                <span style={{ fontSize: '15.5px', fontWeight: 800, letterSpacing: '-0.02em' }}>
                   SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
                 </span>
-                <span className="badge badge-cyan font-mono" style={{ fontSize: '10px' }}>
+                <span className="badge badge-cyan font-mono hide-mobile" style={{ fontSize: '9.5px' }}>
                   v2.4 CLOUD
                 </span>
               </div>
               <p className="hide-mobile" style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
-                Point of Sale &amp; Inventory Management System
+                Point of Sale &amp; Inventory Management
               </p>
             </div>
           </div>
 
-          {/* Center Anchor Links */}
+          {/* Center Anchor Links (Desktop) */}
           <nav
             className="hide-mobile"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '24px',
+              gap: '22px',
               fontSize: '13px',
-              fontWeight: 500,
+              fontWeight: 600,
               color: 'var(--text-secondary)',
             }}
           >
@@ -177,12 +181,12 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               Mode Akses
             </a>
             <a href="#arsitektur" style={{ color: 'inherit', textDecoration: 'none' }}>
-              Arsitektur &amp; Cloud
+              Arsitektur Cloud
             </a>
           </nav>
 
-          {/* Right CTA Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Right CTA Controls: Theme + Masuk + Daftar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               onClick={toggleTheme}
               className="btn btn-secondary btn-icon"
@@ -198,36 +202,128 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
             </button>
 
             {user ? (
-              <button
-                onClick={() => onEnterApp()}
-                className="btn btn-primary"
-                style={{ padding: '8px 16px' }}
-              >
-                <span>Buka Dashboard ({user.role === 'admin' ? 'Admin' : 'Kasir'})</span>
-                <ArrowRight size={15} />
-              </button>
+              <>
+                <button
+                  onClick={() => onOpenAuth('login')}
+                  className="btn btn-secondary btn-sm hide-mobile"
+                  style={{ padding: '8px 12px' }}
+                >
+                  <UserPlus size={14} />
+                  <span>Ganti / Daftar Akun</span>
+                </button>
+                <button
+                  onClick={() => onEnterApp()}
+                  className="btn btn-primary btn-sm"
+                  style={{ padding: '8px 14px' }}
+                >
+                  <span>Dashboard ({user.role === 'admin' ? 'Admin' : 'Kasir'})</span>
+                  <ArrowRight size={14} />
+                </button>
+              </>
             ) : (
               <>
                 <button
-                  onClick={onOpenLogin}
-                  className="btn btn-secondary hide-mobile"
-                  style={{ padding: '8px 14px' }}
+                  onClick={() => onOpenAuth('login')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '8px 13px' }}
                 >
                   <LogIn size={14} />
                   <span>Masuk</span>
                 </button>
                 <button
-                  onClick={() => onEnterApp('admin', 'dashboard')}
-                  className="btn btn-primary"
-                  style={{ padding: '8px 16px' }}
+                  onClick={() => onOpenAuth('register')}
+                  className="btn btn-primary btn-sm"
+                  style={{ padding: '8px 14px' }}
                 >
-                  <Play size={14} />
-                  <span>Coba Live Demo</span>
+                  <UserPlus size={14} />
+                  <span>Daftar</span>
                 </button>
               </>
             )}
+
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              className="btn btn-secondary btn-icon show-mobile-only"
+              aria-label="Menu Navigasi"
+              style={{ width: '36px', height: '36px' }}
+            >
+              {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div
+            className="show-mobile-only"
+            style={{
+              flexDirection: 'column',
+              gap: '10px',
+              padding: '14px 18px 18px',
+              backgroundColor: 'var(--bg-card)',
+              borderTop: '1px solid var(--border-color)',
+            }}
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <a
+                href="#showcase"
+                onClick={() => setMobileMenuOpen(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ textDecoration: 'none', justifyContent: 'flex-start' }}
+              >
+                <BarChart3 size={14} /> Showcase Sistem
+              </a>
+              <a
+                href="#fitur"
+                onClick={() => setMobileMenuOpen(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ textDecoration: 'none', justifyContent: 'flex-start' }}
+              >
+                <Zap size={14} /> Fitur Unggulan
+              </a>
+              <a
+                href="#akses-peran"
+                onClick={() => setMobileMenuOpen(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ textDecoration: 'none', justifyContent: 'flex-start' }}
+              >
+                <ShieldCheck size={14} /> Akses Peran
+              </a>
+              <a
+                href="#arsitektur"
+                onClick={() => setMobileMenuOpen(false)}
+                className="btn btn-secondary btn-sm"
+                style={{ textDecoration: 'none', justifyContent: 'flex-start' }}
+              >
+                <Database size={14} /> Arsitektur Cloud
+              </a>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingTop: '6px', borderTop: '1px solid var(--border-color)' }}>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuth('login');
+                }}
+                className="btn btn-secondary btn-sm"
+              >
+                <LogIn size={14} />
+                <span>Masuk Akun</span>
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuth('register');
+                }}
+                className="btn btn-primary btn-sm"
+              >
+                <UserPlus size={14} />
+                <span>Daftar Akun Baru</span>
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
@@ -237,7 +333,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            padding: '56px 24px 40px',
+            padding: '44px 18px 36px',
             textAlign: 'center',
           }}
         >
@@ -248,26 +344,29 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               gap: '8px',
               padding: '6px 14px',
               borderRadius: 'var(--radius-full)',
-              backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.1)',
-              border: '1px solid rgba(var(--accent-cyan-rgb), 0.3)',
+              backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.12)',
+              border: '1px solid rgba(var(--accent-cyan-rgb), 0.35)',
               color: 'var(--accent-cyan)',
               fontSize: '12px',
-              fontWeight: 600,
-              marginBottom: '22px',
+              fontWeight: 700,
+              marginBottom: '20px',
+              maxWidth: '100%',
             }}
           >
-            <Sparkles size={14} />
-            <span>Sistem Operasional Penjualan &amp; Inventaris Gudang Berbasis Cloud</span>
+            <Sparkles size={14} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Sistem Operasional Penjualan &amp; Inventaris Gudang Cloud
+            </span>
           </div>
 
           <h1
             style={{
-              fontSize: 'clamp(28px, 4.5vw, 50px)',
+              fontSize: 'clamp(26px, 4.5vw, 48px)',
               fontWeight: 800,
               letterSpacing: '-0.03em',
-              lineHeight: 1.15,
+              lineHeight: 1.16,
               maxWidth: '900px',
-              margin: '0 auto 18px',
+              margin: '0 auto 16px',
             }}
           >
             Kendalikan Kasir POS, Stok Gudang, &amp;{' '}
@@ -276,10 +375,10 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
 
           <p
             style={{
-              fontSize: 'clamp(14px, 1.6vw, 17px)',
+              fontSize: 'clamp(13.5px, 1.6vw, 16.5px)',
               color: 'var(--text-secondary)',
               maxWidth: '720px',
-              margin: '0 auto 32px',
+              margin: '0 auto 28px',
               lineHeight: 1.65,
             }}
           >
@@ -295,14 +394,14 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               alignItems: 'center',
               justifyContent: 'center',
               flexWrap: 'wrap',
-              gap: '12px',
-              marginBottom: '42px',
+              gap: '10px',
+              marginBottom: '38px',
             }}
           >
             <button
               onClick={() => onEnterApp('admin', 'dashboard')}
               className="btn btn-primary"
-              style={{ padding: '12px 22px', fontSize: '14px' }}
+              style={{ padding: '12px 20px', fontSize: '13.5px' }}
             >
               <ShieldCheck size={17} />
               <span>Buka Demo Administrator</span>
@@ -313,10 +412,10 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               onClick={() => onEnterApp('user', 'pos')}
               className="btn btn-secondary"
               style={{
-                padding: '12px 22px',
-                fontSize: '14px',
-                borderColor: 'rgba(var(--accent-cyan-rgb), 0.4)',
-                backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.06)',
+                padding: '12px 20px',
+                fontSize: '13.5px',
+                borderColor: 'rgba(var(--accent-cyan-rgb), 0.45)',
+                backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
               }}
             >
               <ShoppingCart size={17} style={{ color: 'var(--accent-cyan)' }} />
@@ -324,32 +423,23 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
             </button>
 
             <button
-              onClick={onOpenLogin}
+              onClick={() => onOpenAuth('register')}
               className="btn btn-secondary"
-              style={{ padding: '12px 18px', fontSize: '14px' }}
+              style={{ padding: '12px 18px', fontSize: '13.5px' }}
             >
-              <Lock size={15} />
-              <span>Halaman Login Manual</span>
+              <UserPlus size={15} />
+              <span>Daftar / Masuk Akun</span>
             </button>
           </div>
 
           {/* Live System Telemetry Strip */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '14px',
-              maxWidth: '1040px',
-              margin: '0 auto',
-              textAlign: 'left',
-            }}
-          >
-            <div className="sip-card" style={{ padding: '16px 18px' }}>
+          <div className="landing-telemetry-grid">
+            <div className="sip-card" style={{ padding: '16px 18px', borderTop: '3px solid var(--accent-cyan)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>KATALOG PRODUK AKTIF</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>KATALOG PRODUK AKTIF</span>
                 <Package size={15} style={{ color: 'var(--accent-cyan)' }} />
               </div>
-              <div className="font-mono" style={{ fontSize: '22px', fontWeight: 700 }}>
+              <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800 }}>
                 {stats.totalProducts} SKU
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -357,12 +447,12 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               </div>
             </div>
 
-            <div className="sip-card" style={{ padding: '16px 18px' }}>
+            <div className="sip-card" style={{ padding: '16px 18px', borderTop: '3px solid var(--accent-amber)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>NILAI ASET INVENTARIS</span>
-                <Database size={15} style={{ color: 'var(--accent-cyan)' }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>NILAI ASET INVENTARIS</span>
+                <Database size={15} style={{ color: 'var(--accent-amber-text)' }} />
               </div>
-              <div className="font-mono" style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+              <div className="font-mono" style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent-cyan)' }}>
                 {formatRupiah(stats.totalAssetValue)}
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -370,25 +460,25 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               </div>
             </div>
 
-            <div className="sip-card" style={{ padding: '16px 18px' }}>
+            <div className="sip-card" style={{ padding: '16px 18px', borderTop: '3px solid var(--accent-green)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>SIMULASI OMZET &amp; MARGIN</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>SIMULASI OMZET &amp; MARGIN</span>
                 <TrendingUp size={15} style={{ color: 'var(--accent-green-text)' }} />
               </div>
-              <div className="font-mono" style={{ fontSize: '20px', fontWeight: 700 }}>
+              <div className="font-mono" style={{ fontSize: '20px', fontWeight: 800 }}>
                 {formatRupiah(stats.totalRevenue)}
               </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--accent-green-text)', marginTop: '2px', fontWeight: 600 }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--accent-green-text)', marginTop: '2px', fontWeight: 700 }}>
                 +{stats.profitMargin}% Rata-rata Margin Laba Bersih
               </div>
             </div>
 
-            <div className="sip-card" style={{ padding: '16px 18px' }}>
+            <div className="sip-card" style={{ padding: '16px 18px', borderTop: '3px solid var(--accent-cyan)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>INFRASTRUKTUR DATABASE</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>INFRASTRUKTUR DATABASE</span>
                 <Globe size={15} style={{ color: 'var(--accent-cyan)' }} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '15px', fontWeight: 800, marginTop: '3px' }}>
                 <span
                   style={{
                     width: '9px',
@@ -413,14 +503,14 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            padding: '28px 24px 64px',
+            padding: '24px 18px 56px',
           }}
         >
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '22px' }}>
             <span className="badge badge-cyan" style={{ marginBottom: '8px' }}>
               INTERACTIVE PRODUCT TOUR
             </span>
-            <h2 style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: 'clamp(21px, 3vw, 26px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
               Eksplorasi Modul Sistem Secara Langsung
             </h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -434,15 +524,15 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               display: 'flex',
               justifyContent: 'center',
               flexWrap: 'wrap',
-              gap: '10px',
-              marginBottom: '20px',
+              gap: '8px',
+              marginBottom: '18px',
             }}
           >
             {[
-              { id: 'dashboard', label: '1. Dashboard Eksekutif', icon: BarChart3, targetTab: 'dashboard', role: 'admin' },
-              { id: 'pos', label: '2. Terminal Kasir POS & Struk', icon: ShoppingCart, targetTab: 'pos', role: 'user' },
-              { id: 'inventory', label: '3. Master Gudang & Kartu Stok', icon: Layers, targetTab: 'products', role: 'admin' },
-              { id: 'reports', label: '4. Laporan Laba & Audit Void', icon: FileSpreadsheet, targetTab: 'reports', role: 'admin' },
+              { id: 'dashboard', label: '1. Dashboard Eksekutif', icon: BarChart3 },
+              { id: 'pos', label: '2. Terminal Kasir POS', icon: ShoppingCart },
+              { id: 'inventory', label: '3. Master Gudang & Stok', icon: Layers },
+              { id: 'reports', label: '4. Laporan & Audit Void', icon: FileSpreadsheet },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeShowcase === tab.id;
@@ -452,8 +542,8 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                   onClick={() => setActiveShowcase(tab.id as ShowcaseTab)}
                   className={isActive ? 'btn btn-primary' : 'btn btn-secondary'}
                   style={{
-                    padding: '10px 18px',
-                    fontSize: '13px',
+                    padding: '9px 15px',
+                    fontSize: '12.5px',
                   }}
                 >
                   <Icon size={15} />
@@ -479,10 +569,10 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '12px 18px',
+                padding: '12px 16px',
                 backgroundColor: 'var(--bg-subtle)',
                 borderBottom: '1px solid var(--border-color)',
-                gap: '12px',
+                gap: '10px',
                 flexWrap: 'wrap',
               }}
             >
@@ -493,7 +583,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                 <span
                   className="font-mono hide-mobile"
                   style={{
-                    marginLeft: '10px',
+                    marginLeft: '8px',
                     padding: '4px 12px',
                     borderRadius: '6px',
                     backgroundColor: 'var(--bg-card)',
@@ -506,8 +596,8 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="badge badge-green">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="badge badge-green hide-mobile">
                   <CheckCircle2 size={11} /> Live Preview Data
                 </span>
                 <button
@@ -526,12 +616,12 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
             </div>
 
             {/* Showcase Body Content */}
-            <div style={{ padding: '24px', backgroundColor: 'var(--bg-primary)' }}>
+            <div style={{ padding: '20px 16px', backgroundColor: 'var(--bg-primary)' }}>
               {activeShowcase === 'dashboard' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                      <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Dashboard Eksekutif &amp; Analitik Toko</h3>
+                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Dashboard Eksekutif &amp; Analitik Toko</h3>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         Ringkasan performa penjualan harian, estimasi laba bersih, dan deteksi dini stok gudang menipis.
                       </p>
@@ -540,9 +630,9 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                   </div>
 
                   <div className="kpi-grid">
-                    <div className="sip-card">
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>TOTAL PENDAPATAN BERSIH</div>
-                      <div className="font-mono" style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '6px' }}>
+                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-cyan)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>TOTAL PENDAPATAN BERSIH</div>
+                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '6px' }}>
                         {formatRupiah(stats.totalRevenue)}
                       </div>
                       <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -550,19 +640,19 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                       </div>
                     </div>
 
-                    <div className="sip-card">
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>ESTIMASI LABA BERSIH</div>
-                      <div className="font-mono" style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-green-text)', marginTop: '6px' }}>
+                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-green)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>ESTIMASI LABA BERSIH</div>
+                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-green-text)', marginTop: '6px' }}>
                         {formatRupiah(stats.netProfit)}
                       </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--accent-green-text)', marginTop: '4px' }}>
+                      <div style={{ fontSize: '11.5px', color: 'var(--accent-green-text)', marginTop: '4px', fontWeight: 600 }}>
                         Margin rata-rata +{stats.profitMargin}% setelah HPP
                       </div>
                     </div>
 
-                    <div className="sip-card">
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>NILAI MODAL INVENTARIS</div>
-                      <div className="font-mono" style={{ fontSize: '22px', fontWeight: 800, marginTop: '6px' }}>
+                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-amber)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>NILAI MODAL INVENTARIS</div>
+                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, marginTop: '6px' }}>
                         {formatRupiah(stats.totalAssetValue)}
                       </div>
                       <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -570,9 +660,9 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                       </div>
                     </div>
 
-                    <div className="sip-card">
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>PERINGATAN STOK KRITIS</div>
-                      <div className="font-mono" style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-amber-text)', marginTop: '6px' }}>
+                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-red)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>PERINGATAN STOK KRITIS</div>
+                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-amber-text)', marginTop: '6px' }}>
                         {stats.lowStockCount} SKU
                       </div>
                       <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -584,7 +674,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                   <div className="dashboard-split">
                     {/* Simulated 7-Day Trend Bar Chart */}
                     <div className="sip-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                         <div>
                           <div style={{ fontSize: '14px', fontWeight: 700 }}>Tren Omzet &amp; Laba 7 Hari Terakhir</div>
                           <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Visualisasi grafik perbandingan pendapatan vs laba bersih</div>
@@ -596,7 +686,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                         style={{
                           display: 'grid',
                           gridTemplateColumns: 'repeat(7, 1fr)',
-                          gap: '12px',
+                          gap: '8px',
                           alignItems: 'end',
                           height: '150px',
                           paddingTop: '16px',
@@ -613,11 +703,11 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                           { day: 'Min', rev: 85, prof: 60 },
                         ].map((bar) => (
                           <div key={bar.day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', justifyContent: 'center', height: '120px' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center', height: '120px' }}>
                               <div
                                 title="Omzet"
                                 style={{
-                                  width: '12px',
+                                  width: '10px',
                                   height: `${bar.rev}%`,
                                   backgroundColor: 'var(--accent-cyan)',
                                   borderRadius: '4px 4px 0 0',
@@ -626,14 +716,14 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                               <div
                                 title="Laba Bersih"
                                 style={{
-                                  width: '12px',
+                                  width: '10px',
                                   height: `${bar.prof}%`,
-                                  backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.35)',
+                                  backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.38)',
                                   borderRadius: '4px 4px 0 0',
                                 }}
                               />
                             </div>
-                            <span className="font-mono" style={{ fontSize: '11px', color: 'var(--text-secondary)', paddingBottom: '6px' }}>
+                            <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-secondary)', fontWeight: 600, paddingBottom: '6px' }}>
                               {bar.day}
                             </span>
                           </div>
@@ -662,10 +752,13 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                                 borderRadius: 'var(--radius-sm)',
                                 backgroundColor: 'var(--bg-subtle)',
                                 border: '1px solid var(--border-color)',
+                                gap: '8px',
                               }}
                             >
-                              <div>
-                                <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{item.name}</div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {item.name}
+                                </div>
                                 <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                   {item.sku} &bull; Min: {item.minStock} {item.unit}
                                 </div>
@@ -682,15 +775,15 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               )}
 
               {activeShowcase === 'pos' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                      <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Terminal Kasir Point of Sale (POS) &amp; Struk Termal</h3>
+                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Terminal Kasir Point of Sale (POS) &amp; Struk Termal</h3>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         Mendukung shortcut keyboard cepat (<strong>F2</strong> Cari SKU/Barcode, <strong>F8</strong> Proses Bayar), multi-metode pembayaran, &amp; cetak struk 58mm/80mm.
                       </p>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <span className="badge badge-muted font-mono">Shortcut: F2 / F8</span>
                       <span className="badge badge-green">Akses: Kasir &amp; Admin</span>
                     </div>
@@ -700,11 +793,11 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                     {/* Mini POS Product Grid */}
                     <div className="sip-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
                           <Search size={15} style={{ color: 'var(--accent-cyan)' }} />
-                          <span>Katalog Kasir Responsif (Klik produk untuk tambah ke keranjang)</span>
+                          <span>Katalog Kasir Responsif</span>
                         </div>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           {(['Tunai', 'QRIS', 'Transfer Bank', 'Kartu Debit'] as const).map((m) => (
                             <button
                               key={m}
@@ -718,13 +811,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                         </div>
                       </div>
 
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(185px, 1fr))',
-                          gap: '10px',
-                        }}
-                      >
+                      <div className="pos-grid">
                         {sampleProducts.map((p) => (
                           <div
                             key={p.id}
@@ -748,9 +835,9 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                                   Stok: {p.stock}
                                 </span>
                               </div>
-                              <div style={{ fontSize: '12.5px', fontWeight: 600, lineHeight: 1.35 }}>{p.name}</div>
+                              <div style={{ fontSize: '12.5px', fontWeight: 700, lineHeight: 1.35 }}>{p.name}</div>
                             </div>
-                            <div className="font-mono" style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                            <div className="font-mono" style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--accent-cyan)' }}>
                               {formatRupiah(p.sellPrice)}
                             </div>
                           </div>
@@ -760,7 +847,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
 
                     {/* Thermal Receipt Preview */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                      <div className="receipt-paper" style={{ width: '100%', maxWidth: '310px' }}>
+                      <div className="receipt-paper">
                         <div style={{ textAlign: 'center', marginBottom: '8px' }}>
                           <div style={{ fontWeight: 800, fontSize: '13px' }}>SIP BARANG POS</div>
                           <div style={{ fontSize: '10px', color: '#555' }}>Jl. Operasional Niaga No. 88</div>
@@ -806,9 +893,9 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
 
               {activeShowcase === 'inventory' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                      <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Master Inventaris Gudang &amp; Audit Mutasi Stok</h3>
+                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Master Inventaris Gudang &amp; Audit Mutasi Stok</h3>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         Kelola harga modal (HPP), harga jual, kalkulasi persentase margin otomatis, serta lacak setiap stok masuk (IN), keluar (OUT), dan opname (ADJUSTMENT).
                       </p>
@@ -835,7 +922,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                           const isLow = p.stock <= p.minStock;
                           return (
                             <tr key={p.id}>
-                              <td className="font-mono" style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>{p.sku}</td>
+                              <td className="font-mono" style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>{p.sku}</td>
                               <td style={{ fontWeight: 600 }}>{p.name}</td>
                               <td><span className="badge badge-muted">{p.category}</span></td>
                               <td className="font-mono">{formatRupiah(p.buyPrice)}</td>
@@ -854,7 +941,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                   </div>
 
                   {/* Recent Stock Logs Strip */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                  <div className="landing-telemetry-grid" style={{ maxWidth: '100%' }}>
                     {sampleLogs.map((log) => (
                       <div key={log.id} className="sip-card" style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -865,7 +952,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                             {log.previousStock} &rarr; {log.newStock}
                           </span>
                         </div>
-                        <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{log.productName}</div>
+                        <div style={{ fontSize: '12.5px', fontWeight: 700 }}>{log.productName}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{log.reason}</div>
                       </div>
                     ))}
@@ -875,14 +962,14 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
 
               {activeShowcase === 'reports' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                      <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Laporan Keuangan, Audit HPP &amp; Pembatalan Nota (Void)</h3>
+                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Laporan Keuangan, Audit HPP &amp; Pembatalan Nota (Void)</h3>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         Filter laporan berdasarkan rentang tanggal &amp; metode pembayaran, ekspor ke CSV (Microsoft Excel), cetak PDF A4, atau batalkan transaksi (Void) dengan pengembalian stok otomatis.
                       </p>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <span className="badge badge-green">CSV UTF-8 BOM Ready</span>
                       <span className="badge badge-cyan">Auto-Restore Stock on Void</span>
                     </div>
@@ -934,28 +1021,22 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            padding: '20px 24px 64px',
+            padding: '16px 18px 56px',
           }}
         >
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <span className="badge badge-cyan" style={{ marginBottom: '8px' }}>
               KEUNGGULAN SISTEM
             </span>
-            <h2 style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+            <h2 style={{ fontSize: 'clamp(21px, 3vw, 26px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
               Fitur Lengkap untuk Operasional Toko Modern
             </h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Dibangun dengan standar performa tinggi, keamanan berlapis, dan kemudahan penggunaan bagi kasir maupun pemilik usaha.
+              Dibangun dengan standar performa tinggi, keamanan berlapis, dan kemudahan penggunaan di PC maupun smartphone.
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              gap: '18px',
-            }}
-          >
+          <div className="landing-bento-grid">
             {[
               {
                 icon: Zap,
@@ -978,8 +1059,8 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               {
                 icon: ShieldCheck,
                 badge: 'Keamanan RBAC',
-                title: 'Otorisasi Multi-Peran & Proteksi Login',
-                desc: 'Pemisahan hak akses ketat antara Administrator dan Kasir POS (pembatasan diskon kasir maks 25%, proteksi fitur Void nota, serta penguncian otomatis 5x gagal login).',
+                title: 'Otorisasi Multi-Peran & Registrasi Akun',
+                desc: 'Pemisahan hak akses ketat antara Administrator dan Kasir POS (pembatasan diskon kasir maks 25%, proteksi fitur Void nota, serta fitur Daftar/Masuk operator baru).',
               },
               {
                 icon: Database,
@@ -1003,8 +1084,8 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                         width: '40px',
                         height: '40px',
                         borderRadius: '10px',
-                        backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.12)',
-                        border: '1px solid rgba(var(--accent-cyan-rgb), 0.3)',
+                        backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.14)',
+                        border: '1px solid rgba(var(--accent-cyan-rgb), 0.35)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1015,7 +1096,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                     </div>
                     <span className="badge badge-muted">{feat.badge}</span>
                   </div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginTop: '4px' }}>{feat.title}</h3>
+                  <h3 style={{ fontSize: '15.5px', fontWeight: 700, marginTop: '2px' }}>{feat.title}</h3>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{feat.desc}</p>
                 </div>
               );
@@ -1029,30 +1110,22 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            padding: '12px 24px 64px',
+            padding: '12px 18px 56px',
           }}
         >
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <span className="badge badge-cyan" style={{ marginBottom: '8px' }}>
               DUAL-ROLE ACCESS CONTROL
             </span>
-            <h2 style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              Pilih Sesi Demo Sesuai Peran Operasional
+            <h2 style={{ fontSize: 'clamp(21px, 3vw, 26px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
+              Pilih Sesi Demo atau Daftar Akun Sesuai Peran
             </h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Klik salah satu tombol di bawah untuk langsung masuk dan mencoba seluruh fitur tanpa perlu mengetik kata sandi.
+              Klik salah satu tombol di bawah untuk langsung mencoba sistem atau mendaftarkan akun baru.
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-              gap: '20px',
-              maxWidth: '980px',
-              margin: '0 auto',
-            }}
-          >
+          <div className="landing-role-grid">
             {/* Admin Role Card */}
             <div
               className="sip-card"
@@ -1067,11 +1140,11 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                   <span className="badge badge-cyan">FULL ACCESS CONTROL</span>
-                  <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     admin@sip.com
                   </span>
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '6px' }}>Mode Administrator Toko</h3>
+                <h3 style={{ fontSize: '19px', fontWeight: 800, marginBottom: '6px' }}>Mode Administrator Toko</h3>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '18px' }}>
                   Akses penuh untuk pemilik usaha, kepala toko, atau manajer gudang.
                 </p>
@@ -1116,11 +1189,11 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                   <span className="badge badge-green">POS TERMINAL OPERATOR</span>
-                  <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     user@sip.com
                   </span>
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '6px' }}>Mode Kasir Penjualan (POS)</h3>
+                <h3 style={{ fontSize: '19px', fontWeight: 800, marginBottom: '6px' }}>Mode Kasir Penjualan (POS)</h3>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '18px' }}>
                   Antarmuka terfokus dan aman untuk operator kasir di meja pembayaran.
                 </p>
@@ -1147,7 +1220,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                 style={{
                   width: '100%',
                   padding: '12px',
-                  borderColor: 'rgba(var(--accent-cyan-rgb), 0.4)',
+                  borderColor: 'rgba(var(--accent-cyan-rgb), 0.45)',
                 }}
               >
                 <ShoppingCart size={16} style={{ color: 'var(--accent-cyan)' }} />
@@ -1164,15 +1237,15 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            padding: '12px 24px 72px',
+            padding: '12px 18px 64px',
           }}
         >
-          <div className="sip-card" style={{ padding: '32px 28px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div className="sip-card" style={{ padding: '28px 22px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <span className="badge badge-cyan" style={{ marginBottom: '8px' }}>
                 MODERN CLOUD ARCHITECTURE
               </span>
-              <h2 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+              <h2 style={{ fontSize: 'clamp(20px, 2.8vw, 24px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
                 Teknologi &amp; Infrastruktur Produksi
               </h2>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -1180,13 +1253,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
               </p>
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '14px',
-              }}
-            >
+            <div className="landing-tech-grid">
               {[
                 {
                   title: 'Next.js 16.4 & React 19',
@@ -1219,7 +1286,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
                   }}
                 >
                   <div style={{ fontSize: '14px', fontWeight: 700 }}>{tech.title}</div>
-                  <div className="font-mono" style={{ fontSize: '11px', color: 'var(--accent-cyan)', marginTop: '2px', marginBottom: '8px' }}>
+                  <div className="font-mono" style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: 600, marginTop: '2px', marginBottom: '8px' }}>
                     {tech.sub}
                   </div>
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{tech.detail}</p>
@@ -1235,7 +1302,7 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
         style={{
           borderTop: '1px solid var(--border-color)',
           backgroundColor: 'var(--bg-card)',
-          padding: '28px 24px',
+          padding: '24px 18px',
         }}
       >
         <div
@@ -1246,12 +1313,12 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '16px',
+            gap: '14px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <Package size={18} style={{ color: 'var(--accent-cyan)' }} />
-            <span style={{ fontWeight: 700, fontSize: '14px' }}>
+            <span style={{ fontWeight: 800, fontSize: '14px' }}>
               SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
             </span>
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
@@ -1259,23 +1326,26 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
             <a
               href="https://sipb.web.id"
-              style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
             >
               <span>sipb.web.id</span>
               <ExternalLink size={12} />
             </a>
             <a
               href="https://pos.sipb.web.id"
-              style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
             >
               <span>pos.sipb.web.id</span>
               <ExternalLink size={12} />
             </a>
-            <button onClick={onOpenLogin} className="btn btn-secondary btn-sm">
-              Masuk Sistem
+            <button onClick={() => onOpenAuth('login')} className="btn btn-secondary btn-sm">
+              Masuk
+            </button>
+            <button onClick={() => onOpenAuth('register')} className="btn btn-primary btn-sm">
+              Daftar
             </button>
           </div>
         </div>
@@ -1283,4 +1353,3 @@ export default function LandingView({ onOpenLogin, onEnterApp }: LandingViewProp
     </div>
   );
 }
-

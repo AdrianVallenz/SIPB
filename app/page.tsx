@@ -25,6 +25,12 @@ function AppContent() {
     }
     return 'landing';
   });
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
+
+  const handleOpenAuth = (mode: 'login' | 'register') => {
+    setAuthInitialMode(mode);
+    setScreenMode('login');
+  };
 
   const handleEnterApp = (role?: 'admin' | 'user', targetTab?: string) => {
     if (role && (!user || user.role !== role)) {
@@ -40,7 +46,7 @@ function AppContent() {
   if (screenMode === 'landing') {
     return (
       <LandingView
-        onOpenLogin={() => setScreenMode('login')}
+        onOpenAuth={handleOpenAuth}
         onEnterApp={handleEnterApp}
       />
     );
@@ -49,6 +55,8 @@ function AppContent() {
   if (screenMode === 'login' || !user) {
     return (
       <LoginView
+        key={authInitialMode}
+        initialMode={authInitialMode}
         onBackToShowcase={() => setScreenMode('landing')}
         onLoginSuccess={() => setScreenMode('app')}
       />
@@ -87,7 +95,10 @@ function AppContent() {
 
   return (
     <div className="app-shell">
-      <Header onOpenShowcase={() => setScreenMode('landing')} />
+      <Header
+        onOpenShowcase={() => setScreenMode('landing')}
+        onOpenAuth={handleOpenAuth}
+      />
       <div className="app-body">
         <Sidebar />
         <main className="app-main">{renderCurrentView()}</main>

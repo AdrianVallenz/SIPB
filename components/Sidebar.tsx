@@ -75,7 +75,7 @@ export default function Sidebar() {
   return (
     <aside className="app-sidebar">
       <div>
-        <div style={{ marginBottom: '10px', paddingLeft: '10px' }}>
+        <div className="hide-mobile" style={{ marginBottom: '10px', paddingLeft: '10px' }}>
           <span
             style={{
               fontSize: '10.5px',
@@ -89,7 +89,7 @@ export default function Sidebar() {
           </span>
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <nav className="app-sidebar-nav">
           {currentNav.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -100,20 +100,21 @@ export default function Sidebar() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  gap: '8px',
                   width: '100%',
                   padding: '9px 12px',
                   borderRadius: 'var(--radius-md)',
                   border: '1px solid',
-                  borderColor: isActive ? 'rgba(var(--accent-cyan-rgb), 0.35)' : 'transparent',
-                  backgroundColor: isActive ? 'rgba(var(--accent-cyan-rgb), 0.1)' : 'transparent',
+                  borderColor: isActive ? 'rgba(var(--accent-cyan-rgb), 0.4)' : 'transparent',
+                  backgroundColor: isActive ? 'rgba(var(--accent-cyan-rgb), 0.12)' : 'transparent',
                   color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                  fontWeight: isActive ? 600 : 500,
+                  fontWeight: isActive ? 700 : 500,
                   fontSize: '13px',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.15s ease',
                 }}
-                className={!isActive ? 'sip-card-hover' : ''}
+                className={`app-sidebar-btn ${!isActive ? 'sip-card-hover' : ''}`}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)', display: 'flex' }}>

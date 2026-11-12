@@ -7,7 +7,16 @@ const STORAGE_KEYS = {
   STOCK_LOGS: 'sip_stock_logs_v1',
   SESSION: 'sip_session_v1',
   THEME: 'sip_theme_v1',
+  ACCOUNTS: 'sip_registered_accounts_v1',
 } as const;
+
+export interface RegisteredAccount {
+  email: string;
+  name: string;
+  password: string;
+  role: 'admin' | 'user';
+  createdAt: string;
+}
 
 // 12 hours max session duration (1 cashier shift)
 const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -15,6 +24,36 @@ const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const VALID_ACCOUNTS: Record<string, { name: string; role: 'admin' | 'user' }> = {
   'admin@sip.com': { name: 'Administrator Toko', role: 'admin' },
   'user@sip.com': { name: 'Kasir Penjualan', role: 'user' },
+};
+
+export const getStoredAccounts = (): RegisteredAccount[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (a) =>
+        a &&
+        typeof a.email === 'string' &&
+        typeof a.name === 'string' &&
+        typeof a.password === 'string' &&
+        (a.role === 'admin' || a.role === 'user')
+    );
+  } catch {
+    return [];
+  }
+};
+
+export const saveStoredAccount = (account: RegisteredAccount): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getStoredAccounts().filter((a) => a.email.toLowerCase() !== account.email.toLowerCase());
+    localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify([...existing, account]));
+  } catch (err) {
+    console.error('Failed to save registered account', err);
+  }
 };
 
 const isValidProduct = (item: unknown): item is Product => {
@@ -141,8 +180,12 @@ export const getStoredSession = (): UserSession | null => {
       localStorage.removeItem(STORAGE_KEYS.SESSION);
       return null;
     }
-    const account = VALID_ACCOUNTS[parsed.email.toLowerCase()];
-    if (!account || parsed.role !== account.role) {
+    const emailLower = parsed.email.toLowerCase();
+    const builtinAccount = VALID_ACCOUNTS[emailLower];
+    const customAccount = getStoredAccounts().find((a) => a.email.toLowerCase() === emailLower);
+    const resolvedAccount = builtinAccount || (customAccount ? { name: customAccount.name, role: customAccount.role } : null);
+
+    if (!resolvedAccount || parsed.role !== resolvedAccount.role) {
       localStorage.removeItem(STORAGE_KEYS.SESSION);
       return null;
     }
@@ -155,9 +198,9 @@ export const getStoredSession = (): UserSession | null => {
     }
 
     return {
-      email: parsed.email.toLowerCase(),
-      name: account.name,
-      role: account.role,
+      email: emailLower,
+      name: resolvedAccount.name,
+      role: resolvedAccount.role,
       loginAt: parsed.loginAt!,
     };
   } catch (err) {

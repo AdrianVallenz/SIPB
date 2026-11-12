@@ -13,6 +13,8 @@ import {
   saveStoredSession,
   getStoredTheme,
   saveStoredTheme,
+  getStoredAccounts,
+  saveStoredAccount,
 } from '@/lib/storage';
 import {
   signInSupabase,
@@ -42,6 +44,12 @@ interface AppContextType {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   login: (email: string, pass: string) => { success: boolean; message?: string };
+  register: (
+    name: string,
+    email: string,
+    pass: string,
+    role: 'admin' | 'user'
+  ) => { success: boolean; message?: string };
   logout: () => void;
   addProduct: (product: Omit<Product, 'id' | 'updatedAt'>) => ActionResult;
   updateProduct: (product: Product) => ActionResult;
@@ -181,6 +189,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: true };
     }
 
+    const customAcc = getStoredAccounts().find(
+      (a) => a.email.toLowerCase() === cleanEmail && a.password === pass
+    );
+    if (customAcc) {
+      const session: UserSession = {
+        email: customAcc.email.toLowerCase(),
+        name: customAcc.name,
+        role: customAcc.role,
+        loginAt: new Date().toISOString(),
+      };
+      setFailedAttempts(0);
+      setLockoutUntil(0);
+      setUser(session);
+      saveStoredSession(session);
+      setActiveTabState(customAcc.role === 'admin' ? 'dashboard' : 'pos');
+      return { success: true };
+    }
+
     const nextAttempts = failedAttempts + 1;
     setFailedAttempts(nextAttempts);
     if (nextAttempts >= 5) {
@@ -196,6 +222,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       success: false,
       message: 'Kredensial tidak valid. Periksa kembali email dan kata sandi Anda.',
     };
+  };
+
+  const register = (
+    name: string,
+    email: string,
+    pass: string,
+    role: 'admin' | 'user'
+  ): { success: boolean; message?: string } => {
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanName || cleanName.length < 2) {
+      return { success: false, message: 'Nama lengkap minimal terdiri dari 2 karakter.' };
+    }
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, message: 'Format alamat email tidak valid.' };
+    }
+    if (!pass || pass.length < 6) {
+      return { success: false, message: 'Kata sandi minimal terdiri dari 6 karakter.' };
+    }
+    if (cleanEmail === 'admin@sip.com' || cleanEmail === 'user@sip.com') {
+      return { success: false, message: 'Email ini sudah terdaftar sebagai akun sistem utama.' };
+    }
+    if (getStoredAccounts().some((a) => a.email.toLowerCase() === cleanEmail)) {
+      return { success: false, message: 'Alamat email ini sudah terdaftar. Silakan masuk.' };
+    }
+
+    const nowIso = new Date().toISOString();
+    saveStoredAccount({
+      email: cleanEmail,
+      name: cleanName,
+      password: pass,
+      role,
+      createdAt: nowIso,
+    });
+
+    const session: UserSession = {
+      email: cleanEmail,
+      name: cleanName,
+      role,
+      loginAt: nowIso,
+    };
+    setFailedAttempts(0);
+    setLockoutUntil(0);
+    setUser(session);
+    saveStoredSession(session);
+    setActiveTabState(role === 'admin' ? 'dashboard' : 'pos');
+    return { success: true };
   };
 
   const logout = () => {
@@ -638,6 +712,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         activeTab,
         setActiveTab,
         login,
+        register,
         logout,
         addProduct,
         updateProduct,
