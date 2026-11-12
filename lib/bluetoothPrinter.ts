@@ -110,6 +110,7 @@ let runtimeState: PrinterRuntimeState = {
 let activeDevice: BluetoothDeviceLike | null = null;
 let activeCharacteristic: BluetoothRemoteGATTCharacteristicLike | null = null;
 let disconnectListener: (() => void) | null = null;
+let isPrintingLocked = false;
 
 const runtimeListeners = new Set<(state: PrinterRuntimeState) => void>();
 const settingsListeners = new Set<(settings: PrinterSettings) => void>();
@@ -296,7 +297,14 @@ export async function connectBluetoothPrinter(): Promise<{
       optionalServices: THERMAL_OPTIONAL_SERVICES,
     });
 
-    const writeChar = await resolveWriteCharacteristic(device);
+    const writeChar = await resolveWriteCharacteristic(device).catch((err) => {
+      try {
+        if (device.gatt?.connected) device.gatt.disconnect();
+      } catch {
+        // Ignore cleanup errors
+      }
+      throw err;
+    });
     activeDevice = device;
     activeCharacteristic = writeChar;
     attachDeviceDisconnectHandler(device);
@@ -558,7 +566,8 @@ export function buildEscPosReceipt(trx: Transaction, settings: PrinterSettings):
   builder.init();
 
   // Header
-  builder.align('center').bold(true).size('large').line(settings.storeName || 'SIP BARANG');
+  builder.align('center').bold(true).size('large');
+  wrapTextLines(settings.storeName || 'SIP BARANG', Math.floor(cols / 2)).forEach((l) => builder.line(l));
   builder.size('normal').bold(false);
   if (settings.storeTagline) {
     wrapTextLines(settings.storeTagline, cols).forEach((l) => builder.line(l));
@@ -653,6 +662,13 @@ export async function printTransactionViaBluetooth(
   transaction: Transaction,
   autoPromptIfDisconnected = true
 ): Promise<{ success: boolean; error?: string }> {
+  if (isPrintingLocked) {
+    return {
+      success: false,
+      error: 'Proses cetak Bluetooth lain sedang berjalan. Tunggu beberapa detik lalu coba lagi.',
+    };
+  }
+  isPrintingLocked = true;
   try {
     const char = await ensureConnectedCharacteristic(autoPromptIfDisconnected);
     const settings = getPrinterSettings();
@@ -674,10 +690,19 @@ export async function printTransactionViaBluetooth(
       lastError: msg,
     });
     return { success: false, error: msg };
+  } finally {
+    isPrintingLocked = false;
   }
 }
 
 export async function printTestThermalReceipt(): Promise<{ success: boolean; error?: string }> {
+  if (isPrintingLocked) {
+    return {
+      success: false,
+      error: 'Proses cetak Bluetooth lain sedang berjalan. Tunggu beberapa detik lalu coba lagi.',
+    };
+  }
+  isPrintingLocked = true;
   try {
     const char = await ensureConnectedCharacteristic(true);
     const settings = getPrinterSettings();
@@ -699,6 +724,8 @@ export async function printTestThermalReceipt(): Promise<{ success: boolean; err
       lastError: msg,
     });
     return { success: false, error: msg };
+  } finally {
+    isPrintingLocked = false;
   }
 }
 

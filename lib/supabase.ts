@@ -18,6 +18,7 @@ const SUPABASE_KEY =
 
 const TENANT_AUTH_URL = `${SUPABASE_URL}/functions/v1/tenant-auth`;
 const TOKEN_STORAGE_KEY = 'sip_supabase_token_v1';
+const REFRESH_STORAGE_KEY = 'sip_supabase_refresh_v1';
 
 export function getSupabaseAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -28,26 +29,93 @@ export function getSupabaseAccessToken(): string | null {
   }
 }
 
-export function setSupabaseAccessToken(token: string | null): void {
+export function getSupabaseRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(REFRESH_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setSupabaseAccessToken(
+  token: string | null,
+  refreshToken?: string | null
+): void {
   if (typeof window === 'undefined') return;
   try {
     if (!token) {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem(REFRESH_STORAGE_KEY);
     } else {
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_STORAGE_KEY, refreshToken);
+      }
     }
   } catch {
     // Ignore storage errors
   }
 }
 
-function getHeaders(customToken?: string | null): Record<string, string> {
+let inflightRefresh: Promise<string | null> | null = null;
+
+export async function refreshSupabaseToken(): Promise<string | null> {
+  if (inflightRefresh) return inflightRefresh;
+  const refreshToken = getSupabaseRefreshToken();
+  if (!refreshToken) return null;
+
+  inflightRefresh = (async () => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+      };
+      if (data.access_token) {
+        setSupabaseAccessToken(data.access_token, data.refresh_token || refreshToken);
+        return data.access_token;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      inflightRefresh = null;
+    }
+  })();
+
+  return inflightRefresh;
+}
+
+async function fetchWithSupabaseAuth(
+  url: string,
+  init: RequestInit,
+  customToken?: string | null
+): Promise<Response> {
   const token = customToken ?? getSupabaseAccessToken();
-  return {
+  const buildHeaders = (tok: string | null): Record<string, string> => ({
     apikey: SUPABASE_KEY,
-    Authorization: `Bearer ${token || SUPABASE_KEY}`,
+    Authorization: `Bearer ${tok || SUPABASE_KEY}`,
     'Content-Type': 'application/json',
-  };
+    ...((init.headers as Record<string, string> | undefined) || {}),
+  });
+
+  let res = await fetch(url, { ...init, headers: buildHeaders(token) });
+  if (res.status === 401 && token) {
+    const refreshed = await refreshSupabaseToken();
+    if (refreshed) {
+      res = await fetch(url, { ...init, headers: buildHeaders(refreshed) });
+    }
+  }
+  return res;
 }
 
 export interface SupabaseAuthUser {
@@ -101,6 +169,7 @@ export async function signInSupabase(
     }
     const data = (await res.json()) as {
       access_token?: string;
+      refresh_token?: string;
       user?: {
         id: string;
         email?: string;
@@ -109,7 +178,7 @@ export async function signInSupabase(
       };
     };
     if (data.access_token && data.user) {
-      setSupabaseAccessToken(data.access_token);
+      setSupabaseAccessToken(data.access_token, data.refresh_token);
       const role: Role = data.user.app_metadata?.role === 'user' ? 'user' : 'admin';
       const ownerId =
         data.user.app_metadata?.owner_id || (role === 'admin' ? data.user.id : '');
@@ -138,16 +207,14 @@ async function callTenantAuth<T>(
   token?: string | null
 ): Promise<{ ok: boolean; data?: T; error?: string; offline?: boolean }> {
   try {
-    const activeToken = token ?? getSupabaseAccessToken();
-    const res = await fetch(TENANT_AUTH_URL, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${activeToken || SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
+    const res = await fetchWithSupabaseAuth(
+      TENANT_AUTH_URL,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    });
+      token
+    );
     const parsed = (await res.json().catch(() => ({}))) as T & { error?: string };
     if (!res.ok) {
       return {
@@ -309,12 +376,11 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
   if (!activeToken) return { connected: false };
 
   try {
-    const headers = getHeaders(activeToken);
     const [prodRes, trxRes, logRes, cashRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/products?select=*&order=updated_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/transactions?select=*&order=created_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/stock_logs?select=*&order=created_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/store_cashiers?select=*&order=created_at.desc`, { headers }),
+      fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?select=*&order=updated_at.desc`, {}, activeToken),
+      fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions?select=*&order=created_at.desc`, {}, activeToken),
+      fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/stock_logs?select=*&order=created_at.desc`, {}, activeToken),
+      fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/store_cashiers?select=*&order=created_at.desc`, {}, activeToken),
     ]);
 
     if (!prodRes.ok || !trxRes.ok || !logRes.ok) {
@@ -398,10 +464,9 @@ export async function syncUpsertProduct(
   ownerId: string
 ): Promise<{ ok: boolean; error?: string; code?: string }> {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/products`, {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products`, {
       method: 'POST',
       headers: {
-        ...getHeaders(),
         Prefer: 'resolution=merge-duplicates',
       },
       body: JSON.stringify({
@@ -435,9 +500,8 @@ export async function syncUpdateProductStock(
   updatedAt: string
 ): Promise<void> {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
+    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
       method: 'PATCH',
-      headers: getHeaders(),
       body: JSON.stringify({
         stock,
         updated_at: updatedAt,
@@ -450,9 +514,8 @@ export async function syncUpdateProductStock(
 
 export async function syncDeleteProduct(productId: string): Promise<void> {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
+    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
       method: 'DELETE',
-      headers: getHeaders(),
     });
   } catch {
     // Ignore offline error
@@ -462,10 +525,9 @@ export async function syncDeleteProduct(productId: string): Promise<void> {
 export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Promise<void> {
   if (!logs.length) return;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/stock_logs`, {
+    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/stock_logs`, {
       method: 'POST',
       headers: {
-        ...getHeaders(),
         Prefer: 'resolution=merge-duplicates',
       },
       body: JSON.stringify(
@@ -491,10 +553,9 @@ export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Pr
 
 export async function syncInsertTransaction(t: Transaction, ownerId: string): Promise<void> {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/transactions`, {
+    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions`, {
       method: 'POST',
       headers: {
-        ...getHeaders(),
         Prefer: 'resolution=merge-duplicates',
       },
       body: JSON.stringify({
@@ -528,9 +589,8 @@ export async function syncVoidTransaction(
   voidedAt: string
 ): Promise<void> {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
-      headers: getHeaders(),
       body: JSON.stringify({
         status: 'VOIDED',
         void_reason: voidReason,

@@ -165,7 +165,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           snapshot = await fetchCloudSnapshot(authRes.accessToken);
         }
       }
-      if (!active || !snapshot.connected) return;
+      if (!active || !snapshot.connected || getStoredSession()?.ownerId !== targetOwnerId) return;
       setIsCloudConnected(true);
       if (snapshot.products) {
         setProducts(snapshot.products);
@@ -242,6 +242,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         role: demoAccount.role,
         loginAt: new Date().toISOString(),
       };
+      setSupabaseAccessToken(null);
       void signInSupabase(cleanEmail, pass);
       activateSession(session);
       return { success: true };

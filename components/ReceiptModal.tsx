@@ -28,6 +28,27 @@ export default function ReceiptModal({
   onClose,
   initialPrintNotice = null,
 }: ReceiptModalProps) {
+  if (!transaction) return null;
+
+  return (
+    <ReceiptModalContent
+      key={transaction.id}
+      transaction={transaction}
+      onClose={onClose}
+      initialPrintNotice={initialPrintNotice}
+    />
+  );
+}
+
+function ReceiptModalContent({
+  transaction,
+  onClose,
+  initialPrintNotice = null,
+}: {
+  transaction: Transaction;
+  onClose: () => void;
+  initialPrintNotice?: { type: 'success' | 'error'; text: string } | null;
+}) {
   const { runtime, settings, supportInfo, isConnected, isBusy, printTransaction } =
     useBluetoothPrinter();
 
@@ -35,8 +56,6 @@ export default function ReceiptModal({
     initialPrintNotice
   );
   const [showPrinterSetup, setShowPrinterSetup] = useState(false);
-
-  if (!transaction) return null;
 
   const handleBrowserPrint = () => {
     if (typeof window !== 'undefined') {

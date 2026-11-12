@@ -1154,19 +1154,12 @@ export default function AdminSettings() {
 
       {/* Edit Cashier Modal */}
       {editingCashier && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-            zIndex: 60,
-          }}
-        >
-          <div className="sip-card" style={{ width: '100%', maxWidth: '420px', padding: '22px' }}>
+        <div className="modal-backdrop" onClick={() => setEditingCashier(null)}>
+          <div
+            className="modal-content modal-sheet"
+            style={{ maxWidth: '420px', padding: '22px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div
               style={{
                 display: 'flex',

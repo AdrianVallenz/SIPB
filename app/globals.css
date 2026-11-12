@@ -982,8 +982,15 @@ body {
 @media print {
   .no-print,
   .app-header,
-  .app-sidebar {
+  .app-sidebar,
+  .mobile-bottom-nav,
+  .mobile-pos-cart-bar,
+  .mobile-card-list {
     display: none !important;
+  }
+
+  .desktop-table-wrap {
+    display: block !important;
   }
 
   .app-main {

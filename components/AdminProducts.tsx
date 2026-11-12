@@ -705,7 +705,7 @@ export default function AdminProducts() {
       {/* ADD / EDIT PRODUCT MODAL */}
       {(isAddModalOpen || editingProduct) && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '540px' }}>
+          <div className="modal-content modal-sheet" style={{ maxWidth: '540px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '17px', fontWeight: 700 }}>
                 {isAddModalOpen ? 'Tambah Produk Baru' : 'Edit Informasi Produk'}
@@ -878,7 +878,7 @@ export default function AdminProducts() {
       {/* RESTOCK / STOCK ADJUSTMENT MODAL */}
       {restockProduct && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '460px' }}>
+          <div className="modal-content modal-sheet" style={{ maxWidth: '460px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div>
                 <h3 style={{ fontSize: '17px', fontWeight: 700 }}>Penyesuaian Stok Gudang</h3>
@@ -1015,7 +1015,7 @@ export default function AdminProducts() {
       {/* DELETE CONFIRMATION MODAL */}
       {deletingProduct && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
+          <div className="modal-content modal-sheet" style={{ maxWidth: '400px' }}>
             <div style={{ textAlign: 'center', marginBottom: '18px' }}>
               <div
                 style={{

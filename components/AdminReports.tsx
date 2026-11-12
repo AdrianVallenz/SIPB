@@ -479,7 +479,7 @@ export default function AdminReports() {
       {/* VOID TRANSACTION CONFIRMATION MODAL */}
       {voidingTrx && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '450px' }}>
+          <div className="modal-content modal-sheet" style={{ maxWidth: '450px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <AlertTriangle size={18} style={{ color: 'var(--accent-red)' }} />
