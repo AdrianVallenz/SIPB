@@ -23,11 +23,13 @@ import {
   AlertTriangle,
   LogIn,
   UserPlus,
-  ExternalLink,
   Search,
   History,
   Menu,
   X,
+  QrCode,
+  Bluetooth,
+  Smartphone,
 } from 'lucide-react';
 
 interface LandingViewProps {
@@ -1309,19 +1311,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
             {/* Brand Column */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '9px',
-                    backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.14)',
-                    border: '1px solid rgba(var(--accent-cyan-rgb), 0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--accent-cyan)',
-                  }}
-                >
+                <div className="brand-emblem">
                   <Package size={18} />
                 </div>
                 <div>
@@ -1329,26 +1319,29 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                     SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
                   </span>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Sistem Operasional Penjualan &amp; Inventaris
+                    Kasir Pintar &amp; Manajemen Stok Toko
                   </div>
                 </div>
               </div>
 
-              <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '380px' }}>
-                Platform operasional retail modern dengan terminal kasir POS tercepat, pemantauan margin HPP real-time, serta isolasi database per toko berbasis Supabase PostgreSQL &amp; Row Level Security.
+              <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '390px' }}>
+                Solusi kasir harian dan pencatatan stok untuk toko retail, minimarket, maupun usaha berkembang. Pantau omzet, laba bersih, serta kelola kasir dengan cepat langsung dari smartphone atau komputer.
               </p>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span className="badge badge-green font-mono" style={{ fontSize: '10.5px' }}>
-                  <CheckCircle2 size={11} /> Sistem Operasional Aktif
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                <span className="badge badge-green" style={{ fontSize: '10.5px' }}>
+                  <QrCode size={11} /> QRIS Nota Otomatis
                 </span>
-                <span className="badge badge-cyan font-mono" style={{ fontSize: '10.5px' }}>
-                  Multi-Tenant RLS
+                <span className="badge badge-cyan" style={{ fontSize: '10.5px' }}>
+                  <Bluetooth size={11} /> Struk Bluetooth
+                </span>
+                <span className="badge badge-muted" style={{ fontSize: '10.5px' }}>
+                  <Smartphone size={11} /> Siap di HP &amp; PC
                 </span>
               </div>
             </div>
 
-            {/* Navigation Column (No Login/Daftar buttons) */}
+            {/* Navigation Column */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div
                 style={{
@@ -1359,25 +1352,25 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                   letterSpacing: '0.05em',
                 }}
               >
-                Eksplorasi Fitur
+                Fitur Operasional
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 <a href="#showcase" style={{ color: 'inherit', textDecoration: 'none' }}>
-                  Showcase Modul Interaktif
+                  Simulasi Kasir &amp; Dashboard
                 </a>
                 <a href="#fitur" style={{ color: 'inherit', textDecoration: 'none' }}>
-                  Keunggulan Operasional
+                  Keunggulan &amp; Pembukuan Toko
                 </a>
                 <a href="#akses-peran" style={{ color: 'inherit', textDecoration: 'none' }}>
-                  Kontrol Akses Admin &amp; Kasir
+                  Kontrol Pemilik &amp; Kasir
                 </a>
                 <a href="#arsitektur" style={{ color: 'inherit', textDecoration: 'none' }}>
-                  Arsitektur &amp; Infrastruktur Cloud
+                  Keamanan &amp; Sinkronisasi Data
                 </a>
               </div>
             </div>
 
-            {/* Endpoints & Infrastructure Column */}
+            {/* Payment & Hardware Highlights Column */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div
                 style={{
@@ -1388,63 +1381,83 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                   letterSpacing: '0.05em',
                 }}
               >
-                Portal &amp; Infrastruktur
+                Dukungan Pembayaran &amp; Perangkat
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <a
-                  href="https://sipb.web.id"
+                <div
                   style={{
-                    padding: '9px 12px',
+                    padding: '10px 12px',
                     borderRadius: 'var(--radius-md)',
                     backgroundColor: 'var(--bg-subtle)',
                     border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                    textDecoration: 'none',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px',
+                    gap: '10px',
                     fontSize: '12.5px',
                   }}
                 >
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.14)',
+                      color: 'var(--accent-cyan)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <QrCode size={16} />
+                  </div>
                   <div>
-                    <div className="font-mono" style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                      sipb.web.id
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                      QRIS Custom Sesuai Nota
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      Portal Showcase &amp; Dashboard Admin
+                      Nominal tagihan &amp; nomor nota terisi otomatis saat di-scan pelanggan
                     </div>
                   </div>
-                  <ExternalLink size={13} style={{ color: 'var(--text-muted)' }} />
-                </a>
+                </div>
 
-                <a
-                  href="https://pos.sipb.web.id"
+                <div
                   style={{
-                    padding: '9px 12px',
+                    padding: '10px 12px',
                     borderRadius: 'var(--radius-md)',
                     backgroundColor: 'var(--bg-subtle)',
                     border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                    textDecoration: 'none',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px',
+                    gap: '10px',
                     fontSize: '12.5px',
                   }}
                 >
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: 'var(--accent-green-bg)',
+                      color: 'var(--accent-green-text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Printer size={16} />
+                  </div>
                   <div>
-                    <div className="font-mono" style={{ fontWeight: 700, color: 'var(--accent-green-text)' }}>
-                      pos.sipb.web.id
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Printer Thermal Bluetooth 58 / 80mm
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      Terminal Khusus Kasir POS
+                      Cetak struk &amp; QR nota langsung dari Chrome Android maupun PC
                     </div>
                   </div>
-                  <ExternalLink size={13} style={{ color: 'var(--text-muted)' }} />
-                </a>
+                </div>
               </div>
             </div>
           </div>
@@ -1462,9 +1475,9 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               color: 'var(--text-muted)',
             }}
           >
-            <span>&copy; 2026 SIP Barang. Seluruh hak cipta dilindungi.</span>
-            <span className="font-mono" style={{ fontSize: '11px' }}>
-              Next.js 16 &bull; Supabase PostgreSQL (ap-southeast-1) &bull; Vercel Edge
+            <span>&copy; 2026 SIP Barang. Solusi Kasir &amp; Operasional Toko Modern.</span>
+            <span style={{ fontSize: '11.5px', fontWeight: 500 }}>
+              Siap di Smartphone &amp; Desktop &bull; QRIS Dinamis &bull; Cetak Thermal Bluetooth
             </span>
           </div>
         </div>
