@@ -508,26 +508,35 @@ export async function syncUpsertProduct(
   p: Product,
   ownerId: string
 ): Promise<{ ok: boolean; error?: string; code?: string }> {
+  return syncUpsertProducts([p], ownerId);
+}
+
+export async function syncUpsertProducts(
+  items: Product[],
+  ownerId: string
+): Promise<{ ok: boolean; error?: string; code?: string }> {
+  if (items.length === 0) return { ok: true };
   try {
+    const payload = items.map((p) => ({
+      id: p.id,
+      owner_id: p.ownerId || ownerId,
+      sku: p.sku,
+      name: p.name,
+      category: p.category,
+      buy_price: p.buyPrice,
+      sell_price: p.sellPrice,
+      stock: p.stock,
+      min_stock: p.minStock,
+      unit: p.unit,
+      description: p.description || '',
+      updated_at: p.updatedAt,
+    }));
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products`, {
       method: 'POST',
       headers: {
         Prefer: 'resolution=merge-duplicates',
       },
-      body: JSON.stringify({
-        id: p.id,
-        owner_id: p.ownerId || ownerId,
-        sku: p.sku,
-        name: p.name,
-        category: p.category,
-        buy_price: p.buyPrice,
-        sell_price: p.sellPrice,
-        stock: p.stock,
-        min_stock: p.minStock,
-        unit: p.unit,
-        description: p.description || '',
-        updated_at: p.updatedAt,
-      }),
+      body: JSON.stringify(items.length === 1 ? payload[0] : payload),
     });
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { message?: string; code?: string };

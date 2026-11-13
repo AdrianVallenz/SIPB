@@ -29,6 +29,45 @@ import {
   QrCode,
 } from 'lucide-react';
 
+const ROLE_MATRIX_ROWS = [
+  {
+    capability: 'Terminal Kasir / Point of Sale (POS) & Cetak Struk',
+    admin: 'Diizinkan',
+    cashier: 'Diizinkan (Akses Utama)',
+    cashierAllowed: true,
+  },
+  {
+    capability: 'Rekapitulasi Transaksi Shift Pribadi',
+    admin: 'Semua Kasir Toko',
+    cashier: 'Shift Pribadi',
+    cashierAllowed: true,
+  },
+  {
+    capability: 'Manajemen Master Produk (Tambah / Edit / Hapus SKU)',
+    admin: 'Diizinkan',
+    cashier: 'Dibatasi',
+    cashierAllowed: false,
+  },
+  {
+    capability: 'Akses Informasi Harga Modal & Margin Laba',
+    admin: 'Diizinkan',
+    cashier: 'Disembunyikan (Rahasia)',
+    cashierAllowed: false,
+  },
+  {
+    capability: 'Buat / Nonaktifkan Akun Petugas Kasir',
+    admin: 'Diizinkan',
+    cashier: 'Dibatasi',
+    cashierAllowed: false,
+  },
+  {
+    capability: 'Dashboard Finansial & Ekspor Laporan Sistem',
+    admin: 'Diizinkan',
+    cashier: 'Dibatasi',
+    cashierAllowed: false,
+  },
+] as const;
+
 export default function AdminSettings() {
   const {
     user,
@@ -953,7 +992,7 @@ export default function AdminSettings() {
           </div>
         </div>
 
-        <div className="sip-table-container" style={{ border: 'none', borderRadius: 0 }}>
+        <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
           <table className="sip-table">
             <thead>
               <tr>
@@ -967,92 +1006,47 @@ export default function AdminSettings() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>
-                  <strong>Terminal Kasir / Point of Sale (POS) &amp; Cetak Struk</strong>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Diizinkan
-                  </span>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Diizinkan (Akses Utama)
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Rekapitulasi Transaksi Shift Pribadi</strong>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Semua Kasir Toko
-                  </span>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Shift Pribadi
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Manajemen Master Produk (Tambah / Edit / Hapus SKU)</strong>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Diizinkan
-                  </span>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>Dibatasi</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Akses Informasi Harga Modal &amp; Margin Laba</strong>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Diizinkan
-                  </span>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>
-                    Disembunyikan (Rahasia)
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Buat / Nonaktifkan Akun Petugas Kasir</strong>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Diizinkan
-                  </span>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>Dibatasi</span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Dashboard Finansial &amp; Ekspor Laporan Sistem</strong>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                    Diizinkan
-                  </span>
-                </td>
-                <td>
-                  <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>Dibatasi</span>
-                </td>
-              </tr>
+              {ROLE_MATRIX_ROWS.map((row) => (
+                <tr key={row.capability}>
+                  <td>
+                    <strong>{row.capability}</strong>
+                  </td>
+                  <td>
+                    <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
+                      {row.admin}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      style={{
+                        color: row.cashierAllowed ? 'var(--accent-green-text)' : 'var(--accent-red)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {row.cashier}
+                    </span>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card Representation of Role Matrix */}
+        <div className="mobile-card-list" style={{ padding: '12px 14px' }}>
+          {ROLE_MATRIX_ROWS.map((row) => (
+            <div key={row.capability} className="mobile-data-card">
+              <div style={{ fontSize: '12.5px', fontWeight: 700, lineHeight: 1.35 }}>
+                {row.capability}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span className="badge badge-cyan">Admin: {row.admin}</span>
+                <span className={row.cashierAllowed ? 'badge badge-green' : 'badge badge-red'}>
+                  Kasir: {row.cashier}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

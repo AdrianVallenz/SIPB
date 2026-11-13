@@ -748,11 +748,11 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Flat Geometric SVG Line Plot (Zero gradients, responsive without forced overflow) */}
-            <div style={{ width: '100%' }}>
+            {/* Flat Geometric SVG Line Plot (Zero gradients, mobile-scroll safe with crisp readable scale) */}
+            <div className="sb-chart-scroll">
               <svg
                 viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                style={{ width: '100%', height: 'auto', display: 'block', userSelect: 'none' }}
+                className="sb-chart-svg"
                 onMouseLeave={() => setHoveredIdx(null)}
               >
                 {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
@@ -771,9 +771,9 @@ export default function AdminDashboard() {
                       />
                       <text
                         x={paddingX - 10}
-                        y={y + 3}
+                        y={y + 4}
                         fill="var(--text-muted)"
-                        fontSize="10"
+                        fontSize="11"
                         fontWeight="500"
                         fontFamily="var(--font-mono)"
                         textAnchor="end"
@@ -870,7 +870,7 @@ export default function AdminDashboard() {
                           x={pt.x}
                           y={pt.revY - 10}
                           fill="var(--accent-cyan)"
-                          fontSize="10"
+                          fontSize="11"
                           fontWeight="600"
                           fontFamily="var(--font-mono)"
                           textAnchor="middle"
@@ -884,7 +884,7 @@ export default function AdminDashboard() {
                           x={pt.x}
                           y={svgHeight - 7}
                           fill={isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)'}
-                          fontSize="10"
+                          fontSize="11"
                           fontWeight={isSelected ? '700' : '500'}
                           fontFamily="var(--font-sans)"
                           textAnchor="middle"

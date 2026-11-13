@@ -33,7 +33,7 @@ export default function CashierHistory() {
       </div>
 
       {/* Shift Overview Cards */}
-      <div className="kpi-grid">
+      <div className="kpi-grid kpi-grid-3">
         <div className="sip-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>

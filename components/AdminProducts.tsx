@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, ProductCategory, PRODUCT_CATEGORIES } from '@/lib/types';
-import { formatRupiah, formatDateTime } from '@/lib/format';
+import { formatRupiah, formatDateTime, calcMarginPct } from '@/lib/format';
 import {
   Plus,
   Search,
@@ -254,6 +254,7 @@ export default function AdminProducts() {
                     top: '50%',
                     transform: 'translateY(-50%)',
                     color: 'var(--text-muted)',
+                    pointerEvents: 'none',
                   }}
                 />
                 <input
@@ -262,8 +263,33 @@ export default function AdminProducts() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="sip-input"
-                  style={{ paddingLeft: '36px' }}
+                  style={{ paddingLeft: '36px', paddingRight: searchQuery ? '36px' : '13px' }}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Hapus pencarian"
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      backgroundColor: 'var(--bg-subtle)',
+                      color: 'var(--text-secondary)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </div>
 
               <div>
@@ -315,8 +341,7 @@ export default function AdminProducts() {
                 </thead>
                 <tbody>
                   {filteredProducts.map((p) => {
-                    const margin =
-                      p.sellPrice > 0 ? Math.round(((p.sellPrice - p.buyPrice) / p.sellPrice) * 100) : 0;
+                    const margin = calcMarginPct(p.sellPrice, p.buyPrice);
                     const isOutOfStock = p.stock === 0;
                     const isLowStock = p.stock > 0 && p.stock <= p.minStock;
 
@@ -462,8 +487,7 @@ export default function AdminProducts() {
           {/* Mobile Products Card List */}
           <div className="mobile-card-list">
             {filteredProducts.map((p) => {
-              const margin =
-                p.sellPrice > 0 ? Math.round(((p.sellPrice - p.buyPrice) / p.sellPrice) * 100) : 0;
+              const margin = calcMarginPct(p.sellPrice, p.buyPrice);
               const isOutOfStock = p.stock === 0;
               const isLowStock = p.stock > 0 && p.stock <= p.minStock;
 

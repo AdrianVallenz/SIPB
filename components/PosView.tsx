@@ -469,6 +469,7 @@ export default function PosView() {
                   top: '50%',
                   transform: 'translateY(-50%)',
                   color: 'var(--text-muted)',
+                  pointerEvents: 'none',
                 }}
               />
               <input
@@ -477,15 +478,50 @@ export default function PosView() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="sip-input"
-                style={{ paddingLeft: '38px' }}
+                style={{ paddingLeft: '38px', paddingRight: searchQuery ? '38px' : '13px' }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Hapus pencarian"
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '999px',
+                    border: 'none',
+                    backgroundColor: 'var(--bg-subtle)',
+                    color: 'var(--text-secondary)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
 
-            {searchQuery && (
-              <button type="button" onClick={() => setSearchQuery('')} className="btn btn-secondary btn-sm">
-                Reset
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsPrinterModalOpen(true)}
+              className="btn btn-secondary btn-sm show-mobile-only"
+              style={{
+                borderColor: isConnected ? 'rgba(var(--accent-cyan-rgb), 0.5)' : 'var(--border-color)',
+                color: isConnected ? 'var(--accent-green-text)' : 'var(--text-secondary)',
+                minHeight: '38px',
+                padding: '0 10px',
+              }}
+              aria-label="Printer Thermal Bluetooth"
+              title="Pengaturan Printer Thermal"
+            >
+              {isConnected ? <BluetoothConnected size={16} /> : <Bluetooth size={16} />}
+            </button>
 
             <button
               type="button"
@@ -568,15 +604,14 @@ export default function PosView() {
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '4px' }}>
-                    <span className="font-mono" style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <div className="pos-card-header">
+                    <span className="font-mono pos-card-sku">
                       {prod.sku}
                     </span>
                     <span
                       className={`badge ${
                         isOutOfStock ? 'badge-red' : isLowStock ? 'badge-amber' : 'badge-green'
-                      }`}
-                      style={{ fontSize: '10px', padding: '2px 7px' }}
+                      } pos-stock-badge`}
                     >
                       {isOutOfStock
                         ? 'Habis'
@@ -586,19 +621,7 @@ export default function PosView() {
                     </span>
                   </div>
 
-                  <h3
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      marginBottom: '4px',
-                      lineHeight: 1.35,
-                      minHeight: '35px',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}
-                  >
+                  <h3 className="pos-card-title">
                     {prod.name}
                   </h3>
 
@@ -621,33 +644,24 @@ export default function PosView() {
                   </div>
 
                   {inCart > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="pos-qty-stepper">
                       <button
                         type="button"
                         onClick={() => updateQuantity(prod.id, -1)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '7px 10px', minHeight: '36px' }}
+                        className="btn btn-secondary btn-sm pos-qty-btn"
+                        aria-label={`Kurangi ${prod.name}`}
                       >
                         <Minus size={14} />
                       </button>
-                      <div
-                        className="font-mono"
-                        style={{
-                          flex: 1,
-                          textAlign: 'center',
-                          fontWeight: 700,
-                          fontSize: '12.5px',
-                          color: 'var(--accent-cyan)',
-                        }}
-                      >
-                        {inCart} {prod.unit}
+                      <div className="font-mono pos-qty-val">
+                        {inCart} <span className="pos-qty-unit">{prod.unit}</span>
                       </div>
                       <button
                         type="button"
                         disabled={inCart >= prod.stock}
                         onClick={() => updateQuantity(prod.id, 1)}
-                        className="btn btn-primary btn-sm"
-                        style={{ padding: '7px 10px', minHeight: '36px' }}
+                        className="btn btn-primary btn-sm pos-qty-btn"
+                        aria-label={`Tambah ${prod.name}`}
                       >
                         <Plus size={14} />
                       </button>
@@ -997,7 +1011,7 @@ export default function PosView() {
           onClick={() => setIsQrisSetupOpen(false)}
         >
           <div
-            className="modal-card modal-sheet"
+            className="modal-content modal-sheet"
             style={{ maxWidth: '640px', width: '100%' }}
             onClick={(e) => e.stopPropagation()}
           >

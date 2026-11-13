@@ -35,3 +35,15 @@ export function generateInvoiceNo(ownerId: string = ''): string {
   return `TRX-${dateStr}-${cleanOwner}${randomSuffix}`;
 }
 
+export function calcMarginPct(sellPrice: number, buyPrice: number): number {
+  if (!Number.isFinite(sellPrice) || sellPrice <= 0) return 0;
+  return Math.round(((sellPrice - buyPrice) / sellPrice) * 100);
+}
+
+export function sanitizeCsvCell(val: string | number): string {
+  const str = String(val ?? '');
+  const safePrefix = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+  return `"${safePrefix.replace(/"/g, '""')}"`;
+}
+
+

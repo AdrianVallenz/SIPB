@@ -4,26 +4,29 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { formatRupiah } from '@/lib/format';
 import {
+  ADMIN_CAPABILITIES,
+  CASHIER_CAPABILITIES,
+  CORE_FEATURES,
+  TECH_STACK_ITEMS,
+} from '@/lib/landingData';
+import ShowcasePreview, { ShowcaseTab } from '@/components/landing/ShowcasePreview';
+import {
   Package,
   ShieldCheck,
   ShoppingCart,
   BarChart3,
-  FileSpreadsheet,
   Database,
   ArrowRight,
   CheckCircle2,
   Sparkles,
   Sun,
   Moon,
-  Layers,
   Zap,
   Printer,
   Globe,
   TrendingUp,
-  AlertTriangle,
   LogIn,
   UserPlus,
-  Search,
   History,
   Menu,
   X,
@@ -32,12 +35,19 @@ import {
   Smartphone,
 } from 'lucide-react';
 
+const CORE_FEATURE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  'pos-speed': Zap,
+  'precision-accounting': TrendingUp,
+  'warehouse-audit': History,
+  'rbac-security': ShieldCheck,
+  'cloud-postgres': Database,
+  'reporting-print': Printer,
+};
+
 interface LandingViewProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
   onEnterApp: (role?: 'admin' | 'user', targetTab?: string) => void;
 }
-
-type ShowcaseTab = 'dashboard' | 'pos' | 'inventory' | 'reports';
 
 export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps) {
   const { user, theme, toggleTheme, products, transactions, stockLogs, isCloudConnected } = useApp();
@@ -45,21 +55,31 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
   const [selectedSimPayment, setSelectedSimPayment] = useState<'Tunai' | 'QRIS' | 'Transfer Bank' | 'Kartu Debit'>('QRIS');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Compute live showcase stats from real state
+  // Compute live showcase stats in O(P + T) using product buyPrice Map
   const stats = useMemo(() => {
+    const productBuyMap = new Map(products.map((p) => [p.id, p.buyPrice]));
     const activeTrx = transactions.filter((t) => t.status !== 'VOIDED');
-    const totalRevenue = activeTrx.reduce((acc, t) => acc + t.total, 0);
+    let totalRevenue = 0;
     let totalCogs = 0;
+
     for (const t of activeTrx) {
+      totalRevenue += t.total;
       for (const item of t.items) {
-        const fallbackBuy = products.find((p) => p.id === item.productId)?.buyPrice ?? Math.round(item.price * 0.75);
+        const fallbackBuy = productBuyMap.get(item.productId) ?? Math.round(item.price * 0.75);
         totalCogs += (item.buyPrice ?? fallbackBuy) * item.quantity;
       }
     }
+
+    let totalStockUnits = 0;
+    let totalAssetValue = 0;
+    let lowStockCount = 0;
+    for (const p of products) {
+      totalStockUnits += p.stock;
+      totalAssetValue += p.buyPrice * p.stock;
+      if (p.stock <= p.minStock) lowStockCount += 1;
+    }
+
     const netProfit = totalRevenue - totalCogs;
-    const totalStockUnits = products.reduce((acc, p) => acc + p.stock, 0);
-    const totalAssetValue = products.reduce((acc, p) => acc + p.buyPrice * p.stock, 0);
-    const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
 
     return {
       totalProducts: products.length,
@@ -358,18 +378,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
             }}
           >
             Kendalikan Kasir POS, Stok Gudang, &amp;{' '}
-            <span
-              style={{
-                background:
-                  theme === 'dark'
-                    ? 'linear-gradient(135deg, #34D399 0%, #10B981 100%)'
-                    : 'linear-gradient(135deg, #047857 0%, #10B981 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              Audit Laba Bersih
-            </span>{' '}
+            <span className="hero-gradient-text">Audit Laba Bersih</span>{' '}
             Secara Real-Time.
           </h1>
 
@@ -499,522 +508,18 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
         </section>
 
         {/* INTERACTIVE MODULE SHOWCASE WINDOW */}
-        <section
-          id="showcase"
-          style={{
-            maxWidth: '1280px',
-            margin: '0 auto',
-            padding: '24px 18px 56px',
-          }}
-        >
-          <div style={{ textAlign: 'center', marginBottom: '22px' }}>
-            <span className="badge badge-cyan" style={{ marginBottom: '8px' }}>
-              INTERACTIVE PRODUCT TOUR
-            </span>
-            <h2 style={{ fontSize: 'clamp(21px, 3vw, 26px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              Eksplorasi Modul Sistem Secara Langsung
-            </h2>
-            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Pilih tab di bawah untuk melihat pratinjau antarmuka dan fitur dari setiap modul utama SIP Barang.
-            </p>
-          </div>
-
-          {/* Showcase Selector Tabs */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: '8px',
-              marginBottom: '18px',
-            }}
-          >
-            {[
-              { id: 'dashboard', label: '1. Dashboard Eksekutif', icon: BarChart3 },
-              { id: 'pos', label: '2. Terminal Kasir POS', icon: ShoppingCart },
-              { id: 'inventory', label: '3. Master Gudang & Stok', icon: Layers },
-              { id: 'reports', label: '4. Laporan & Audit Void', icon: FileSpreadsheet },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeShowcase === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveShowcase(tab.id as ShowcaseTab)}
-                  className={isActive ? 'btn btn-primary' : 'btn btn-secondary'}
-                  style={{
-                    padding: '9px 15px',
-                    fontSize: '12.5px',
-                  }}
-                >
-                  <Icon size={15} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Mock Browser Application Frame */}
-          <div
-            className="sip-card"
-            style={{
-              padding: 0,
-              overflow: 'hidden',
-              boxShadow: 'var(--shadow-md)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            {/* Browser Top Bar */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                backgroundColor: 'var(--bg-subtle)',
-                borderBottom: '1px solid var(--border-color)',
-                gap: '10px',
-                flexWrap: 'wrap',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '11px', height: '11px', borderRadius: '50%', backgroundColor: '#EF4444' }} />
-                <span style={{ width: '11px', height: '11px', borderRadius: '50%', backgroundColor: '#F59E0B' }} />
-                <span style={{ width: '11px', height: '11px', borderRadius: '50%', backgroundColor: '#10B981' }} />
-                <span
-                  className="font-mono hide-mobile"
-                  style={{
-                    marginLeft: '8px',
-                    padding: '4px 12px',
-                    borderRadius: '6px',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-color)',
-                    fontSize: '11.5px',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  https://{activeShowcase === 'pos' ? 'pos.sipb.web.id' : 'sipb.web.id'}/{activeShowcase}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="badge badge-green hide-mobile">
-                  <CheckCircle2 size={11} /> Live Preview Data
-                </span>
-                <button
-                  onClick={() =>
-                    onEnterApp(
-                      activeShowcase === 'pos' ? 'user' : 'admin',
-                      activeShowcase === 'inventory' ? 'products' : activeShowcase
-                    )
-                  }
-                  className="btn btn-primary btn-sm"
-                >
-                  <span>Buka Modul Ini Sekarang</span>
-                  <ArrowRight size={13} />
-                </button>
-              </div>
-            </div>
-
-            {/* Showcase Body Content */}
-            <div style={{ padding: '20px 16px', backgroundColor: 'var(--bg-primary)' }}>
-              {activeShowcase === 'dashboard' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Dashboard Eksekutif &amp; Analitik Toko</h3>
-                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                        Ringkasan performa penjualan harian, estimasi laba bersih, dan deteksi dini stok gudang menipis.
-                      </p>
-                    </div>
-                    <span className="badge badge-cyan">Otorisasi: Administrator</span>
-                  </div>
-
-                  <div className="kpi-grid">
-                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-cyan)' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>TOTAL PENDAPATAN BERSIH</div>
-                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '6px' }}>
-                        {formatRupiah(stats.totalRevenue)}
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Dari {stats.totalTransactions} transaksi selesai
-                      </div>
-                    </div>
-
-                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-green)' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>ESTIMASI LABA BERSIH</div>
-                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-green-text)', marginTop: '6px' }}>
-                        {formatRupiah(stats.netProfit)}
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--accent-green-text)', marginTop: '4px', fontWeight: 600 }}>
-                        Margin rata-rata +{stats.profitMargin}% setelah HPP
-                      </div>
-                    </div>
-
-                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-amber)' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>NILAI MODAL INVENTARIS</div>
-                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, marginTop: '6px' }}>
-                        {formatRupiah(stats.totalAssetValue)}
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        {stats.totalStockUnits} unit tersebar di 5 kategori
-                      </div>
-                    </div>
-
-                    <div className="sip-card" style={{ borderTop: '3px solid var(--accent-red)' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>PERINGATAN STOK KRITIS</div>
-                      <div className="font-mono" style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-amber-text)', marginTop: '6px' }}>
-                        {stats.lowStockCount} SKU
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Di bawah batas minimum gudang (minStock)
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="dashboard-split">
-                    {/* Simulated 7-Day Trend Bar Chart */}
-                    <div className="sip-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: 700 }}>Tren Omzet &amp; Laba 7 Hari Terakhir</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Visualisasi grafik perbandingan pendapatan vs laba bersih</div>
-                        </div>
-                        <span className="badge badge-muted font-mono">Real-Time Chart</span>
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(7, 1fr)',
-                          gap: '8px',
-                          alignItems: 'end',
-                          height: '150px',
-                          paddingTop: '16px',
-                          borderBottom: '1px solid var(--border-color)',
-                        }}
-                      >
-                        {[
-                          { day: 'Sen', rev: 55, prof: 35 },
-                          { day: 'Sel', rev: 72, prof: 48 },
-                          { day: 'Rab', rev: 64, prof: 40 },
-                          { day: 'Kam', rev: 88, prof: 58 },
-                          { day: 'Jum', rev: 78, prof: 52 },
-                          { day: 'Sab', rev: 96, prof: 68 },
-                          { day: 'Min', rev: 85, prof: 60 },
-                        ].map((bar) => (
-                          <div key={bar.day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center', height: '120px' }}>
-                              <div
-                                title="Omzet"
-                                style={{
-                                  width: '10px',
-                                  height: `${bar.rev}%`,
-                                  backgroundColor: 'var(--accent-cyan)',
-                                  borderRadius: '4px 4px 0 0',
-                                }}
-                              />
-                              <div
-                                title="Laba Bersih"
-                                style={{
-                                  width: '10px',
-                                  height: `${bar.prof}%`,
-                                  backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.38)',
-                                  borderRadius: '4px 4px 0 0',
-                                }}
-                              />
-                            </div>
-                            <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-secondary)', fontWeight: 600, paddingBottom: '6px' }}>
-                              {bar.day}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Low Stock Watchlist */}
-                    <div className="sip-card">
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 700 }}>Deteksi Stok Menipis</span>
-                        <AlertTriangle size={15} style={{ color: 'var(--accent-amber-text)' }} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {products
-                          .filter((p) => p.stock <= p.minStock)
-                          .slice(0, 4)
-                          .map((item) => (
-                            <div
-                              key={item.id}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '9px 12px',
-                                borderRadius: 'var(--radius-sm)',
-                                backgroundColor: 'var(--bg-subtle)',
-                                border: '1px solid var(--border-color)',
-                                gap: '8px',
-                              }}
-                            >
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {item.name}
-                                </div>
-                                <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  {item.sku} &bull; Min: {item.minStock} {item.unit}
-                                </div>
-                              </div>
-                              <span className="badge badge-amber font-mono">
-                                Sisa {item.stock} {item.unit}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeShowcase === 'pos' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Terminal Kasir Point of Sale (POS) &amp; Struk Termal</h3>
-                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                        Mendukung shortcut keyboard cepat (<strong>F2</strong> Cari SKU/Barcode, <strong>F8</strong> Proses Bayar), multi-metode pembayaran, &amp; cetak struk 58mm/80mm.
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <span className="badge badge-muted font-mono">Shortcut: F2 / F8</span>
-                      <span className="badge badge-green">Akses: Kasir &amp; Admin</span>
-                    </div>
-                  </div>
-
-                  <div className="dashboard-split">
-                    {/* Mini POS Product Grid */}
-                    <div className="sip-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700 }}>
-                          <Search size={15} style={{ color: 'var(--accent-cyan)' }} />
-                          <span>Katalog Kasir Responsif</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          {(['Tunai', 'QRIS', 'Transfer Bank', 'Kartu Debit'] as const).map((m) => (
-                            <button
-                              key={m}
-                              onClick={() => setSelectedSimPayment(m)}
-                              className={selectedSimPayment === m ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-                              style={{ padding: '4px 10px', fontSize: '11px' }}
-                            >
-                              {m}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pos-grid">
-                        {sampleProducts.map((p) => (
-                          <div
-                            key={p.id}
-                            style={{
-                              padding: '12px',
-                              borderRadius: 'var(--radius-md)',
-                              backgroundColor: 'var(--bg-subtle)',
-                              border: '1px solid var(--border-color)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'space-between',
-                              gap: '8px',
-                            }}
-                          >
-                            <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                                  {p.sku}
-                                </span>
-                                <span className="badge badge-muted font-mono" style={{ fontSize: '10px' }}>
-                                  Stok: {p.stock}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: '12.5px', fontWeight: 700, lineHeight: 1.35 }}>{p.name}</div>
-                            </div>
-                            <div className="font-mono" style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--accent-cyan)' }}>
-                              {formatRupiah(p.sellPrice)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Thermal Receipt Preview */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                      <div className="receipt-paper">
-                        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-                          <div style={{ fontWeight: 800, fontSize: '13px' }}>SIP BARANG POS</div>
-                          <div style={{ fontSize: '10px', color: '#555' }}>Jl. Operasional Niaga No. 88</div>
-                          <div style={{ fontSize: '10px', color: '#555' }}>https://sipb.web.id</div>
-                        </div>
-                        <div className="receipt-divider" />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
-                          <span>No: TRX-20261112-8821</span>
-                          <span>Kasir: Kasir POS</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
-                          <span>Metode: {selectedSimPayment}</span>
-                          <span>Status: LUNAS</span>
-                        </div>
-                        <div className="receipt-divider" />
-                        {sampleProducts.slice(0, 2).map((item) => (
-                          <div key={item.id} style={{ marginBottom: '6px' }}>
-                            <div style={{ fontWeight: 700 }}>{item.name}</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span>1 x {formatRupiah(item.sellPrice)}</span>
-                              <span>{formatRupiah(item.sellPrice)}</span>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="receipt-divider" />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '12px' }}>
-                          <span>GRAND TOTAL</span>
-                          <span>
-                            {formatRupiah(
-                              (sampleProducts[0]?.sellPrice || 0) + (sampleProducts[1]?.sellPrice || 0)
-                            )}
-                          </span>
-                        </div>
-                        <div className="receipt-divider" />
-                        <div style={{ textAlign: 'center', fontSize: '9.5px', color: '#555', marginTop: '6px' }}>
-                          Terima kasih atas kunjungan Anda!
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeShowcase === 'inventory' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Master Inventaris Gudang &amp; Audit Mutasi Stok</h3>
-                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                        Kelola harga modal (HPP), harga jual, kalkulasi persentase margin otomatis, serta lacak setiap stok masuk (IN), keluar (OUT), dan opname (ADJUSTMENT).
-                      </p>
-                    </div>
-                    <span className="badge badge-cyan">Dilindungi Row Level Security (RLS)</span>
-                  </div>
-
-                  <div className="sip-table-container">
-                    <table className="sip-table">
-                      <thead>
-                        <tr>
-                          <th>Kode SKU</th>
-                          <th>Nama Barang</th>
-                          <th>Kategori</th>
-                          <th>Harga Beli (HPP)</th>
-                          <th>Harga Jual</th>
-                          <th>Margin</th>
-                          <th>Status Stok</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sampleProducts.slice(0, 5).map((p) => {
-                          const margin = p.sellPrice > 0 ? Math.round(((p.sellPrice - p.buyPrice) / p.sellPrice) * 100) : 0;
-                          const isLow = p.stock <= p.minStock;
-                          return (
-                            <tr key={p.id}>
-                              <td className="font-mono" style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>{p.sku}</td>
-                              <td style={{ fontWeight: 600 }}>{p.name}</td>
-                              <td><span className="badge badge-muted">{p.category}</span></td>
-                              <td className="font-mono">{formatRupiah(p.buyPrice)}</td>
-                              <td className="font-mono" style={{ fontWeight: 700 }}>{formatRupiah(p.sellPrice)}</td>
-                              <td><span className="badge badge-green font-mono">+{margin}%</span></td>
-                              <td>
-                                <span className={isLow ? 'badge badge-amber font-mono' : 'badge badge-cyan font-mono'}>
-                                  {p.stock} {p.unit} {isLow ? '(Menipis)' : ''}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Recent Stock Logs Strip */}
-                  <div className="landing-telemetry-grid" style={{ maxWidth: '100%' }}>
-                    {sampleLogs.map((log) => (
-                      <div key={log.id} className="sip-card" style={{ padding: '12px 14px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <span className={log.type === 'IN' ? 'badge badge-green' : log.type === 'OUT' ? 'badge badge-amber' : 'badge badge-cyan'}>
-                            Mutasi {log.type} ({log.type === 'IN' ? '+' : '-'}{log.quantity})
-                          </span>
-                          <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
-                            {log.previousStock} &rarr; {log.newStock}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '12.5px', fontWeight: 700 }}>{log.productName}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{log.reason}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeShowcase === 'reports' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '17px', fontWeight: 800 }}>Laporan Keuangan, Audit HPP &amp; Pembatalan Nota (Void)</h3>
-                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                        Filter laporan berdasarkan rentang tanggal &amp; metode pembayaran, ekspor ke CSV (Microsoft Excel), cetak PDF A4, atau batalkan transaksi (Void) dengan pengembalian stok otomatis.
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <span className="badge badge-green">CSV UTF-8 BOM Ready</span>
-                      <span className="badge badge-cyan">Auto-Restore Stock on Void</span>
-                    </div>
-                  </div>
-
-                  <div className="sip-table-container">
-                    <table className="sip-table">
-                      <thead>
-                        <tr>
-                          <th>No. Invoice</th>
-                          <th>Kasir</th>
-                          <th>Metode Bayar</th>
-                          <th>Total Tagihan</th>
-                          <th>Status Nota</th>
-                          <th>Fitur Audit</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {transactions.slice(0, 4).map((t) => (
-                          <tr key={t.id}>
-                            <td className="font-mono" style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>{t.invoiceNo}</td>
-                            <td>{t.cashierName}</td>
-                            <td><span className="badge badge-muted">{t.paymentMethod}</span></td>
-                            <td className="font-mono" style={{ fontWeight: 700 }}>{formatRupiah(t.total)}</td>
-                            <td>
-                              {t.status === 'VOIDED' ? (
-                                <span className="badge badge-red">DIBATALKAN (VOID)</span>
-                              ) : (
-                                <span className="badge badge-green">SELESAI (LUNAS)</span>
-                              )}
-                            </td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                              Cetak Ulang Struk &bull; Detail Item &bull; Void Otorisasi Admin
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
+        <ShowcasePreview
+          activeShowcase={activeShowcase}
+          onSelectShowcase={setActiveShowcase}
+          selectedSimPayment={selectedSimPayment}
+          onSelectSimPayment={setSelectedSimPayment}
+          stats={stats}
+          products={products}
+          sampleProducts={sampleProducts}
+          sampleLogs={sampleLogs}
+          transactions={transactions}
+          onEnterApp={onEnterApp}
+        />
 
         {/* BENTO GRID: 6 CORE FEATURES */}
         <section
@@ -1038,48 +543,11 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
           </div>
 
           <div className="landing-bento-grid">
-            {[
-              {
-                icon: Zap,
-                badge: 'POS Kecepatan Tinggi',
-                title: 'Kasir Responsif & Shortcut Keyboard',
-                desc: 'Transaksi lebih cepat dengan pencarian instan SKU/nama barang (F2), tombol uang pas & pecahan cepat, kalkulasi kembalian otomatis (F8), dan indikator suara transaksi.',
-              },
-              {
-                icon: TrendingUp,
-                badge: 'Akuntansi Presisi',
-                title: 'Perhitungan HPP & Laba Bersih Otomatis',
-                desc: 'Setiap item transaksi mengunci harga beli (buyPrice) saat penjualan terjadi, sehingga laporan laba bersih tetap akurat meskipun harga modal barang berubah di kemudian hari.',
-              },
-              {
-                icon: History,
-                badge: 'Audit Gudang',
-                title: 'Kartu Stok & Deteksi Stok Kritis',
-                desc: 'Pantau pergerakan stok masuk (IN), keluar (OUT), dan opname (ADJUSTMENT) lengkap dengan pencatatan waktu, alasan mutasi, serta operator yang bertugas.',
-              },
-              {
-                icon: ShieldCheck,
-                badge: 'Keamanan RBAC',
-                title: 'Otorisasi Multi-Peran & Registrasi Akun',
-                desc: 'Pemisahan hak akses ketat antara Administrator dan Kasir POS (pembatasan diskon kasir maks 25%, proteksi fitur Void nota, serta fitur Daftar/Masuk operator baru).',
-              },
-              {
-                icon: Database,
-                badge: 'Cloud PostgreSQL',
-                title: 'Sinkronisasi Real-Time Supabase Cloud',
-                desc: 'Menggabungkan kecepatan state lokal dengan persistensi database Supabase Cloud PostgreSQL berfitur Row Level Security (RLS) dan cadangan/pemulihan JSON.',
-              },
-              {
-                icon: Printer,
-                badge: 'Pelaporan & Cetak',
-                title: 'Cetak Struk Termal & Ekspor CSV Excel',
-                desc: 'Format cetak CSS khusus untuk printer struk termal kasir (58mm/80mm) dan laporan manajerial A4, ditambah unduhan laporan keuangan berformat CSV (UTF-8 BOM).',
-              },
-            ].map((feat) => {
-              const Icon = feat.icon;
+            {CORE_FEATURES.map((feat) => {
+              const Icon = CORE_FEATURE_ICONS[feat.id] || Zap;
               return (
-                <div key={feat.title} className="sip-card sip-card-hover" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div key={feat.id} className="sip-card sip-card-hover" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
                     <div
                       style={{
                         width: '40px',
@@ -1139,7 +607,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               }}
             >
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
                   <span className="badge badge-cyan">FULL ACCESS CONTROL</span>
                   <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     admin@sip.com
@@ -1151,13 +619,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {[
-                    'Dashboard Eksekutif, Grafik Tren 7 Hari & Analisis Margin Laba',
-                    'CRUD Master Produk, Harga Modal (HPP), & Penyesuaian Stok (Opname)',
-                    'Laporan Keuangan Lengkap, Filter Periode, & Ekspor CSV Excel',
-                    'Otorisasi Pembatalan Nota (Void Transaksi) & Pengembalian Stok',
-                    'Pembuatan Akun Kasir POS & Isolasi Database Per Akun Supabase',
-                  ].map((item) => (
+                  {ADMIN_CAPABILITIES.map((item) => (
                     <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: '9px', fontSize: '13px' }}>
                       <CheckCircle2 size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />
                       <span>{item}</span>
@@ -1167,6 +629,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               </div>
 
               <button
+                type="button"
                 onClick={() => onEnterApp('admin', 'dashboard')}
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '12px' }}
@@ -1188,7 +651,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               }}
             >
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
                   <span className="badge badge-green">POS TERMINAL OPERATOR</span>
                   <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
                     user@sip.com
@@ -1200,13 +663,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {[
-                    'Terminal Kasir Point of Sale (POS) Cepat dengan Shortcut F2 & F8',
-                    'Dukungan Pembayaran Tunai, QRIS, Transfer Bank, & Kartu Debit',
-                    'Batas Aman Diskon Kasir Maksimal 25% (Proteksi Anti-Fraud)',
-                    'Cetak Struk Termal Kasir (58mm/80mm) Langsung Setelah Bayar',
-                    'Riwayat Transaksi Shift Kasir & Rekapitulasi Setoran Tunai/Non-Tunai',
-                  ].map((item) => (
+                  {CASHIER_CAPABILITIES.map((item) => (
                     <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: '9px', fontSize: '13px' }}>
                       <CheckCircle2 size={16} style={{ color: 'var(--accent-green-text)', flexShrink: 0, marginTop: '2px' }} />
                       <span>{item}</span>
@@ -1216,6 +673,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               </div>
 
               <button
+                type="button"
                 onClick={() => onEnterApp('user', 'pos')}
                 className="btn btn-secondary"
                 style={{
@@ -1241,7 +699,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
             padding: '12px 18px 64px',
           }}
         >
-          <div className="sip-card" style={{ padding: '28px 22px' }}>
+          <div className="sip-card" style={{ padding: '24px 20px' }}>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <span className="badge badge-cyan" style={{ marginBottom: '8px' }}>
                 MODERN CLOUD ARCHITECTURE
@@ -1255,28 +713,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
             </div>
 
             <div className="landing-tech-grid">
-              {[
-                {
-                  title: 'Next.js 16.4 & React 19',
-                  sub: 'App Router + TypeScript 5',
-                  detail: 'Arsitektur komponen modern dengan code-splitting dinamis & performa tinggi.',
-                },
-                {
-                  title: 'Supabase PostgreSQL',
-                  sub: 'Singapore (ap-southeast-1)',
-                  detail: 'Database relasional Cloud dengan kebijakan keamanan Row Level Security (RLS).',
-                },
-                {
-                  title: 'Vercel Edge Network',
-                  sub: 'SSL Auto-Renew & Custom Domain',
-                  detail: 'Terhubung langsung ke domain utama sipb.web.id dan terminal pos.sipb.web.id.',
-                },
-                {
-                  title: 'Enterprise Security Headers',
-                  sub: 'CSP, HSTS, X-Frame-Options',
-                  detail: 'Perlindungan terhadap injeksi skrip (XSS), clickjacking, dan brute-force login.',
-                },
-              ].map((tech) => (
+              {TECH_STACK_ITEMS.map((tech) => (
                 <div
                   key={tech.title}
                   style={{

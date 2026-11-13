@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction, PAYMENT_METHODS } from '@/lib/types';
-import { formatRupiah, formatDateTime, getLocalDateKey } from '@/lib/format';
+import { formatRupiah, formatDateTime, getLocalDateKey, sanitizeCsvCell } from '@/lib/format';
 import ReceiptModal from './ReceiptModal';
 import {
   Search,
@@ -67,12 +67,6 @@ export default function AdminReports() {
   );
   const averageTransaction =
     activeTransactions.length > 0 ? Math.round(totalOmzet / activeTransactions.length) : 0;
-
-  const sanitizeCsvCell = (val: string | number): string => {
-    const str = String(val ?? '');
-    const safePrefix = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
-    return `"${safePrefix.replace(/"/g, '""')}"`;
-  };
 
   const handleExportCsv = () => {
     if (filteredTransactions.length === 0) return;
@@ -228,6 +222,7 @@ export default function AdminReports() {
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: 'var(--text-muted)',
+                pointerEvents: 'none',
               }}
             />
             <input
@@ -236,8 +231,33 @@ export default function AdminReports() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="sip-input"
-              style={{ paddingLeft: '36px' }}
+              style={{ paddingLeft: '36px', paddingRight: searchQuery ? '36px' : '13px' }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Hapus pencarian"
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '999px',
+                  border: 'none',
+                  backgroundColor: 'var(--bg-subtle)',
+                  color: 'var(--text-secondary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
 
           <div>

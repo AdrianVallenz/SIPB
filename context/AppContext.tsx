@@ -1,6 +1,15 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   CashierAccount,
   PaymentMethod,
@@ -36,6 +45,7 @@ import {
   createCashierCloud,
   deleteCashierCloud,
   fetchCloudSnapshot,
+  getSupabaseAccessToken,
   registerAdminCloud,
   setSupabaseAccessToken,
   signInSupabase,
@@ -45,11 +55,12 @@ import {
   syncUpdateProductStock,
   syncUpsertPaymentSettings,
   syncUpsertProduct,
+  syncUpsertProducts,
   syncVoidTransaction,
   toggleCashierCloud,
   updateCashierCloud,
 } from '@/lib/supabase';
-import { INITIAL_PRODUCTS } from '@/lib/dummyData';
+import { INITIAL_PRODUCTS, INITIAL_STOCK_LOGS, INITIAL_TRANSACTIONS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
 import { generateInvoiceNo } from '@/lib/format';
 
@@ -65,6 +76,7 @@ interface AuthResult {
 
 interface AppContextType {
   user: UserSession | null;
+  isHydrated: boolean;
   isCloudConnected: boolean;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
@@ -113,12 +125,45 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const ADMIN_TABS = new Set(['dashboard', 'products', 'reports', 'pos', 'settings']);
 const USER_TABS = new Set(['pos', 'my-transactions']);
 const emptySubscribe = () => () => {};
+const SSR_EMPTY_CASHIERS: CashierAccount[] = [];
+const SSR_DEFAULT_PAYMENT_SETTINGS: StorePaymentSettings =
+  getDefaultStorePaymentSettings(DEMO_OWNER_ID);
 
 function makeId(prefix: string): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+const ACTIVE_TAB_SESSION_KEY = 'sip_active_tab';
+
+function readStoredActiveTab(session: UserSession | null): string {
+  if (!session) return 'pos';
+  const fallback = session.role === 'admin' ? 'dashboard' : 'pos';
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const saved = sessionStorage.getItem(ACTIVE_TAB_SESSION_KEY);
+    if (!saved) return fallback;
+    if (session.role === 'admin' && ADMIN_TABS.has(saved)) return saved;
+    if (session.role === 'user' && USER_TABS.has(saved)) return saved;
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredActiveTab(tab: string | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (tab) {
+      sessionStorage.setItem(ACTIVE_TAB_SESSION_KEY, tab);
+    } else {
+      sessionStorage.removeItem(ACTIVE_TAB_SESSION_KEY);
+    }
+  } catch {
+    // Ignore storage error
+  }
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -145,13 +190,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [paymentSettings, setPaymentSettings] = useState<StorePaymentSettings>(() =>
     getStoredPaymentSettings(getStoredSession()?.ownerId || DEMO_OWNER_ID)
   );
-  const [activeTab, setActiveTabState] = useState<string>(() => {
-    const session = getStoredSession();
-    return session?.role === 'admin' ? 'dashboard' : 'pos';
-  });
+  const [activeTab, setActiveTabState] = useState<string>(() =>
+    readStoredActiveTab(getStoredSession())
+  );
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
+
+  const pendingDemoAuthRef = useRef<{
+    email: string;
+    promise: ReturnType<typeof signInSupabase>;
+  } | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -170,9 +219,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     const targetOwnerId = user.ownerId;
     (async () => {
+      // Await inflight demo sign-in triggered by fast-path login so we never fire duplicate auth requests
+      const inflight = pendingDemoAuthRef.current;
+      if (!getSupabaseAccessToken() && inflight && inflight.email === user.email) {
+        await inflight.promise;
+        if (pendingDemoAuthRef.current === inflight) {
+          pendingDemoAuthRef.current = null;
+        }
+      }
+      if (!active) return;
+
       let snapshot = await fetchCloudSnapshot();
       if (
         !snapshot.connected &&
+        !getSupabaseAccessToken() &&
         (user.email === 'admin@sip.com' || user.email === 'user@sip.com')
       ) {
         const authRes = await signInSupabase(user.email, '12345678');
@@ -215,8 +275,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!activeUser) return;
     if (activeUser.role === 'admin' && ADMIN_TABS.has(tab)) {
       setActiveTabState(tab);
+      writeStoredActiveTab(tab);
     } else if (activeUser.role === 'user' && USER_TABS.has(tab)) {
       setActiveTabState(tab);
+      writeStoredActiveTab(tab);
     }
   };
 
@@ -228,13 +290,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const activateSession = (session: UserSession) => {
+    const defaultTab = session.role === 'admin' ? 'dashboard' : 'pos';
     setFailedAttempts(0);
     setLockoutUntil(0);
     setIsCloudConnected(false);
     hydrateTenantCache(session.ownerId);
     saveStoredSession(session);
+    writeStoredActiveTab(defaultTab);
     setUser(session);
-    setActiveTabState(session.role === 'admin' ? 'dashboard' : 'pos');
+    setActiveTabState(defaultTab);
   };
 
   const login = async (email: string, pass: string): Promise<AuthResult> => {
@@ -252,7 +316,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: false, message: 'Email dan kata sandi wajib diisi.' };
     }
 
-    // 1. Instant fast-path for built-in demo credentials + background Supabase token fetch
+    // 1. Instant fast-path for built-in demo credentials + single-flight background Supabase auth
     const demoAccount = DEMO_ACCOUNTS[cleanEmail];
     if (demoAccount && pass === '12345678') {
       const session: UserSession = {
@@ -264,7 +328,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loginAt: new Date().toISOString(),
       };
       setSupabaseAccessToken(null);
-      void signInSupabase(cleanEmail, pass);
+      pendingDemoAuthRef.current = {
+        email: cleanEmail,
+        promise: signInSupabase(cleanEmail, pass),
+      };
       activateSession(session);
       return { success: true };
     }
@@ -407,10 +474,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    pendingDemoAuthRef.current = null;
     setUser(null);
     setIsCloudConnected(false);
     setSupabaseAccessToken(null);
     saveStoredSession(null);
+    writeStoredActiveTab(null);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('sip_screen_mode');
+      } catch {
+        // Ignore storage error
+      }
+    }
     hydrateTenantCache(DEMO_OWNER_ID);
   };
 
@@ -601,9 +677,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProducts(sampleProducts);
     saveStoredProducts(sampleProducts, user.ownerId);
 
-    for (const prod of sampleProducts) {
-      await syncUpsertProduct(prod, user.ownerId);
-    }
+    await syncUpsertProducts(sampleProducts, user.ownerId);
 
     return { success: true };
   };
@@ -1081,38 +1155,187 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
+  // Sinkronkan ref aksi setelah commit agar value Provider stabil di memo tanpa stale closure
+  const actionsRef = useRef({
+    toggleTheme,
+    setActiveTab,
+    login,
+    register,
+    logout,
+    createCashier,
+    toggleCashierStatus,
+    updateCashier,
+    deleteCashier,
+    loadSampleCatalog,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    adjustStock,
+    processSale,
+    voidTransaction,
+    updatePaymentSettings,
+  });
+
+  useEffect(() => {
+    actionsRef.current = {
+      toggleTheme,
+      setActiveTab,
+      login,
+      register,
+      logout,
+      createCashier,
+      toggleCashierStatus,
+      updateCashier,
+      deleteCashier,
+      loadSampleCatalog,
+      addProduct,
+      updateProduct,
+      deleteProduct,
+      adjustStock,
+      processSale,
+      voidTransaction,
+      updatePaymentSettings,
+    };
+  });
+
+  const stableToggleTheme = useCallback(() => actionsRef.current.toggleTheme(), []);
+  const stableSetActiveTab = useCallback((tab: string) => actionsRef.current.setActiveTab(tab), []);
+  const stableLogin = useCallback(
+    (email: string, pass: string) => actionsRef.current.login(email, pass),
+    []
+  );
+  const stableRegister = useCallback(
+    (name: string, email: string, pass: string) => actionsRef.current.register(name, email, pass),
+    []
+  );
+  const stableLogout = useCallback(() => actionsRef.current.logout(), []);
+  const stableCreateCashier = useCallback(
+    (name: string, email: string, password: string) =>
+      actionsRef.current.createCashier(name, email, password),
+    []
+  );
+  const stableToggleCashierStatus = useCallback(
+    (cashierId: string, isActive: boolean) =>
+      actionsRef.current.toggleCashierStatus(cashierId, isActive),
+    []
+  );
+  const stableUpdateCashier = useCallback(
+    (cashierId: string, patch: { name?: string; password?: string }) =>
+      actionsRef.current.updateCashier(cashierId, patch),
+    []
+  );
+  const stableDeleteCashier = useCallback(
+    (cashierId: string) => actionsRef.current.deleteCashier(cashierId),
+    []
+  );
+  const stableLoadSampleCatalog = useCallback(() => actionsRef.current.loadSampleCatalog(), []);
+  const stableAddProduct = useCallback(
+    (product: Omit<Product, 'id' | 'updatedAt'>) => actionsRef.current.addProduct(product),
+    []
+  );
+  const stableUpdateProduct = useCallback(
+    (product: Product) => actionsRef.current.updateProduct(product),
+    []
+  );
+  const stableDeleteProduct = useCallback(
+    (productId: string) => actionsRef.current.deleteProduct(productId),
+    []
+  );
+  const stableAdjustStock = useCallback(
+    (
+      productId: string,
+      quantity: number,
+      type: 'IN' | 'OUT' | 'ADJUSTMENT',
+      reason: string
+    ) => actionsRef.current.adjustStock(productId, quantity, type, reason),
+    []
+  );
+  const stableProcessSale = useCallback(
+    (
+      items: { productId: string; quantity: number }[],
+      paymentMethod: PaymentMethod,
+      discount: number,
+      amountPaid: number,
+      customInvoiceNo?: string
+    ) => actionsRef.current.processSale(items, paymentMethod, discount, amountPaid, customInvoiceNo),
+    []
+  );
+  const stableVoidTransaction = useCallback(
+    (transactionId: string, reason: string) =>
+      actionsRef.current.voidTransaction(transactionId, reason),
+    []
+  );
+  const stableUpdatePaymentSettings = useCallback(
+    (patch: Partial<Omit<StorePaymentSettings, 'ownerId' | 'updatedAt'>>) =>
+      actionsRef.current.updatePaymentSettings(patch),
+    []
+  );
+
+  // Gunakan nilai deterministik saat SSR agar Landing HTML utuh tanpa hydration mismatch
+  const contextValue = useMemo<AppContextType>(
+    () => ({
+      user: isInitialized ? user : null,
+      isHydrated: isInitialized,
+      isCloudConnected: isInitialized ? isCloudConnected : false,
+      theme: isInitialized ? theme : 'dark',
+      toggleTheme: stableToggleTheme,
+      products: isInitialized ? products : INITIAL_PRODUCTS,
+      transactions: isInitialized ? transactions : INITIAL_TRANSACTIONS,
+      stockLogs: isInitialized ? stockLogs : INITIAL_STOCK_LOGS,
+      cashiers: isInitialized ? cashiers : SSR_EMPTY_CASHIERS,
+      paymentSettings: isInitialized ? paymentSettings : SSR_DEFAULT_PAYMENT_SETTINGS,
+      updatePaymentSettings: stableUpdatePaymentSettings,
+      activeTab: isInitialized ? activeTab : 'pos',
+      setActiveTab: stableSetActiveTab,
+      login: stableLogin,
+      register: stableRegister,
+      logout: stableLogout,
+      createCashier: stableCreateCashier,
+      toggleCashierStatus: stableToggleCashierStatus,
+      updateCashier: stableUpdateCashier,
+      deleteCashier: stableDeleteCashier,
+      loadSampleCatalog: stableLoadSampleCatalog,
+      addProduct: stableAddProduct,
+      updateProduct: stableUpdateProduct,
+      deleteProduct: stableDeleteProduct,
+      adjustStock: stableAdjustStock,
+      processSale: stableProcessSale,
+      voidTransaction: stableVoidTransaction,
+    }),
+    [
+      isInitialized,
+      user,
+      isCloudConnected,
+      theme,
+      products,
+      transactions,
+      stockLogs,
+      cashiers,
+      paymentSettings,
+      activeTab,
+      stableToggleTheme,
+      stableUpdatePaymentSettings,
+      stableSetActiveTab,
+      stableLogin,
+      stableRegister,
+      stableLogout,
+      stableCreateCashier,
+      stableToggleCashierStatus,
+      stableUpdateCashier,
+      stableDeleteCashier,
+      stableLoadSampleCatalog,
+      stableAddProduct,
+      stableUpdateProduct,
+      stableDeleteProduct,
+      stableAdjustStock,
+      stableProcessSale,
+      stableVoidTransaction,
+    ]
+  );
+
   return (
-    <AppContext.Provider
-      value={{
-        user,
-        isCloudConnected,
-        theme,
-        toggleTheme,
-        products,
-        transactions,
-        stockLogs,
-        cashiers,
-        paymentSettings,
-        updatePaymentSettings,
-        activeTab,
-        setActiveTab,
-        login,
-        register,
-        logout,
-        createCashier,
-        toggleCashierStatus,
-        updateCashier,
-        deleteCashier,
-        loadSampleCatalog,
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        adjustStock,
-        processSale,
-        voidTransaction,
-      }}
-    >
-      {isInitialized ? children : null}
+    <AppContext.Provider value={contextValue}>
+      {children}
     </AppContext.Provider>
   );
 }
