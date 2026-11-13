@@ -25,22 +25,13 @@ import {
   Calendar,
   ArrowDownRight,
   ClipboardList,
-  Sparkles,
 } from 'lucide-react';
 
-const PAYMENT_ACCENTS: Record<PaymentMethod, { color: string; bg: string; label: string }> = {
-  Tunai: { color: '#10B981', bg: 'rgba(16, 185, 129, 0.14)', label: 'Kas Fisik' },
-  QRIS: { color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.14)', label: 'Scan Instan' },
-  'Transfer Bank': { color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.14)', label: 'Rekening' },
-  'Kartu Debit': { color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.14)', label: 'EDC / Debit' },
-};
-
-const CATEGORY_COLORS: Record<ProductCategory, string> = {
-  Elektronik: '#06B6D4',
-  'Sembako & Pangan': '#10B981',
-  'Minuman & Snack': '#F59E0B',
-  'Alat Tulis Kantor': '#6366F1',
-  'Kebutuhan Rumah': '#EC4899',
+const PAYMENT_ACCENTS: Record<PaymentMethod, { color: string; label: string }> = {
+  QRIS: { color: 'var(--accent-cyan)', label: 'Scan Instan' },
+  Tunai: { color: 'var(--text-primary)', label: 'Kas Fisik' },
+  'Transfer Bank': { color: 'var(--text-secondary)', label: 'Rekening' },
+  'Kartu Debit': { color: 'var(--text-muted)', label: 'EDC / Debit' },
 };
 
 export default function AdminDashboard() {
@@ -323,20 +314,12 @@ export default function AdminDashboard() {
     (acc, curr, idx) => (idx === 0 ? `M ${curr.x} ${curr.revY}` : `${acc} L ${curr.x} ${curr.revY}`),
     ''
   );
-  const revAreaD =
-    points.length > 0
-      ? `${revPathD} L ${points[points.length - 1].x} ${svgHeight - paddingY} L ${points[0].x} ${svgHeight - paddingY} Z`
-      : '';
 
   const profitPathD = points.reduce(
     (acc, curr, idx) =>
       idx === 0 ? `M ${curr.x} ${curr.profY}` : `${acc} L ${curr.x} ${curr.profY}`,
     ''
   );
-  const profitAreaD =
-    points.length > 0
-      ? `${profitPathD} L ${points[points.length - 1].x} ${svgHeight - paddingY} L ${points[0].x} ${svgHeight - paddingY} Z`
-      : '';
 
   // Donut segments for Payment Methods
   const donutRadius = 52;
@@ -366,956 +349,627 @@ export default function AdminDashboard() {
   const revVsAvgPct =
     avgDailyRevenue > 0 ? Math.round(((todayRevenue - avgDailyRevenue) / avgDailyRevenue) * 100) : 0;
 
+  const maxCategoryRevenue = Math.max(1, ...categoryPerformance.map((cat) => cat.revenue));
+
   return (
-    <div className="page-container">
-      {/* Executive Command Banner */}
-      <div
-        className="sip-card"
-        style={{
-          padding: '20px 22px',
-          background:
-            'linear-gradient(135deg, rgba(var(--accent-cyan-rgb), 0.13) 0%, rgba(16, 185, 129, 0.05) 55%, rgba(var(--accent-cyan-rgb), 0.02) 100%)',
-          borderColor: 'rgba(var(--accent-cyan-rgb), 0.35)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span className="badge badge-cyan">
-              <Activity size={12} /> EXECUTIVE COMMAND CENTER
-            </span>
-            <span className="badge badge-muted font-mono" style={{ fontSize: '10.5px' }}>
-              <Database size={11} style={{ color: 'var(--accent-cyan)' }} />
-              {isCloudConnected ? 'Supabase Cloud Live' : 'Cache Lokal Aktif'}
-            </span>
-            <span className="badge badge-muted" style={{ fontSize: '10.5px' }}>
-              <Calendar size={11} style={{ color: 'var(--accent-cyan)' }} />
-              {formattedTodayDate}
-            </span>
-          </div>
-
-          <h2 className="page-title" style={{ fontSize: 'clamp(18px, 2.2vw, 22px)', marginTop: '2px' }}>
-            Selamat Bertugas, {user?.name || 'Administrator'}
-          </h2>
-          <p className="page-subtitle">
-            Ringkasan omzet real-time, profitabilitas HPP, kesehatan stok gudang, serta performa kasir toko Anda.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button onClick={() => setActiveTab('settings')} className="btn btn-secondary btn-sm">
-            <Users size={14} style={{ color: 'var(--accent-cyan)' }} />
-            <span>{activeCashiersCount} Kasir Aktif</span>
-          </button>
-          <button onClick={() => setActiveTab('products')} className="btn btn-secondary btn-sm">
-            <Boxes size={14} />
-            <span>Master Gudang</span>
-          </button>
-          <button onClick={() => setActiveTab('reports')} className="btn btn-secondary btn-sm">
-            <FileSpreadsheet size={14} />
-            <span>Laporan &amp; CSV</span>
-          </button>
-          <button onClick={() => setActiveTab('pos')} className="btn btn-primary btn-sm">
-            <ShoppingCart size={14} />
-            <span>Buka Kasir POS</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Onboarding Checklist for Fresh New Stores */}
-      {(products.length === 0 || cashiers.length === 0) && (
-        <div
-          className="sip-card"
-          style={{
-            padding: '16px 20px',
-            borderColor: 'rgba(var(--accent-cyan-rgb), 0.35)',
-            backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.05)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '10px',
-              marginBottom: '12px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={16} style={{ color: 'var(--accent-cyan)' }} />
-              <span style={{ fontWeight: 700, fontSize: '13.5px' }}>
-                Panduan Persiapan Toko Baru (Terisolasi Per Akun)
+    <>
+      <div className="sb-dashboard">
+        {/* Executive Command Header */}
+        <header className="sb-header-band">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, flex: '1 1 420px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span className="sb-status sb-status-solid">
+                <Activity size={11} /> Executive Command Center
+              </span>
+              <span className="sb-status sb-mono">
+                <Database size={11} style={{ color: 'var(--accent-cyan)' }} />
+                {isCloudConnected ? 'Supabase Cloud Live' : 'Cache Lokal Aktif'}
+              </span>
+              <span className="sb-status">
+                <Calendar size={11} />
+                {formattedTodayDate}
               </span>
             </div>
-            <span className="badge badge-cyan">Setup Awal</span>
+
+            <h2 className="sb-h1">
+              <span style={{ fontWeight: 300 }}>Selamat bertugas, </span>
+              <span style={{ fontWeight: 700 }}>{user?.name || 'Administrator'}</span>
+            </h2>
+
+            <p className="sb-subtitle" style={{ maxWidth: '640px' }}>
+              Ringkasan omzet real-time, profitabilitas HPP, kesehatan stok gudang, serta performa kasir toko Anda.
+            </p>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '10px',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setActiveTab('products')}
-              className="sip-card sip-card-hover"
-              style={{
-                padding: '12px 14px',
-                textAlign: 'left',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '12.5px', fontWeight: 700 }}>
-                  1. Katalog Barang ({products.length} SKU)
-                </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  {products.length > 0 ? 'Produk siap dijual' : 'Tambah produk atau muat contoh'}
-                </div>
-              </div>
-              {products.length > 0 ? (
-                <CheckCircle2 size={18} style={{ color: 'var(--accent-green-text)', flexShrink: 0 }} />
-              ) : (
-                <ArrowUpRight size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
-              )}
+          <div className="sb-toolbar">
+            <button type="button" onClick={() => setActiveTab('settings')} className="sb-btn">
+              <Users size={13} style={{ color: 'var(--accent-cyan)' }} />
+              <span>{activeCashiersCount} Kasir Aktif</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('settings')}
-              className="sip-card sip-card-hover"
-              style={{
-                padding: '12px 14px',
-                textAlign: 'left',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '12.5px', fontWeight: 700 }}>
-                  2. Akun Kasir POS ({cashiers.length} Akun)
-                </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  {cashiers.length > 0 ? 'Kasir siap login di POS' : 'Buat akun kasir untuk staf Anda'}
-                </div>
-              </div>
-              {cashiers.length > 0 ? (
-                <CheckCircle2 size={18} style={{ color: 'var(--accent-green-text)', flexShrink: 0 }} />
-              ) : (
-                <ArrowUpRight size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
-              )}
+            <button type="button" onClick={() => setActiveTab('products')} className="sb-btn">
+              <Boxes size={13} />
+              <span>Master Gudang</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('pos')}
-              className="sip-card sip-card-hover"
-              style={{
-                padding: '12px 14px',
-                textAlign: 'left',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '12.5px', fontWeight: 700 }}>
-                  3. Transaksi Kasir ({activeTrxCount} Nota)
-                </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  Catat penjualan tunai &amp; non-tunai
-                </div>
-              </div>
-              <ArrowUpRight size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+            <button type="button" onClick={() => setActiveTab('reports')} className="sb-btn">
+              <FileSpreadsheet size={13} />
+              <span>Laporan &amp; CSV</span>
+            </button>
+            <button type="button" onClick={() => setActiveTab('pos')} className="sb-btn sb-btn-primary">
+              <ShoppingCart size={13} />
+              <span>Buka Kasir POS</span>
             </button>
           </div>
-        </div>
-      )}
+        </header>
 
-      {/* 4 Executive KPI Cards */}
-      <div className="kpi-grid">
+        {/* Onboarding Checklist for Fresh New Stores */}
+        {(products.length === 0 || cashiers.length === 0) && (
+          <section className="sb-panel" style={{ borderLeft: '3px solid var(--accent-cyan)' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div>
+                <div className="sb-eyebrow">Persiapan Awal &bull; Terisolasi Per Akun</div>
+                <h3 className="sb-h2" style={{ marginTop: '4px' }}>
+                  Panduan Persiapan Toko Baru
+                </h3>
+              </div>
+              <span className="sb-status sb-status-accent">Setup Awal</span>
+            </div>
+
+            <div className="sb-onboarding-grid">
+              <button
+                type="button"
+                onClick={() => setActiveTab('products')}
+                className="sb-onboarding-btn"
+              >
+                <div>
+                  <div className="sb-eyebrow sb-mono">Langkah 01</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, marginTop: '4px' }}>
+                    Katalog Barang ({products.length} SKU)
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {products.length > 0 ? 'Produk siap dijual' : 'Tambah produk atau muat contoh'}
+                  </div>
+                </div>
+                {products.length > 0 ? (
+                  <CheckCircle2 size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+                ) : (
+                  <ArrowUpRight size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('settings')}
+                className="sb-onboarding-btn"
+              >
+                <div>
+                  <div className="sb-eyebrow sb-mono">Langkah 02</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, marginTop: '4px' }}>
+                    Akun Kasir POS ({cashiers.length} Akun)
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {cashiers.length > 0 ? 'Kasir siap login di POS' : 'Buat akun kasir untuk staf Anda'}
+                  </div>
+                </div>
+                {cashiers.length > 0 ? (
+                  <CheckCircle2 size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+                ) : (
+                  <ArrowUpRight size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('pos')}
+                className="sb-onboarding-btn"
+              >
+                <div>
+                  <div className="sb-eyebrow sb-mono">Langkah 03</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, marginTop: '4px' }}>
+                    Transaksi Kasir ({activeTrxCount} Nota)
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    Catat penjualan tunai &amp; non-tunai
+                  </div>
+                </div>
+                <ArrowUpRight size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+              </button>
+            </div>
+          </section>
+        )}
+
+      {/* 4 Executive KPI Cards — Unified Hairline Grid */}
+      <section className="sb-kpi-frame" aria-label="Ringkasan KPI Utama">
         {/* KPI 1: Omzet Hari Ini */}
-        <div
-          className="sip-card sip-card-hover"
-          style={{
-            borderTop: '3px solid var(--accent-cyan)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}
-        >
+        <div className="sb-kpi-cell is-primary">
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                Omzet Hari Ini
-              </span>
-              <span
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.14)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--accent-cyan)',
-                }}
-              >
-                <TrendingUp size={17} />
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <span className="sb-eyebrow">01 / Omzet Hari Ini</span>
+              <TrendingUp size={15} style={{ color: 'var(--accent-cyan)' }} />
             </div>
 
-            <div className="font-mono dashboard-kpi-value" style={{ color: 'var(--accent-cyan)' }}>
+            <div className="sb-kpi-value" style={{ color: 'var(--accent-cyan)' }}>
               {formatRupiah(todayRevenue)}
             </div>
 
-            <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               {avgDailyRevenue > 0 ? (
                 <span
-                  className={`badge ${revVsAvgPct >= 0 ? 'badge-green' : 'badge-amber'} font-mono`}
-                  style={{ fontSize: '10px', padding: '2px 7px' }}
+                  className={`sb-status ${revVsAvgPct >= 0 ? 'sb-status-accent' : 'sb-status-warn'} sb-mono`}
                 >
                   {revVsAvgPct >= 0 ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
-                  {revVsAvgPct >= 0 ? `+${revVsAvgPct}%` : `${revVsAvgPct}%`} vs rata-rata harian
+                  {revVsAvgPct >= 0 ? `+${revVsAvgPct}%` : `${revVsAvgPct}%`} vs rata-rata
                 </span>
               ) : (
-                <span className="badge badge-muted font-mono" style={{ fontSize: '10px' }}>
-                  Real-time hari ini
-                </span>
+                <span className="sb-status sb-mono">Real-time hari ini</span>
               )}
             </div>
           </div>
 
-          <div
-            style={{
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              fontSize: '11.5px',
-              color: 'var(--text-secondary)',
-              gap: '6px',
-            }}
-          >
+          <div className="sb-kpi-footer">
             <span>{todayTransactions.length} nota hari ini</span>
-            <span className="font-mono" style={{ fontWeight: 600 }}>
+            <span className="sb-mono" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
               Basket: {formatRupiah(avgTicketToday)}
             </span>
           </div>
         </div>
 
         {/* KPI 2: Total Omzet & Laba Kotor */}
-        <div
-          className="sip-card sip-card-hover"
-          style={{
-            borderTop: '3px solid var(--accent-green)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}
-        >
+        <div className="sb-kpi-cell">
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                Total Omzet &amp; Laba
-              </span>
-              <span
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  backgroundColor: 'var(--accent-green-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--accent-green-text)',
-                }}
-              >
-                <DollarSign size={17} />
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <span className="sb-eyebrow">02 / Total Omzet &amp; Laba</span>
+              <DollarSign size={15} style={{ color: 'var(--text-secondary)' }} />
             </div>
 
-            <div className="font-mono dashboard-kpi-value" style={{ color: 'var(--text-primary)' }}>
+            <div className="sb-kpi-value" style={{ color: 'var(--text-primary)' }}>
               {formatRupiah(totalRevenue)}
             </div>
 
-            {/* HPP vs Margin Visual Split Bar */}
-            <div style={{ marginTop: '8px' }}>
-              <div
-                style={{
-                  width: '100%',
-                  height: '6px',
-                  backgroundColor: 'var(--bg-subtle)',
-                  borderRadius: 'var(--radius-full)',
-                  overflow: 'hidden',
-                  display: 'flex',
-                }}
-              >
+            <div style={{ marginTop: '14px' }}>
+              <div className="sb-progress-track">
                 <div
+                  className="sb-progress-fill"
                   style={{
                     width: `${Math.max(0, Math.min(100, profitMarginPct))}%`,
-                    backgroundColor: '#10B981',
-                    height: '100%',
+                    backgroundColor: 'var(--accent-cyan)',
                   }}
                 />
               </div>
             </div>
           </div>
 
-          <div
-            style={{
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              fontSize: '11.5px',
-              gap: '6px',
-            }}
-          >
-            <span style={{ color: 'var(--accent-green-text)', fontWeight: 700 }}>
+          <div className="sb-kpi-footer">
+            <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
               Laba: {formatRupiah(totalGrossProfit)}
             </span>
-            <span className="badge badge-green font-mono" style={{ fontSize: '10.5px', padding: '2px 7px' }}>
-              +{profitMarginPct}% Margin
-            </span>
+            <span className="sb-status sb-status-accent sb-mono">+{profitMarginPct}% Margin</span>
           </div>
         </div>
 
         {/* KPI 3: Valuasi Modal & Potensi Ritel */}
-        <div
-          className="sip-card sip-card-hover"
-          style={{
-            borderTop: '3px solid var(--accent-amber)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}
-        >
+        <div className="sb-kpi-cell">
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                Valuasi Modal Stok
-              </span>
-              <span
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  backgroundColor: 'var(--accent-amber-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--accent-amber-text)',
-                }}
-              >
-                <Package size={17} />
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <span className="sb-eyebrow">03 / Valuasi Modal Stok</span>
+              <Package size={15} style={{ color: 'var(--text-secondary)' }} />
             </div>
 
-            <div className="font-mono dashboard-kpi-value" style={{ color: 'var(--text-primary)' }}>
+            <div className="sb-kpi-value" style={{ color: 'var(--text-primary)' }}>
               {formatRupiah(totalStockAssetValuation)}
             </div>
 
-            <div style={{ marginTop: '6px' }}>
-              <span className="badge badge-amber font-mono" style={{ fontSize: '10px', padding: '2px 7px' }}>
-                Potensi Laba Stok: +{formatRupiah(potentialProfitUpside)}
+            <div style={{ marginTop: '10px' }}>
+              <span className="sb-status sb-mono">
+                Potensi: +{formatRupiah(potentialProfitUpside)}
               </span>
             </div>
           </div>
 
-          <div
-            style={{
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              fontSize: '11.5px',
-              color: 'var(--text-secondary)',
-              gap: '6px',
-            }}
-          >
+          <div className="sb-kpi-footer">
             <span>{totalUnitsInStock.toLocaleString('id-ID')} unit aktif</span>
-            <span className="font-mono" style={{ fontWeight: 600 }}>
+            <span className="sb-mono" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
               Ritel: {formatRupiah(totalPotentialSalesValuation)}
             </span>
           </div>
         </div>
 
         {/* KPI 4: Kesehatan Inventaris */}
-        <div
-          className="sip-card sip-card-hover"
-          style={{
-            borderTop: `3px solid ${criticalProducts.length > 0 ? 'var(--accent-red)' : 'var(--accent-green)'}`,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}
-        >
+        <div className={`sb-kpi-cell ${criticalProducts.length > 0 ? 'is-danger' : 'is-primary'}`}>
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                Kesehatan Inventaris
-              </span>
-              <span
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  backgroundColor:
-                    criticalProducts.length > 0 ? 'var(--accent-red-bg)' : 'var(--accent-green-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: criticalProducts.length > 0 ? 'var(--accent-red)' : 'var(--accent-green-text)',
-                }}
-              >
-                <AlertTriangle size={17} />
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <span className="sb-eyebrow">04 / Kesehatan Inventaris</span>
+              <AlertTriangle
+                size={15}
+                style={{ color: criticalProducts.length > 0 ? 'var(--accent-red)' : 'var(--accent-cyan)' }}
+              />
             </div>
 
             <div
-              className="font-mono dashboard-kpi-value"
+              className="sb-kpi-value"
               style={{
-                color: criticalProducts.length > 0 ? 'var(--accent-red)' : 'var(--accent-green-text)',
+                color: criticalProducts.length > 0 ? 'var(--accent-red)' : 'var(--text-primary)',
               }}
             >
               {criticalProducts.length}{' '}
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: '13px', fontWeight: 400, color: 'var(--text-secondary)' }}>
                 SKU Kritis
               </span>
             </div>
 
-            {/* Stock Health Gauge Bar */}
-            <div style={{ marginTop: '8px' }}>
-              <div
-                style={{
-                  width: '100%',
-                  height: '6px',
-                  backgroundColor: 'var(--bg-subtle)',
-                  borderRadius: 'var(--radius-full)',
-                  overflow: 'hidden',
-                }}
-              >
+            <div style={{ marginTop: '14px' }}>
+              <div className="sb-progress-track">
                 <div
+                  className="sb-progress-fill"
                   style={{
                     width: `${stockHealthPct}%`,
-                    height: '100%',
                     backgroundColor:
                       stockHealthPct >= 80
-                        ? '#10B981'
+                        ? 'var(--accent-cyan)'
                         : stockHealthPct >= 50
-                          ? '#F59E0B'
-                          : '#EF4444',
-                    borderRadius: 'var(--radius-full)',
+                          ? 'var(--accent-amber)'
+                          : 'var(--accent-red)',
                   }}
                 />
               </div>
             </div>
           </div>
 
-          <div
-            style={{
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              fontSize: '11.5px',
-              color: 'var(--text-secondary)',
-              gap: '6px',
-            }}
-          >
+          <div className="sb-kpi-footer">
             <span>
               {outOfStockProducts.length > 0
                 ? `${outOfStockProducts.length} habis stok (0)`
                 : `${products.length} total SKU`}
             </span>
-            <span className="badge badge-muted font-mono" style={{ fontSize: '10.5px' }}>
-              {stockHealthPct}% Stok Aman
-            </span>
+            <span className="sb-status sb-mono">{stockHealthPct}% Aman</span>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Main Split: Interactive Revenue & Profit Chart + Restock Priority */}
-      <div className="dashboard-split">
+      <div className="sb-split">
         {/* Interactive Revenue & Gross Profit Chart */}
-        <div
-          className="sip-card"
-          style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '14px' }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              flexWrap: 'wrap',
-              gap: '10px',
-            }}
-          >
-            <div>
-              <h3 style={{ fontSize: '15.5px', fontWeight: 800 }}>
-                Tren Omzet &amp; Laba Kotor ({chartRange} Hari Terakhir)
-              </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Arahkan kursor atau ketuk titik grafik untuk melihat rincian performa harian (non-VOID)
-              </p>
-            </div>
-
-            {/* Interactive Controls */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  padding: '2px',
-                  backgroundColor: 'var(--bg-subtle)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                }}
-              >
-                {(
-                  [
-                    { id: 'both', label: 'Keduanya' },
-                    { id: 'revenue', label: 'Omzet' },
-                    { id: 'profit', label: 'Laba' },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setChartMetric(opt.id)}
-                    style={{
-                      border: 'none',
-                      padding: '4px 9px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      backgroundColor: chartMetric === opt.id ? 'var(--bg-card)' : 'transparent',
-                      color: chartMetric === opt.id ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                      boxShadow: chartMetric === opt.id ? 'var(--shadow-sm)' : 'none',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+        <section className="sb-panel">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="sb-panel-header">
+              <div>
+                <div className="sb-eyebrow">Analitik Performa Harian &bull; Non-VOID</div>
+                <h3 className="sb-h2" style={{ marginTop: '4px' }}>
+                  Tren Omzet &amp; Laba Kotor ({chartRange} Hari Terakhir)
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
+                  Arahkan kursor atau ketuk titik grafik untuk inspeksi rincian harian
+                </p>
               </div>
 
-              <div
-                style={{
-                  display: 'inline-flex',
-                  padding: '2px',
-                  backgroundColor: 'var(--bg-subtle)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                }}
-              >
-                {([7, 14] as const).map((days) => (
-                  <button
-                    key={days}
-                    type="button"
-                    onClick={() => {
-                      setChartRange(days);
-                      setHoveredIdx(null);
-                    }}
-                    style={{
-                      border: 'none',
-                      padding: '4px 9px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      backgroundColor: chartRange === days ? 'var(--bg-card)' : 'transparent',
-                      color: chartRange === days ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                      boxShadow: chartRange === days ? 'var(--shadow-sm)' : 'none',
-                    }}
-                  >
-                    {days}H
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Active Tooltip Strip & Legend */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '8px',
-              padding: '9px 12px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--bg-subtle)',
-              border: '1px solid var(--border-color)',
-              fontSize: '12px',
-            }}
-          >
-            {activePoint ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {activePoint.fullLabel}
-                </span>
-                <span className="font-mono" style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                  Omzet: {formatRupiah(activePoint.total)}
-                </span>
-                <span
-                  className="font-mono"
-                  style={{ color: 'var(--accent-green-text)', fontWeight: 700 }}
-                >
-                  Laba: {formatRupiah(activePoint.profit)}
-                </span>
-                <span className="badge badge-muted font-mono" style={{ fontSize: '10px' }}>
-                  {activePoint.count} nota
-                </span>
-              </div>
-            ) : null}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px' }}>
-              {(chartMetric === 'both' || chartMetric === 'revenue') && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
-                  <span
-                    style={{
-                      width: '9px',
-                      height: '9px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--accent-cyan)',
-                    }}
-                  />
-                  Omzet
-                </span>
-              )}
-              {(chartMetric === 'both' || chartMetric === 'profit') && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
-                  <span
-                    style={{
-                      width: '9px',
-                      height: '9px',
-                      borderRadius: '50%',
-                      backgroundColor: '#10B981',
-                    }}
-                  />
-                  Laba Kotor
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div style={{ width: '100%', overflowX: 'auto' }}>
-            <svg
-              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-              style={{ width: '100%', height: 'auto', minWidth: '480px', userSelect: 'none' }}
-              onMouseLeave={() => setHoveredIdx(null)}
-            >
-              <defs>
-                <linearGradient id="revAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06B6D4" stopOpacity="0.32" />
-                  <stop offset="100%" stopColor="#06B6D4" stopOpacity="0.01" />
-                </linearGradient>
-                <linearGradient id="profitAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10B981" stopOpacity="0.24" />
-                  <stop offset="100%" stopColor="#10B981" stopOpacity="0.01" />
-                </linearGradient>
-              </defs>
-
-              {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
-                const y = svgHeight - paddingY - ratio * (svgHeight - paddingY * 2);
-                const valK = Math.round((maxChartVal * ratio) / 1000);
-                return (
-                  <g key={i}>
-                    <line
-                      x1={paddingX}
-                      y1={y}
-                      x2={svgWidth - paddingX}
-                      y2={y}
-                      stroke="var(--border-color)"
-                      strokeDasharray={ratio === 0 ? undefined : '4 4'}
-                      strokeWidth="1"
-                    />
-                    <text
-                      x={paddingX - 8}
-                      y={y + 3}
-                      fill="var(--text-muted)"
-                      fontSize="9.5"
-                      fontWeight="600"
-                      fontFamily="var(--font-mono)"
-                      textAnchor="end"
+              {/* Interactive Controls: Sharp StudioBlank Filter Chips */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="sb-chip-group" role="group" aria-label="Metrik grafik">
+                  {(
+                    [
+                      { id: 'both', label: 'Semua' },
+                      { id: 'revenue', label: 'Omzet' },
+                      { id: 'profit', label: 'Laba' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setChartMetric(opt.id)}
+                      className={`sb-chip ${chartMetric === opt.id ? 'active' : ''}`}
                     >
-                      {valK > 0 ? `${valK}k` : '0'}
-                    </text>
-                  </g>
-                );
-              })}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
 
-              {(chartMetric === 'both' || chartMetric === 'revenue') && revAreaD && (
-                <path d={revAreaD} fill="url(#revAreaGrad)" />
-              )}
-              {chartMetric === 'profit' && profitAreaD && (
-                <path d={profitAreaD} fill="url(#profitAreaGrad)" />
-              )}
+                <div className="sb-chip-group" role="group" aria-label="Rentang hari">
+                  {([7, 14] as const).map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => {
+                        setChartRange(days);
+                        setHoveredIdx(null);
+                      }}
+                      className={`sb-chip ${chartRange === days ? 'active' : ''}`}
+                    >
+                      {days}H
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-              {(chartMetric === 'both' || chartMetric === 'revenue') && revPathD && (
-                <path
-                  d={revPathD}
-                  fill="none"
-                  stroke="#06B6D4"
-                  strokeWidth="2.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
+            {/* Active Inspector Strip & Sharp Square Legend */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px',
+                padding: '10px 14px',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
+                fontSize: '12px',
+              }}
+            >
+              {activePoint ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {activePoint.fullLabel}
+                  </span>
+                  <span className="sb-mono" style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                    Omzet: {formatRupiah(activePoint.total)}
+                  </span>
+                  <span className="sb-mono" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                    Laba: {formatRupiah(activePoint.profit)}
+                  </span>
+                  <span className="sb-status sb-mono">{activePoint.count} nota</span>
+                </div>
+              ) : null}
 
-              {(chartMetric === 'both' || chartMetric === 'profit') && profitPathD && (
-                <path
-                  d={profitPathD}
-                  fill="none"
-                  stroke="#10B981"
-                  strokeWidth={chartMetric === 'both' ? '2.25' : '2.75'}
-                  strokeDasharray={chartMetric === 'both' ? '5 4' : undefined}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-
-              {/* Hover Vertical Guide */}
-              {activePoint && hoveredIdx !== null && (
-                <line
-                  x1={activePoint.x}
-                  y1={paddingY - 6}
-                  x2={activePoint.x}
-                  y2={svgHeight - paddingY}
-                  stroke="var(--accent-cyan)"
-                  strokeOpacity="0.45"
-                  strokeDasharray="3 3"
-                  strokeWidth="1.5"
-                />
-              )}
-
-              {points.map((pt, idx) => {
-                const isSelected = hoveredIdx === idx;
-                const showXLabel = chartRange === 7 || idx % 2 === 0 || idx === points.length - 1;
-                return (
-                  <g
-                    key={pt.dateKey}
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={() => setHoveredIdx(idx)}
-                    onClick={() => setHoveredIdx(idx)}
-                  >
-                    {/* Wide invisible hit target */}
-                    <rect
-                      x={pt.x - 18}
-                      y={paddingY - 10}
-                      width="36"
-                      height={svgHeight - paddingY}
-                      fill="transparent"
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px' }}>
+                {(chartMetric === 'both' || chartMetric === 'revenue') && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        backgroundColor: 'var(--accent-cyan)',
+                        display: 'inline-block',
+                      }}
                     />
+                    Omzet
+                  </span>
+                )}
+                {(chartMetric === 'both' || chartMetric === 'profit') && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        border: '1.5px solid var(--text-primary)',
+                        backgroundColor: 'transparent',
+                        display: 'inline-block',
+                      }}
+                    />
+                    Laba Kotor
+                  </span>
+                )}
+              </div>
+            </div>
 
-                    {(chartMetric === 'both' || chartMetric === 'revenue') && (
-                      <circle
-                        cx={pt.x}
-                        cy={pt.revY}
-                        r={isSelected ? '6.5' : '4.5'}
-                        fill="var(--bg-card)"
-                        stroke="#06B6D4"
-                        strokeWidth={isSelected ? '3' : '2.5'}
+            {/* Flat Geometric SVG Line Plot (Zero gradients, responsive without forced overflow) */}
+            <div style={{ width: '100%' }}>
+              <svg
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                style={{ width: '100%', height: 'auto', display: 'block', userSelect: 'none' }}
+                onMouseLeave={() => setHoveredIdx(null)}
+              >
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+                  const y = svgHeight - paddingY - ratio * (svgHeight - paddingY * 2);
+                  const valK = Math.round((maxChartVal * ratio) / 1000);
+                  return (
+                    <g key={i}>
+                      <line
+                        x1={paddingX}
+                        y1={y}
+                        x2={svgWidth - paddingX}
+                        y2={y}
+                        stroke="var(--border-color)"
+                        strokeDasharray={ratio === 0 ? undefined : '2 4'}
+                        strokeWidth="1"
                       />
-                    )}
-
-                    {(chartMetric === 'both' || chartMetric === 'profit') && (
-                      <circle
-                        cx={pt.x}
-                        cy={pt.profY}
-                        r={isSelected ? '5.5' : '4'}
-                        fill="var(--bg-card)"
-                        stroke="#10B981"
-                        strokeWidth={isSelected ? '2.75' : '2.25'}
-                      />
-                    )}
-
-                    {pt.total > 0 && chartRange === 7 && chartMetric !== 'profit' && (
                       <text
-                        x={pt.x}
-                        y={pt.revY - 10}
-                        fill="var(--accent-cyan)"
+                        x={paddingX - 10}
+                        y={y + 3}
+                        fill="var(--text-muted)"
                         fontSize="10"
-                        fontWeight="700"
+                        fontWeight="500"
                         fontFamily="var(--font-mono)"
-                        textAnchor="middle"
+                        textAnchor="end"
                       >
-                        {Math.round(pt.total / 1000)}k
+                        {valK > 0 ? `${valK}k` : '0'}
                       </text>
-                    )}
+                    </g>
+                  );
+                })}
 
-                    {showXLabel && (
-                      <text
-                        x={pt.x}
-                        y={svgHeight - 7}
-                        fill={isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)'}
-                        fontSize="10"
-                        fontWeight={isSelected ? '700' : '600'}
-                        fontFamily="var(--font-sans)"
-                        textAnchor="middle"
-                      >
-                        {pt.dayLabel}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
+                {(chartMetric === 'both' || chartMetric === 'revenue') && revPathD && (
+                  <path
+                    d={revPathD}
+                    fill="none"
+                    stroke="var(--accent-cyan)"
+                    strokeWidth="2.25"
+                    strokeLinecap="square"
+                    strokeLinejoin="miter"
+                  />
+                )}
+
+                {(chartMetric === 'both' || chartMetric === 'profit') && profitPathD && (
+                  <path
+                    d={profitPathD}
+                    fill="none"
+                    stroke="var(--text-primary)"
+                    strokeOpacity={chartMetric === 'both' ? '0.68' : '0.9'}
+                    strokeWidth={chartMetric === 'both' ? '1.75' : '2.25'}
+                    strokeDasharray={chartMetric === 'both' ? '4 4' : undefined}
+                    strokeLinecap="square"
+                    strokeLinejoin="miter"
+                  />
+                )}
+
+                {/* Hover Vertical Hairline */}
+                {activePoint && hoveredIdx !== null && (
+                  <line
+                    x1={activePoint.x}
+                    y1={paddingY - 6}
+                    x2={activePoint.x}
+                    y2={svgHeight - paddingY}
+                    stroke="var(--text-primary)"
+                    strokeOpacity="0.45"
+                    strokeWidth="1"
+                  />
+                )}
+
+                {points.map((pt, idx) => {
+                  const isSelected = hoveredIdx === idx;
+                  const showXLabel = chartRange === 7 || idx % 2 === 0 || idx === points.length - 1;
+                  const revSize = isSelected ? 8 : 5;
+                  const profSize = isSelected ? 7 : 4.5;
+                  return (
+                    <g
+                      key={pt.dateKey}
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={() => setHoveredIdx(idx)}
+                      onClick={() => setHoveredIdx(idx)}
+                    >
+                      <rect
+                        x={pt.x - 18}
+                        y={paddingY - 10}
+                        width="36"
+                        height={svgHeight - paddingY}
+                        fill="transparent"
+                      />
+
+                      {(chartMetric === 'both' || chartMetric === 'revenue') && (
+                        <rect
+                          x={pt.x - revSize / 2}
+                          y={pt.revY - revSize / 2}
+                          width={revSize}
+                          height={revSize}
+                          fill={isSelected ? 'var(--accent-cyan)' : 'var(--bg-card)'}
+                          stroke="var(--accent-cyan)"
+                          strokeWidth="2"
+                        />
+                      )}
+
+                      {(chartMetric === 'both' || chartMetric === 'profit') && (
+                        <rect
+                          x={pt.x - profSize / 2}
+                          y={pt.profY - profSize / 2}
+                          width={profSize}
+                          height={profSize}
+                          fill={isSelected ? 'var(--text-primary)' : 'var(--bg-card)'}
+                          stroke="var(--text-primary)"
+                          strokeWidth="1.75"
+                        />
+                      )}
+
+                      {pt.total > 0 && chartRange === 7 && chartMetric !== 'profit' && (
+                        <text
+                          x={pt.x}
+                          y={pt.revY - 10}
+                          fill="var(--accent-cyan)"
+                          fontSize="10"
+                          fontWeight="600"
+                          fontFamily="var(--font-mono)"
+                          textAnchor="middle"
+                        >
+                          {Math.round(pt.total / 1000)}k
+                        </text>
+                      )}
+
+                      {showXLabel && (
+                        <text
+                          x={pt.x}
+                          y={svgHeight - 7}
+                          fill={isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)'}
+                          fontSize="10"
+                          fontWeight={isSelected ? '700' : '500'}
+                          fontFamily="var(--font-sans)"
+                          textAnchor="middle"
+                        >
+                          {pt.dayLabel}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
           </div>
 
-          {/* 3-Column Chart Footer Metrics */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-              gap: '10px',
-              paddingTop: '12px',
-              borderTop: '1px solid var(--border-color)',
-            }}
-          >
-            <div style={{ padding: '9px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-subtle)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                Akumulasi {chartRange} Hari
-              </div>
-              <div className="font-mono" style={{ fontSize: '14px', fontWeight: 700, marginTop: '2px' }}>
+          {/* 3-Column Chart Footer Architectural Metrics */}
+          <div className="sb-metric-bar">
+            <div className="sb-metric-cell">
+              <div className="sb-eyebrow">Akumulasi {chartRange} Hari</div>
+              <div className="sb-mono" style={{ fontSize: '15px', fontWeight: 600 }}>
                 {formatRupiah(periodRevenue)}
               </div>
-              <div className="font-mono" style={{ fontSize: '10.5px', color: 'var(--accent-green-text)', marginTop: '1px' }}>
+              <div className="sb-mono" style={{ fontSize: '11px', color: 'var(--accent-green-text)' }}>
                 Laba: {formatRupiah(periodProfit)}
               </div>
             </div>
 
-            <div style={{ padding: '9px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-subtle)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                Rata-rata Harian
-              </div>
-              <div className="font-mono" style={{ fontSize: '14px', fontWeight: 700, marginTop: '2px' }}>
+            <div className="sb-metric-cell">
+              <div className="sb-eyebrow">Rata-rata Harian</div>
+              <div className="sb-mono" style={{ fontSize: '15px', fontWeight: 600 }}>
                 {formatRupiah(avgDailyRevenue)}
               </div>
-              <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '1px' }}>
-                HPP Tercatat: {formatRupiah(hppTotal)}
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                HPP: {formatRupiah(hppTotal)}
               </div>
             </div>
 
-            <div style={{ padding: '9px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-subtle)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                Puncak ({peakDay.dayLabel})
-              </div>
-              <div className="font-mono" style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent-cyan)', marginTop: '2px' }}>
+            <div className="sb-metric-cell">
+              <div className="sb-eyebrow">Puncak ({peakDay.dayLabel})</div>
+              <div className="sb-mono" style={{ fontSize: '15px', fontWeight: 600, color: 'var(--accent-cyan)' }}>
                 {formatRupiah(peakDay.total)}
               </div>
-              <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '1px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                 {peakDay.count} transaksi selesai
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Critical Stock Panel */}
-        <div
-          className="sip-card"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <section className="sb-panel">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="sb-panel-header">
               <div>
-                <h3 style={{ fontSize: '15.5px', fontWeight: 800 }}>Prioritas Restock Gudang</h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                <div className="sb-eyebrow">Pengawasan Stok</div>
+                <h3 className="sb-h2" style={{ marginTop: '4px' }}>
+                  Prioritas Restock Gudang
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
                   SKU dengan stok menipis atau habis
                 </p>
               </div>
               {criticalProducts.length > 0 && (
-                <span className="badge badge-red">{criticalProducts.length} SKU</span>
+                <span className="sb-status sb-status-danger sb-mono">{criticalProducts.length} SKU</span>
               )}
             </div>
 
             {criticalProducts.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              <div className="sb-list">
                 {criticalProducts.slice(0, 5).map((prod) => {
                   const isZero = prod.stock === 0;
                   const fillPct = Math.min(100, Math.round((prod.stock / Math.max(1, prod.minStock)) * 100));
                   return (
                     <div
                       key={prod.id}
+                      className="sb-list-row-col"
                       style={{
-                        padding: '10px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: isZero ? 'var(--accent-red-bg)' : 'var(--accent-amber-bg)',
-                        border: '1px solid',
-                        borderColor: isZero ? 'rgba(239, 68, 68, 0.35)' : 'rgba(245, 158, 11, 0.35)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '7px',
+                        borderLeft: `2px solid ${isZero ? 'var(--accent-red)' : 'var(--accent-amber)'}`,
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
                         <div style={{ minWidth: 0 }}>
                           <div
                             style={{
-                              fontWeight: 700,
-                              fontSize: '12.5px',
+                              fontWeight: 600,
+                              fontSize: '13px',
                               color: 'var(--text-primary)',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
@@ -1324,7 +978,7 @@ export default function AdminDashboard() {
                           >
                             {prod.name}
                           </div>
-                          <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          <div className="sb-mono" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                             {prod.sku} &bull; Sisa:{' '}
                             <strong style={{ color: isZero ? 'var(--accent-red)' : 'var(--accent-amber-text)' }}>
                               {prod.stock} {prod.unit}
@@ -1334,29 +988,21 @@ export default function AdminDashboard() {
                         </div>
 
                         <button
+                          type="button"
                           onClick={() => setActiveTab('products')}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '5px 10px', fontSize: '11px', flexShrink: 0 }}
+                          className="sb-btn sb-btn-sm"
+                          style={{ flexShrink: 0 }}
                         >
                           Restock
                         </button>
                       </div>
 
-                      <div
-                        style={{
-                          width: '100%',
-                          height: '4px',
-                          backgroundColor: 'rgba(0,0,0,0.12)',
-                          borderRadius: 'var(--radius-full)',
-                          overflow: 'hidden',
-                        }}
-                      >
+                      <div className="sb-progress-track">
                         <div
+                          className="sb-progress-fill"
                           style={{
                             width: `${fillPct}%`,
-                            height: '100%',
-                            backgroundColor: isZero ? '#EF4444' : '#F59E0B',
-                            borderRadius: 'var(--radius-full)',
+                            backgroundColor: isZero ? 'var(--accent-red)' : 'var(--accent-amber)',
                           }}
                         />
                       </div>
@@ -1367,57 +1013,55 @@ export default function AdminDashboard() {
             ) : (
               <div
                 style={{
-                  padding: '28px 16px',
+                  padding: '32px 18px',
                   textAlign: 'center',
                   backgroundColor: 'var(--bg-subtle)',
-                  borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border-color)',
                   color: 'var(--accent-green-text)',
                 }}
               >
-                <CheckCircle2 size={24} style={{ margin: '0 auto 8px', display: 'block' }} />
-                <div style={{ fontWeight: 700, fontSize: '13px' }}>Seluruh Stok Aman</div>
-                <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                <CheckCircle2 size={22} style={{ margin: '0 auto 10px', display: 'block', color: 'var(--accent-cyan)' }} />
+                <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-primary)' }}>
+                  Seluruh Stok Aman
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 300 }}>
                   Semua produk berada di atas batas minimum inventaris.
                 </p>
               </div>
             )}
           </div>
 
-          <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
-            <button
-              onClick={() => setActiveTab('products')}
-              className="btn btn-secondary"
-              style={{ width: '100%', fontSize: '12.5px' }}
-            >
-              <span>Kelola Seluruh Katalog ({products.length} SKU)</span>
-              <ArrowUpRight size={14} />
-            </button>
-          </div>
-        </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('products')}
+            className="sb-btn sb-btn-full"
+          >
+            <span>Kelola Seluruh Katalog ({products.length} SKU)</span>
+            <ArrowUpRight size={14} />
+          </button>
+        </section>
       </div>
 
       {/* Executive Analytics Row 1: Payment Methods Donut & Top Performing Products */}
-      <div className="dashboard-grid-2">
+      <div className="sb-grid-2">
         {/* Payment Method Donut + Distribution */}
-        <div className="sip-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+        <section className="sb-panel">
+          <div className="sb-panel-header">
             <div>
-              <h3 style={{ fontSize: '15.5px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <CreditCard size={16} style={{ color: 'var(--accent-cyan)' }} />
+              <div className="sb-eyebrow">Kanal Pembayaran</div>
+              <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <CreditCard size={15} style={{ color: 'var(--accent-cyan)' }} />
                 <span>Komposisi Metode Pembayaran</span>
               </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
                 Rasio transaksi tunai vs pembayaran digital (non-tunai)
               </p>
             </div>
-            <span className="badge badge-cyan font-mono" style={{ fontSize: '10.5px' }}>
-              Digital: {digitalSharePct}%
-            </span>
+            <span className="sb-status sb-status-accent sb-mono">Digital: {digitalSharePct}%</span>
           </div>
 
-          <div className="dashboard-donut-layout">
-            {/* SVG Donut Chart */}
+          <div className="sb-donut-layout">
+            {/* Flat Geometric Donut Chart */}
             <div style={{ position: 'relative', width: '144px', height: '144px', flexShrink: 0 }}>
               <svg viewBox="0 0 140 140" style={{ width: '144px', height: '144px', transform: 'rotate(-90deg)' }}>
                 <circle
@@ -1425,7 +1069,7 @@ export default function AdminDashboard() {
                   cy="70"
                   r={donutRadius}
                   fill="none"
-                  stroke="var(--bg-subtle)"
+                  stroke="var(--border-color)"
                   strokeWidth="16"
                 />
                 {totalRevenue > 0 &&
@@ -1440,6 +1084,7 @@ export default function AdminDashboard() {
                           fill="none"
                           stroke={seg.color}
                           strokeWidth="16"
+                          strokeLinecap="butt"
                           strokeDasharray={`${seg.dash} ${donutCircumference - seg.dash}`}
                           strokeDashoffset={seg.offset}
                         />
@@ -1457,56 +1102,51 @@ export default function AdminDashboard() {
                   textAlign: 'center',
                 }}
               >
-                <span className="font-mono" style={{ fontSize: '19px', fontWeight: 800 }}>
+                <span className="sb-mono" style={{ fontSize: '20px', fontWeight: 600 }}>
                   {activeTrxCount}
                 </span>
-                <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                <span className="sb-eyebrow" style={{ fontSize: '9.5px', marginTop: '2px' }}>
                   Total Nota
                 </span>
               </div>
             </div>
 
             {/* Method Breakdown Rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+            <div className="sb-list" style={{ width: '100%' }}>
               {paymentBreakdown.map((item) => {
                 const accent = PAYMENT_ACCENTS[item.method];
                 return (
-                  <div
-                    key={item.method}
-                    style={{
-                      padding: '8px 11px',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: 'var(--bg-subtle)',
-                      border: '1px solid var(--border-color)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                  <div key={item.method} className="sb-list-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                       <span
                         style={{
                           width: '9px',
                           height: '9px',
-                          borderRadius: '50%',
                           backgroundColor: accent.color,
                           flexShrink: 0,
+                          display: 'inline-block',
                         }}
                       />
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: '12.5px' }}>{item.method}</div>
-                        <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                        <div style={{ fontWeight: 600, fontSize: '13px' }}>{item.method}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                           {item.count} transaksi &bull; {accent.label}
                         </div>
                       </div>
                     </div>
 
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div className="font-mono" style={{ fontWeight: 700, fontSize: '12.5px' }}>
+                      <div className="sb-mono" style={{ fontWeight: 600, fontSize: '13px' }}>
                         {formatRupiah(item.total)}
                       </div>
-                      <div className="font-mono" style={{ fontSize: '10.5px', fontWeight: 700, color: accent.color }}>
+                      <div
+                        className="sb-mono"
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: item.method === 'QRIS' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                        }}
+                      >
                         {item.sharePct}%
                       </div>
                     </div>
@@ -1515,48 +1155,55 @@ export default function AdminDashboard() {
               })}
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Top 5 Best Selling Products */}
-        <div className="sip-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <section className="sb-panel">
+          <div className="sb-panel-header">
             <div>
-              <h3 style={{ fontSize: '15.5px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <Award size={16} style={{ color: 'var(--accent-cyan)' }} />
+              <div className="sb-eyebrow">Peringkat Penjualan</div>
+              <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <Award size={15} style={{ color: 'var(--accent-cyan)' }} />
                 <span>Produk Terlaris (Top Performing SKU)</span>
               </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
                 Kontribusi omzet tertinggi berdasarkan transaksi selesai
               </p>
             </div>
+            <span className="sb-status sb-mono">Top 5</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="sb-list">
             {topProducts.map((prod, idx) => {
               const maxRev = topProducts[0]?.revenue || 1;
-              const widthPct = Math.max(12, Math.round((prod.revenue / maxRev) * 100));
-              const barColor = idx === 0 ? '#06B6D4' : idx === 1 ? '#10B981' : '#3B82F6';
+              const widthPct = Math.max(10, Math.round((prod.revenue / maxRev) * 100));
+              const barColor =
+                idx === 0
+                  ? 'var(--accent-cyan)'
+                  : idx === 1
+                    ? 'var(--text-primary)'
+                    : 'var(--text-secondary)';
               return (
-                <div key={prod.sku} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                <div key={prod.sku} className="sb-list-row-col">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                       <span
-                        className="font-mono"
+                        className="sb-mono"
                         style={{
-                          width: '23px',
-                          height: '23px',
-                          borderRadius: '7px',
-                          backgroundColor: idx === 0 ? 'rgba(var(--accent-cyan-rgb), 0.16)' : 'var(--bg-subtle)',
-                          color: idx === 0 ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                          width: '26px',
+                          height: '26px',
+                          border: `1px solid ${idx === 0 ? 'var(--accent-cyan)' : 'var(--border-color)'}`,
+                          backgroundColor: idx === 0 ? 'var(--accent-cyan)' : 'transparent',
+                          color: idx === 0 ? 'var(--accent-cyan-text)' : 'var(--text-secondary)',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontSize: '11px',
-                          fontWeight: 700,
+                          fontWeight: 600,
                           flexShrink: 0,
                         }}
                       >
-                        #{idx + 1}
+                        0{idx + 1}
                       </span>
                       <div style={{ minWidth: 0 }}>
                         <div
@@ -1570,37 +1217,33 @@ export default function AdminDashboard() {
                         >
                           {prod.name}
                         </div>
-                        <div className="font-mono" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                        <div className="sb-mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
                           {prod.sku}
                           {prod.category ? ` • ${prod.category}` : ''}
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                      <span className="badge badge-muted font-mono" style={{ fontSize: '10.5px' }}>
-                        {prod.qty} terjual
-                      </span>
-                      <span className="font-mono" style={{ fontWeight: 700, fontSize: '12.5px', color: 'var(--accent-cyan)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                      <span className="sb-status sb-mono">{prod.qty} terjual</span>
+                      <span
+                        className="sb-mono"
+                        style={{
+                          fontWeight: 600,
+                          fontSize: '13px',
+                          color: idx === 0 ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                        }}
+                      >
                         {formatRupiah(prod.revenue)}
                       </span>
                     </div>
                   </div>
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'var(--bg-subtle)',
-                      borderRadius: 'var(--radius-full)',
-                      overflow: 'hidden',
-                    }}
-                  >
+                  <div className="sb-progress-track">
                     <div
+                      className="sb-progress-fill"
                       style={{
                         width: `${widthPct}%`,
-                        height: '100%',
                         backgroundColor: barColor,
-                        borderRadius: 'var(--radius-full)',
                       }}
                     />
                   </div>
@@ -1608,85 +1251,74 @@ export default function AdminDashboard() {
               );
             })}
             {topProducts.length === 0 && (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
+              <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
                 Belum ada data penjualan produk.
               </div>
             )}
           </div>
-        </div>
+        </section>
       </div>
 
       {/* Executive Analytics Row 2: Category Performance & Stock Audit Feed */}
-      <div className="dashboard-grid-2">
+      <div className="sb-grid-2">
         {/* Category Performance */}
-        <div className="sip-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <section className="sb-panel">
+          <div className="sb-panel-header">
             <div>
-              <h3 style={{ fontSize: '15.5px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <Layers size={16} style={{ color: 'var(--accent-cyan)' }} />
+              <div className="sb-eyebrow">Segmentasi Katalog</div>
+              <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <Layers size={15} style={{ color: 'var(--accent-cyan)' }} />
                 <span>Performa &amp; Stok Per Kategori</span>
               </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
                 Sebaran pendapatan dan ketersediaan unit barang di setiap kategori
               </p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
+          <div className="sb-list">
             {categoryPerformance.map((cat) => {
-              const color = CATEGORY_COLORS[cat.category];
+              const isLeading = cat.revenue > 0 && cat.revenue === maxCategoryRevenue;
+              const indicatorColor = isLeading ? 'var(--accent-cyan)' : 'var(--text-secondary)';
               return (
-                <div
-                  key={cat.category}
-                  style={{
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: 'var(--bg-subtle)',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                  }}
-                >
+                <div key={cat.category} className="sb-list-row-col">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span
                         style={{
-                          width: '9px',
-                          height: '9px',
-                          borderRadius: '3px',
-                          backgroundColor: color,
+                          width: '8px',
+                          height: '8px',
+                          backgroundColor: indicatorColor,
+                          display: 'inline-block',
                         }}
                       />
-                      <span style={{ fontWeight: 700, fontSize: '12.5px' }}>{cat.category}</span>
-                      <span className="badge badge-muted font-mono" style={{ fontSize: '10px' }}>
+                      <span style={{ fontWeight: 600, fontSize: '13px' }}>{cat.category}</span>
+                      <span className="sb-status sb-mono">
                         {cat.skuCount} SKU / {cat.stockUnits} unit
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="font-mono" style={{ fontWeight: 700, fontSize: '12.5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span className="sb-mono" style={{ fontWeight: 600, fontSize: '13px' }}>
                         {formatRupiah(cat.revenue)}
                       </span>
-                      <span className="font-mono" style={{ fontSize: '11px', fontWeight: 700, color }}>
+                      <span
+                        className="sb-mono"
+                        style={{
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          color: isLeading ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                        }}
+                      >
                         {cat.sharePct}%
                       </span>
                     </div>
                   </div>
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '5px',
-                      backgroundColor: 'var(--bg-card)',
-                      borderRadius: 'var(--radius-full)',
-                      overflow: 'hidden',
-                    }}
-                  >
+                  <div className="sb-progress-track">
                     <div
+                      className="sb-progress-fill"
                       style={{
                         width: `${Math.max(cat.revenue > 0 ? 5 : 0, cat.sharePct)}%`,
-                        height: '100%',
-                        backgroundColor: color,
-                        borderRadius: 'var(--radius-full)',
+                        backgroundColor: indicatorColor,
                       }}
                     />
                   </div>
@@ -1694,60 +1326,49 @@ export default function AdminDashboard() {
               );
             })}
           </div>
-        </div>
+        </section>
 
         {/* Warehouse Audit Feed & Active Cashier Snapshot */}
-        <div className="sip-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '14px' }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <section className="sb-panel">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="sb-panel-header">
               <div>
-                <h3 style={{ fontSize: '15.5px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '7px' }}>
-                  <ClipboardList size={16} style={{ color: 'var(--accent-cyan)' }} />
+                <div className="sb-eyebrow">Audit Inventaris</div>
+                <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <ClipboardList size={15} style={{ color: 'var(--accent-cyan)' }} />
                   <span>Aktivitas Mutasi Gudang Terbaru</span>
                 </h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
                   Audit perubahan stok masuk, keluar, dan opname terakhir
                 </p>
               </div>
-              <button onClick={() => setActiveTab('products')} className="btn btn-secondary btn-sm">
+              <button type="button" onClick={() => setActiveTab('products')} className="sb-btn sb-btn-sm">
                 <span>Semua Log</span>
               </button>
             </div>
 
             {stockLogs.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              <div className="sb-list">
                 {stockLogs.slice(0, 4).map((log) => {
-                  const badgeClass =
+                  const statusClass =
                     log.type === 'IN'
-                      ? 'badge-green'
+                      ? 'sb-status-accent'
                       : log.type === 'OUT'
-                        ? 'badge-amber'
-                        : 'badge-cyan';
+                        ? 'sb-status-warn'
+                        : '';
                   const sign = log.type === 'IN' ? '+' : log.type === 'OUT' ? '-' : '';
                   return (
-                    <div
-                      key={log.id}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'var(--bg-subtle)',
-                        border: '1px solid var(--border-color)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '10px',
-                      }}
-                    >
+                    <div key={log.id} className="sb-list-row">
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-                          <span className={`badge ${badgeClass} font-mono`} style={{ fontSize: '10px', padding: '1px 7px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span className={`sb-status ${statusClass} sb-mono`}>
                             {log.type} {sign}
                             {log.quantity}
                           </span>
                           <span
                             style={{
-                              fontWeight: 700,
-                              fontSize: '12.5px',
+                              fontWeight: 600,
+                              fontSize: '13px',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -1756,16 +1377,16 @@ export default function AdminDashboard() {
                             {log.productName}
                           </span>
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '3px' }}>
-                          {log.reason} &bull; <span className="font-mono">{log.operator}</span>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                          {log.reason} &bull; <span className="sb-mono">{log.operator}</span>
                         </div>
                       </div>
 
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div className="font-mono" style={{ fontSize: '11.5px', fontWeight: 700 }}>
+                        <div className="sb-mono" style={{ fontSize: '12px', fontWeight: 600 }}>
                           {log.previousStock} &rarr; {log.newStock}
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                        <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
                           {formatDateTime(log.createdAt)}
                         </div>
                       </div>
@@ -1774,7 +1395,7 @@ export default function AdminDashboard() {
                 })}
               </div>
             ) : (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
+              <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
                 Belum ada log mutasi stok gudang.
               </div>
             )}
@@ -1782,57 +1403,59 @@ export default function AdminDashboard() {
 
           <div
             style={{
-              padding: '11px 14px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid rgba(var(--accent-cyan-rgb), 0.3)',
-              backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.06)',
+              padding: '14px 16px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-subtle)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               flexWrap: 'wrap',
-              gap: '10px',
+              gap: '12px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12.5px' }}>
               <Users size={15} style={{ color: 'var(--accent-cyan)' }} />
               <span>
                 Tim Kasir Toko: <strong>{activeCashiersCount} Aktif</strong> dari {cashiers.length} akun terdaftar
               </span>
             </div>
-            <button onClick={() => setActiveTab('settings')} className="btn btn-secondary btn-sm">
+            <button type="button" onClick={() => setActiveTab('settings')} className="sb-btn sb-btn-sm">
               <span>Kelola Kasir</span>
               <ArrowUpRight size={13} />
             </button>
           </div>
-        </div>
+        </section>
       </div>
 
       {/* Recent Transactions Table */}
-      <div className="sip-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <section className="sb-panel" style={{ padding: 0, gap: 0 }}>
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: '16px 20px',
+            padding: '20px 24px',
             borderBottom: '1px solid var(--border-color)',
             flexWrap: 'wrap',
-            gap: '10px',
+            gap: '12px',
           }}
         >
           <div>
-            <h3 style={{ fontSize: '15.5px', fontWeight: 800 }}>Transaksi Penjualan Terbaru</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            <div className="sb-eyebrow">Log Terminal Kasir</div>
+            <h3 className="sb-h2" style={{ marginTop: '4px' }}>
+              Transaksi Penjualan Terbaru
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
               5 aktivitas transaksi terakhir yang tercatat di terminal kasir toko Anda
             </p>
           </div>
-          <button onClick={() => setActiveTab('reports')} className="btn btn-secondary btn-sm">
+          <button type="button" onClick={() => setActiveTab('reports')} className="sb-btn sb-btn-sm">
             <span>Buka Laporan Lengkap</span>
-            <ArrowUpRight size={14} />
+            <ArrowUpRight size={13} />
           </button>
         </div>
 
-        <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
+        <div className="sip-table-container desktop-table-wrap" style={{ border: 'none' }}>
           <table className="sip-table">
             <thead>
               <tr>
@@ -1851,18 +1474,15 @@ export default function AdminDashboard() {
                 return (
                   <tr key={trx.id} style={{ opacity: isVoided ? 0.65 : 1 }}>
                     <td
-                      className="font-mono"
+                      className="sb-mono"
                       style={{
-                        fontWeight: 700,
+                        fontWeight: 600,
                         color: isVoided ? 'var(--accent-red)' : 'var(--accent-cyan)',
                       }}
                     >
                       {trx.invoiceNo}
                       {isVoided && (
-                        <span
-                          className="badge badge-red"
-                          style={{ marginLeft: '6px', fontSize: '9.5px', padding: '1px 6px' }}
-                        >
+                        <span className="sb-status sb-status-danger sb-mono" style={{ marginLeft: '8px' }}>
                           VOID
                         </span>
                       )}
@@ -1880,12 +1500,12 @@ export default function AdminDashboard() {
                       {trx.items.length > 2 ? '...' : ''})
                     </td>
                     <td>
-                      <span className="badge badge-muted">{trx.paymentMethod}</span>
+                      <span className="sb-status sb-mono">{trx.paymentMethod}</span>
                     </td>
                     <td
-                      className="font-mono"
+                      className="sb-mono"
                       style={{
-                        fontWeight: 700,
+                        fontWeight: 600,
                         textDecoration: isVoided ? 'line-through' : 'none',
                         color: isVoided ? 'var(--text-muted)' : 'var(--text-primary)',
                       }}
@@ -1894,9 +1514,9 @@ export default function AdminDashboard() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button
+                        type="button"
                         onClick={() => setSelectedReceipt(trx)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '5px 10px', fontSize: '11px' }}
+                        className="sb-btn sb-btn-sm"
                       >
                         <Eye size={13} />
                         <span>Nota</span>
@@ -1907,7 +1527,7 @@ export default function AdminDashboard() {
               })}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '28px', color: 'var(--text-muted)' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
                     Belum ada transaksi penjualan yang tercatat.
                   </td>
                 </tr>
@@ -1917,34 +1537,42 @@ export default function AdminDashboard() {
         </div>
 
         {/* Mobile Recent Transactions Cards */}
-        <div className="mobile-card-list" style={{ padding: '14px' }}>
+        <div className="mobile-card-list">
           {transactions.slice(0, 5).map((trx) => {
             const isVoided = trx.status === 'VOIDED';
             return (
-              <div key={trx.id} className="mobile-data-card" style={{ opacity: isVoided ? 0.68 : 1 }}>
+              <div key={trx.id} className="sb-mobile-trx-row" style={{ opacity: isVoided ? 0.68 : 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                   <span
-                    className="font-mono"
+                    className="sb-mono"
                     style={{
-                      fontWeight: 700,
+                      fontWeight: 600,
                       fontSize: '13.5px',
                       color: isVoided ? 'var(--accent-red)' : 'var(--accent-cyan)',
                     }}
                   >
                     {trx.invoiceNo}
                   </span>
-                  <span className="badge badge-muted">{trx.paymentMethod}</span>
+                  <span className="sb-status sb-mono">{trx.paymentMethod}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: 'var(--text-secondary)' }}>
                   <span>{formatDateTime(trx.createdAt)}</span>
                   <span>{trx.cashierName}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: '10px',
+                    borderTop: '1px solid var(--border-color)',
+                  }}
+                >
                   <div
-                    className="font-mono"
+                    className="sb-mono"
                     style={{
-                      fontWeight: 800,
-                      fontSize: '14.5px',
+                      fontWeight: 600,
+                      fontSize: '15px',
                       textDecoration: isVoided ? 'line-through' : 'none',
                     }}
                   >
@@ -1953,8 +1581,7 @@ export default function AdminDashboard() {
                   <button
                     type="button"
                     onClick={() => setSelectedReceipt(trx)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ minHeight: '34px' }}
+                    className="sb-btn sb-btn-sm"
                   >
                     <Eye size={13} />
                     <span>Nota</span>
@@ -1964,16 +1591,17 @@ export default function AdminDashboard() {
             );
           })}
           {transactions.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '20px 8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+            <div style={{ textAlign: 'center', padding: '24px 12px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
               Belum ada transaksi penjualan yang tercatat.
             </div>
           )}
         </div>
+      </section>
       </div>
 
       {selectedReceipt && (
         <ReceiptModal transaction={selectedReceipt} onClose={() => setSelectedReceipt(null)} />
       )}
-    </div>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
   /* Night Mode (Default) — Neutral Carbon & Emerald */
@@ -1260,3 +1260,489 @@ body {
     box-shadow: none !important;
   }
 }
+
+/* =====================================================================
+   StudioBlank Architectural Dashboard System (Theme-Adapted Scope)
+   Zero border radius, zero shadows, strict hairline grids, generous rhythm,
+   monochrome weight hierarchy + single theme Emerald accent (--accent-cyan)
+   ===================================================================== */
+.app-main:has(.sb-dashboard) {
+  background-image: none;
+}
+
+.sb-dashboard {
+  max-width: 1520px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 36px 40px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.sb-dashboard,
+.sb-dashboard * {
+  border-radius: 0px !important;
+  box-shadow: none !important;
+}
+
+.sb-dashboard :focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.sb-mono,
+.sb-dashboard .font-mono {
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.sb-h1 {
+  font-family: var(--font-sans);
+  font-size: clamp(24px, 2.8vw, 36px);
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.sb-h2 {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.sb-subtitle {
+  font-size: 13.5px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.sb-kpi-value {
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(20px, 1.85vw, 25px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+/* Flat Architectural Command Header */
+.sb-header-band {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 28px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.sb-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* StudioBlank Buttons: Sharp rectangles + background inversion hover (<=150ms) */
+.sb-btn {
+  height: 36px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid var(--border-color);
+  background-color: transparent;
+  color: var(--text-primary);
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.sb-btn:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-card);
+  border-color: var(--text-primary);
+}
+
+.sb-btn-sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.sb-btn-primary {
+  background-color: var(--accent-cyan);
+  color: var(--accent-cyan-text);
+  border-color: var(--accent-cyan);
+}
+
+.sb-btn-primary:hover {
+  background-color: transparent;
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
+.sb-btn-full {
+  width: 100%;
+  height: 40px;
+}
+
+/* Status & Filter Chips */
+.sb-status {
+  height: 26px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  background-color: transparent;
+  white-space: nowrap;
+}
+
+.sb-status-solid {
+  background-color: var(--accent-cyan);
+  color: var(--accent-cyan-text);
+  border-color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.sb-status-accent {
+  color: var(--accent-green-text);
+  border-color: var(--accent-cyan);
+}
+
+.sb-status-warn {
+  color: var(--accent-amber-text);
+  border-color: var(--accent-amber);
+}
+
+.sb-status-danger {
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+.sb-chip-group {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+}
+
+.sb-chip {
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-right: 1px solid var(--border-color);
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.sb-chip:last-child {
+  border-right: none;
+}
+
+.sb-chip:hover {
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.sb-chip.active {
+  background-color: var(--accent-cyan);
+  color: var(--accent-cyan-text);
+  font-weight: 600;
+}
+
+/* Unified 1px-Divided KPI Architectural Grid */
+.sb-kpi-frame {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background-color: var(--border-color);
+  border: 1px solid var(--border-color);
+}
+
+.sb-kpi-cell {
+  background-color: var(--bg-card);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 2px solid transparent;
+  transition: background-color 150ms ease, border-top-color 150ms ease;
+}
+
+.sb-kpi-cell:hover {
+  background-color: var(--bg-card-hover);
+  border-top-color: var(--accent-cyan);
+}
+
+.sb-kpi-cell.is-primary {
+  border-top-color: var(--accent-cyan);
+}
+
+.sb-kpi-cell.is-danger {
+  border-top-color: var(--accent-red);
+}
+
+.sb-kpi-footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+/* Flat Architectural Panels & Structural Layouts */
+.sb-panel {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  transition: border-color 150ms ease;
+}
+
+.sb-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sb-split {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.sb-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.sb-metric-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background-color: var(--border-color);
+  border: 1px solid var(--border-color);
+}
+
+.sb-metric-cell {
+  background-color: var(--bg-subtle);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sb-onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background-color: var(--border-color);
+  border: 1px solid var(--border-color);
+}
+
+.sb-onboarding-btn {
+  background-color: var(--bg-card);
+  border: none;
+  padding: 16px 18px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-primary);
+  transition: background-color 140ms ease;
+}
+
+.sb-onboarding-btn:hover {
+  background-color: var(--bg-subtle);
+}
+
+/* StudioBlank Lists (>=48px row height, 1px hairline dividers) */
+.sb-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+}
+
+.sb-list-row {
+  min-height: 54px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: background-color 140ms ease;
+}
+
+.sb-list-row:hover {
+  background-color: var(--bg-subtle);
+}
+
+.sb-list-row-col {
+  min-height: 54px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: background-color 140ms ease;
+}
+
+.sb-list-row-col:hover {
+  background-color: var(--bg-subtle);
+}
+
+.sb-progress-track {
+  width: 100%;
+  height: 3px;
+  background-color: var(--border-color);
+  overflow: hidden;
+}
+
+.sb-progress-fill {
+  height: 100%;
+  transition: width 180ms ease;
+}
+
+.sb-donut-layout {
+  display: grid;
+  grid-template-columns: 152px 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+/* StudioBlank Table Styling inside Dashboard */
+.sb-dashboard .sip-table th {
+  background-color: var(--bg-subtle);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sb-dashboard .sip-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+
+.sb-dashboard .sip-table tbody tr {
+  transition: background-color 140ms ease;
+}
+
+.sb-dashboard .sip-table tbody tr:hover td {
+  background-color: var(--bg-subtle);
+}
+
+.sb-mobile-trx-row {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sb-mobile-trx-row:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 1180px) {
+  .sb-kpi-frame {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .sb-split,
+  .sb-grid-2,
+  .sb-onboarding-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .sb-dashboard {
+    padding: 20px 14px 44px;
+    gap: 24px;
+  }
+  .sb-header-band {
+    padding: 20px 18px;
+    gap: 18px;
+    align-items: flex-start;
+  }
+  .sb-kpi-frame {
+    grid-template-columns: 1fr;
+  }
+  .sb-kpi-cell {
+    padding: 18px;
+    gap: 14px;
+  }
+  .sb-panel {
+    padding: 18px;
+  }
+  .sb-metric-bar {
+    grid-template-columns: 1fr;
+  }
+  .sb-donut-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
