@@ -109,72 +109,80 @@ export default function LoginView({
         position: 'relative',
       }}
     >
-      {/* Top Bar: Back to Showcase & Theme Toggle */}
-      <div
+      {/* Top Bar: Back to Showcase & Unified Action Capsule */}
+      <header
+        className="app-header"
         style={{
           position: 'fixed',
           top: 0,
           left: 0,
           right: 0,
-          height: '60px',
-          padding: '0 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: 'var(--bg-header)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          borderBottom: '1px solid var(--border-color)',
           zIndex: 40,
         }}
       >
-        <div>
-          {onBackToShowcase && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          {onBackToShowcase ? (
             <button
+              type="button"
               onClick={onBackToShowcase}
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '7px 12px' }}
+              className="header-tool-btn"
+              style={{
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-subtle)',
+                height: '36px',
+                padding: '0 12px',
+              }}
             >
               <ArrowLeft size={14} />
-              <span className="hide-mobile">Halaman Utama (Showcase)</span>
+              <span className="hide-mobile">Kembali ke Showcase</span>
               <span className="show-mobile-only" style={{ fontSize: '12px' }}>Beranda</span>
             </button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="brand-emblem">
+                <Package size={16} />
+              </div>
+              <span style={{ fontSize: '14.5px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
+              </span>
+            </div>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="header-toolbar">
           <button
+            type="button"
             onClick={() => switchMode(authMode === 'login' ? 'register' : 'login')}
-            className="btn btn-secondary btn-sm"
+            className="header-tool-btn"
           >
             {authMode === 'login' ? (
               <>
-                <UserPlus size={13} />
+                <UserPlus size={13} style={{ color: 'var(--accent-cyan)' }} />
                 <span>Daftar Admin</span>
               </>
             ) : (
               <>
-                <LogIn size={13} />
+                <LogIn size={13} style={{ color: 'var(--accent-cyan)' }} />
                 <span>Masuk Akun</span>
               </>
             )}
           </button>
 
           <button
+            type="button"
             onClick={toggleTheme}
-            className="btn btn-secondary btn-icon"
+            className="header-tool-btn header-tool-icon"
             title={`Ubah ke Tema ${theme === 'dark' ? 'Terang' : 'Gelap'}`}
             aria-label="Ubah Tema"
-            style={{ width: '36px', height: '36px' }}
           >
             {theme === 'dark' ? (
-              <Sun size={16} style={{ color: 'var(--accent-amber-text)' }} />
+              <Sun size={15} style={{ color: 'var(--accent-amber-text)' }} />
             ) : (
-              <Moon size={16} style={{ color: 'var(--accent-cyan)' }} />
+              <Moon size={15} style={{ color: 'var(--accent-cyan)' }} />
             )}
           </button>
         </div>
-      </div>
+      </header>
 
       <div style={{ width: '100%', maxWidth: '450px' }}>
         {/* Brand Header */}

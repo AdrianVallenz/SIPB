@@ -107,138 +107,135 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
           position: 'sticky',
           top: 0,
           zIndex: 100,
-          backgroundColor: theme === 'dark' ? 'rgba(15, 17, 21, 0.88)' : 'rgba(255, 255, 255, 0.92)',
-          backdropFilter: 'blur(12px)',
+          backgroundColor: 'var(--bg-header)',
+          backdropFilter: 'blur(18px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(18px) saturate(160%)',
           borderBottom: '1px solid var(--border-color)',
           boxShadow: 'var(--shadow-sm)',
         }}
       >
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: -1,
+            height: '1px',
+            background:
+              'linear-gradient(90deg, transparent 0%, rgba(var(--accent-cyan-rgb), 0.35) 50%, transparent 100%)',
+            pointerEvents: 'none',
+          }}
+        />
         <div className="landing-nav-inner">
           {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.14)',
-                border: '1.5px solid var(--accent-cyan)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--accent-cyan)',
-                boxShadow: 'var(--shadow-glow)',
-                flexShrink: 0,
-              }}
-            >
-              <Package size={19} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <div className="brand-emblem">
+              <Package size={18} />
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <span style={{ fontSize: '15.5px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                  SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
-                </span>
-                <span className="badge badge-cyan font-mono hide-mobile" style={{ fontSize: '9.5px' }}>
-                  v2.4 CLOUD
-                </span>
-              </div>
-              <p className="hide-mobile" style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
-                Point of Sale &amp; Inventory Management
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <span
+                style={{
+                  fontSize: '15.5px',
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
+              </span>
+              <span className="badge badge-cyan font-mono hide-mobile" style={{ fontSize: '9.5px', padding: '2px 7px' }}>
+                v2.4 CLOUD
+              </span>
             </div>
           </div>
 
-          {/* Center Anchor Links (Desktop) */}
-          <nav
-            className="hide-mobile"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '22px',
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <a href="#showcase" style={{ color: 'inherit', textDecoration: 'none' }}>
-              Showcase Interaktif
+          {/* Center Floating Pill Nav (Desktop) */}
+          <nav className="landing-nav-pill hide-mobile" aria-label="Navigasi Utama">
+            <a href="#showcase" className="landing-nav-link">
+              Showcase
             </a>
-            <a href="#fitur" style={{ color: 'inherit', textDecoration: 'none' }}>
-              Fitur Unggulan
+            <a href="#fitur" className="landing-nav-link">
+              Fitur
             </a>
-            <a href="#akses-peran" style={{ color: 'inherit', textDecoration: 'none' }}>
+            <a href="#akses-peran" className="landing-nav-link">
               Mode Akses
             </a>
-            <a href="#arsitektur" style={{ color: 'inherit', textDecoration: 'none' }}>
+            <a href="#arsitektur" className="landing-nav-link">
               Arsitektur Cloud
             </a>
           </nav>
 
-          {/* Right CTA Controls: Theme + Masuk + Daftar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              onClick={toggleTheme}
-              className="btn btn-secondary btn-icon"
-              title={`Ubah ke Tema ${theme === 'dark' ? 'Terang' : 'Gelap'}`}
-              aria-label="Ubah Tema"
-              style={{ width: '36px', height: '36px' }}
-            >
-              {theme === 'dark' ? (
-                <Sun size={16} style={{ color: 'var(--accent-amber-text)' }} />
-              ) : (
-                <Moon size={16} style={{ color: 'var(--accent-cyan)' }} />
-              )}
-            </button>
+          {/* Right CTA Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <div className="header-toolbar">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="header-tool-btn header-tool-icon"
+                title={`Ubah ke Tema ${theme === 'dark' ? 'Terang' : 'Gelap'}`}
+                aria-label="Ubah Tema"
+              >
+                {theme === 'dark' ? (
+                  <Sun size={15} style={{ color: 'var(--accent-amber-text)' }} />
+                ) : (
+                  <Moon size={15} style={{ color: 'var(--accent-cyan)' }} />
+                )}
+              </button>
 
-            {user ? (
-              <>
+              {!user && (
                 <button
+                  type="button"
                   onClick={() => onOpenAuth('login')}
-                  className="btn btn-secondary btn-sm hide-mobile"
-                  style={{ padding: '8px 12px' }}
+                  className="header-tool-btn hide-xs"
                 >
-                  <UserPlus size={14} />
-                  <span>Ganti / Daftar Akun</span>
-                </button>
-                <button
-                  onClick={() => onEnterApp()}
-                  className="btn btn-primary btn-sm"
-                  style={{ padding: '8px 14px' }}
-                >
-                  <span>Dashboard ({user.role === 'admin' ? 'Admin' : 'Kasir'})</span>
-                  <ArrowRight size={14} />
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => onOpenAuth('login')}
-                  className="btn btn-secondary btn-sm btn-nav-compact"
-                  style={{ padding: '8px 13px' }}
-                >
-                  <LogIn size={14} className="hide-xs" />
+                  <LogIn size={13} />
                   <span>Masuk</span>
                 </button>
-                <button
-                  onClick={() => onOpenAuth('register')}
-                  className="btn btn-primary btn-sm btn-nav-compact"
-                  style={{ padding: '8px 14px' }}
-                >
-                  <UserPlus size={14} className="hide-xs" />
-                  <span>Daftar</span>
-                </button>
-              </>
-            )}
+              )}
 
-            {/* Mobile Hamburger Button */}
-            <button
-              onClick={() => setMobileMenuOpen((prev) => !prev)}
-              className="btn btn-secondary btn-icon show-mobile-only"
-              aria-label="Menu Navigasi"
-              style={{ width: '36px', height: '36px' }}
-            >
-              {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
-            </button>
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('login')}
+                  className="header-tool-btn hide-mobile"
+                >
+                  <UserPlus size={13} />
+                  <span>Ganti Akun</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((prev) => !prev)}
+                className="header-tool-btn header-tool-icon show-mobile-only"
+                aria-label="Menu Navigasi"
+              >
+                {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+              </button>
+            </div>
+
+            {user ? (
+              <button
+                type="button"
+                onClick={() => onEnterApp()}
+                className="btn btn-primary btn-sm"
+                style={{ height: '38px', padding: '0 14px', borderRadius: '11px' }}
+              >
+                <span>Dashboard</span>
+                <ArrowRight size={14} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenAuth('register')}
+                className="btn btn-primary btn-sm btn-nav-compact"
+                style={{ height: '38px', padding: '0 14px', borderRadius: '11px' }}
+              >
+                <UserPlus size={14} className="hide-xs" />
+                <span>Daftar</span>
+              </button>
+            )}
           </div>
         </div>
 
