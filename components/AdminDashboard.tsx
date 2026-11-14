@@ -359,11 +359,11 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, flex: '1 1 420px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span className="sb-status sb-status-solid">
-                <Activity size={11} /> Executive Command Center
+                <Activity size={11} /> Panel Kendali Toko
               </span>
               <span className="sb-status sb-mono">
                 <Database size={11} style={{ color: 'var(--accent-cyan)' }} />
-                {isCloudConnected ? 'Supabase Cloud Live' : 'Cache Lokal Aktif'}
+                {isCloudConnected ? 'Cloud Aktif (Data Aman)' : 'Mode Offline (Penyimpanan Perangkat)'}
               </span>
               <span className="sb-status">
                 <Calendar size={11} />
@@ -373,26 +373,26 @@ export default function AdminDashboard() {
 
             <h2 className="sb-h1">
               <span style={{ fontWeight: 300 }}>Selamat bertugas, </span>
-              <span style={{ fontWeight: 700 }}>{user?.name || 'Administrator'}</span>
+              <span style={{ fontWeight: 700 }}>{user?.name || 'Pemilik Toko'}</span>
             </h2>
 
             <p className="sb-subtitle" style={{ maxWidth: '640px' }}>
-              Ringkasan omzet real-time, profitabilitas HPP, kesehatan stok gudang, serta performa kasir toko Anda.
+              Pantau pemasukan uang, keuntungan bersih, ketersediaan barang dagangan, dan aktivitas kasir toko Anda dalam satu tampilan praktis.
             </p>
           </div>
 
           <div className="sb-toolbar">
             <button type="button" onClick={() => setActiveTab('settings')} className="sb-btn">
               <Users size={13} style={{ color: 'var(--accent-cyan)' }} />
-              <span>{activeCashiersCount} Kasir Aktif</span>
+              <span>{activeCashiersCount} Staf Kasir Siap</span>
             </button>
             <button type="button" onClick={() => setActiveTab('products')} className="sb-btn">
               <Boxes size={13} />
-              <span>Master Gudang</span>
+              <span>Kelola Produk &amp; Stok</span>
             </button>
             <button type="button" onClick={() => setActiveTab('reports')} className="sb-btn">
               <FileSpreadsheet size={13} />
-              <span>Laporan &amp; CSV</span>
+              <span>Laporan Penjualan</span>
             </button>
             <button type="button" onClick={() => setActiveTab('pos')} className="sb-btn sb-btn-primary">
               <ShoppingCart size={13} />
@@ -414,12 +414,12 @@ export default function AdminDashboard() {
               }}
             >
               <div>
-                <div className="sb-eyebrow">Persiapan Awal &bull; Terisolasi Per Akun</div>
+                <div className="sb-eyebrow">Panduan Cepat Memulai</div>
                 <h3 className="sb-h2" style={{ marginTop: '4px' }}>
-                  Panduan Persiapan Toko Baru
+                  3 Langkah Mudah Menjalankan Toko Anda
                 </h3>
               </div>
-              <span className="sb-status sb-status-accent">Setup Awal</span>
+              <span className="sb-status sb-status-accent">Persiapan Awal</span>
             </div>
 
             <div className="sb-onboarding-grid">
@@ -431,10 +431,12 @@ export default function AdminDashboard() {
                 <div>
                   <div className="sb-eyebrow sb-mono">Langkah 01</div>
                   <div style={{ fontSize: '13.5px', fontWeight: 600, marginTop: '4px' }}>
-                    Katalog Barang ({products.length} SKU)
+                    Daftar Produk &amp; Harga ({products.length} Barang)
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    {products.length > 0 ? 'Produk siap dijual' : 'Tambah produk atau muat contoh'}
+                    {products.length > 0
+                      ? 'Produk sudah siap dijual di kasir'
+                      : 'Input harga beli & jual agar laba otomatis terhitung'}
                   </div>
                 </div>
                 {products.length > 0 ? (
@@ -452,10 +454,12 @@ export default function AdminDashboard() {
                 <div>
                   <div className="sb-eyebrow sb-mono">Langkah 02</div>
                   <div style={{ fontSize: '13.5px', fontWeight: 600, marginTop: '4px' }}>
-                    Akun Kasir POS ({cashiers.length} Akun)
+                    Akses Staf Kasir ({cashiers.length} Akun)
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    {cashiers.length > 0 ? 'Kasir siap login di POS' : 'Buat akun kasir untuk staf Anda'}
+                    {cashiers.length > 0
+                      ? 'Staf kasir siap melayani pembeli'
+                      : 'Buat akun staf agar data laba pemilik tetap aman'}
                   </div>
                 </div>
                 {cashiers.length > 0 ? (
@@ -473,10 +477,10 @@ export default function AdminDashboard() {
                 <div>
                   <div className="sb-eyebrow sb-mono">Langkah 03</div>
                   <div style={{ fontSize: '13.5px', fontWeight: 600, marginTop: '4px' }}>
-                    Transaksi Kasir ({activeTrxCount} Nota)
+                    Mulai Layani Transaksi ({activeTrxCount} Penjualan)
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    Catat penjualan tunai &amp; non-tunai
+                    Terima bayar tunai/QRIS, cetak struk, dan kurangi stok otomatis
                   </div>
                 </div>
                 <ArrowUpRight size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
@@ -491,7 +495,7 @@ export default function AdminDashboard() {
         <div className="sb-kpi-cell is-primary">
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <span className="sb-eyebrow">01 / Omzet Hari Ini</span>
+              <span className="sb-eyebrow">01 / Pemasukan Hari Ini</span>
               <TrendingUp size={15} style={{ color: 'var(--accent-cyan)' }} />
             </div>
 
@@ -508,24 +512,24 @@ export default function AdminDashboard() {
                   {revVsAvgPct >= 0 ? `+${revVsAvgPct}%` : `${revVsAvgPct}%`} vs rata-rata
                 </span>
               ) : (
-                <span className="sb-status sb-mono">Real-time hari ini</span>
+                <span className="sb-status sb-mono">Pemasukan real-time hari ini</span>
               )}
             </div>
           </div>
 
           <div className="sb-kpi-footer">
-            <span>{todayTransactions.length} nota hari ini</span>
+            <span>{todayTransactions.length} nota transaksi hari ini</span>
             <span className="sb-mono" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-              Basket: {formatRupiah(avgTicketToday)}
+              Rata-rata: {formatRupiah(avgTicketToday)}
             </span>
           </div>
         </div>
 
-        {/* KPI 2: Total Omzet & Laba Kotor */}
+        {/* KPI 2: Total Omzet & Laba Bersih */}
         <div className="sb-kpi-cell">
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <span className="sb-eyebrow">02 / Total Omzet &amp; Laba</span>
+              <span className="sb-eyebrow">02 / Total Penjualan &amp; Laba</span>
               <DollarSign size={15} style={{ color: 'var(--text-secondary)' }} />
             </div>
 
@@ -548,7 +552,7 @@ export default function AdminDashboard() {
 
           <div className="sb-kpi-footer">
             <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-              Laba: {formatRupiah(totalGrossProfit)}
+              Keuntungan Bersih: {formatRupiah(totalGrossProfit)}
             </span>
             <span className="sb-status sb-status-accent sb-mono">+{profitMarginPct}% Margin</span>
           </div>
@@ -558,7 +562,7 @@ export default function AdminDashboard() {
         <div className="sb-kpi-cell">
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <span className="sb-eyebrow">03 / Valuasi Modal Stok</span>
+              <span className="sb-eyebrow">03 / Modal Tertanam di Stok</span>
               <Package size={15} style={{ color: 'var(--text-secondary)' }} />
             </div>
 
@@ -568,15 +572,15 @@ export default function AdminDashboard() {
 
             <div style={{ marginTop: '10px' }}>
               <span className="sb-status sb-mono">
-                Potensi: +{formatRupiah(potentialProfitUpside)}
+                Potensi Keuntungan: +{formatRupiah(potentialProfitUpside)}
               </span>
             </div>
           </div>
 
           <div className="sb-kpi-footer">
-            <span>{totalUnitsInStock.toLocaleString('id-ID')} unit aktif</span>
+            <span>{totalUnitsInStock.toLocaleString('id-ID')} unit barang di toko</span>
             <span className="sb-mono" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-              Ritel: {formatRupiah(totalPotentialSalesValuation)}
+              Nilai Jual: {formatRupiah(totalPotentialSalesValuation)}
             </span>
           </div>
         </div>
@@ -585,7 +589,7 @@ export default function AdminDashboard() {
         <div className={`sb-kpi-cell ${criticalProducts.length > 0 ? 'is-danger' : 'is-primary'}`}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <span className="sb-eyebrow">04 / Kesehatan Inventaris</span>
+              <span className="sb-eyebrow">04 / Peringatan Stok Menipis</span>
               <AlertTriangle
                 size={15}
                 style={{ color: criticalProducts.length > 0 ? 'var(--accent-red)' : 'var(--accent-cyan)' }}
@@ -600,7 +604,7 @@ export default function AdminDashboard() {
             >
               {criticalProducts.length}{' '}
               <span style={{ fontSize: '13px', fontWeight: 400, color: 'var(--text-secondary)' }}>
-                SKU Kritis
+                Barang Kritis
               </span>
             </div>
 
@@ -625,10 +629,10 @@ export default function AdminDashboard() {
           <div className="sb-kpi-footer">
             <span>
               {outOfStockProducts.length > 0
-                ? `${outOfStockProducts.length} habis stok (0)`
-                : `${products.length} total SKU`}
+                ? `${outOfStockProducts.length} produk sudah habis!`
+                : `${products.length} total jenis barang`}
             </span>
-            <span className="sb-status sb-mono">{stockHealthPct}% Aman</span>
+            <span className="sb-status sb-mono">{stockHealthPct}% Stok Aman</span>
           </div>
         </div>
       </section>
@@ -640,12 +644,12 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="sb-panel-header">
               <div>
-                <div className="sb-eyebrow">Analitik Performa Harian &bull; Non-VOID</div>
+                <div className="sb-eyebrow">Grafik Penjualan Toko</div>
                 <h3 className="sb-h2" style={{ marginTop: '4px' }}>
-                  Tren Omzet &amp; Laba Kotor ({chartRange} Hari Terakhir)
+                  Tren Omzet &amp; Keuntungan Bersih ({chartRange} Hari Terakhir)
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
-                  Arahkan kursor atau ketuk titik grafik untuk inspeksi rincian harian
+                  Arahkan kursor atau ketuk titik grafik untuk melihat rincian omzet dan laba per hari
                 </p>
               </div>
 
@@ -681,7 +685,7 @@ export default function AdminDashboard() {
                       }}
                       className={`sb-chip ${chartRange === days ? 'active' : ''}`}
                     >
-                      {days}H
+                      {days} Hari
                     </button>
                   ))}
                 </div>
@@ -711,7 +715,7 @@ export default function AdminDashboard() {
                     Omzet: {formatRupiah(activePoint.total)}
                   </span>
                   <span className="sb-mono" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-                    Laba: {formatRupiah(activePoint.profit)}
+                    Laba Bersih: {formatRupiah(activePoint.profit)}
                   </span>
                   <span className="sb-status sb-mono">{activePoint.count} nota</span>
                 </div>
@@ -728,7 +732,7 @@ export default function AdminDashboard() {
                         display: 'inline-block',
                       }}
                     />
-                    Omzet
+                    Total Omzet
                   </span>
                 )}
                 {(chartMetric === 'both' || chartMetric === 'profit') && (
@@ -742,7 +746,7 @@ export default function AdminDashboard() {
                         display: 'inline-block',
                       }}
                     />
-                    Laba Kotor
+                    Laba Bersih (Setelah HPP)
                   </span>
                 )}
               </div>
@@ -902,32 +906,32 @@ export default function AdminDashboard() {
           {/* 3-Column Chart Footer Architectural Metrics */}
           <div className="sb-metric-bar">
             <div className="sb-metric-cell">
-              <div className="sb-eyebrow">Akumulasi {chartRange} Hari</div>
+              <div className="sb-eyebrow">Total {chartRange} Hari Terakhir</div>
               <div className="sb-mono" style={{ fontSize: '15px', fontWeight: 600 }}>
                 {formatRupiah(periodRevenue)}
               </div>
               <div className="sb-mono" style={{ fontSize: '11px', color: 'var(--accent-green-text)' }}>
-                Laba: {formatRupiah(periodProfit)}
+                Keuntungan: {formatRupiah(periodProfit)}
               </div>
             </div>
 
             <div className="sb-metric-cell">
-              <div className="sb-eyebrow">Rata-rata Harian</div>
+              <div className="sb-eyebrow">Rata-rata Penjualan Harian</div>
               <div className="sb-mono" style={{ fontSize: '15px', fontWeight: 600 }}>
                 {formatRupiah(avgDailyRevenue)}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                HPP: {formatRupiah(hppTotal)}
+                Modal Barang (HPP): {formatRupiah(hppTotal)}
               </div>
             </div>
 
             <div className="sb-metric-cell">
-              <div className="sb-eyebrow">Puncak ({peakDay.dayLabel})</div>
+              <div className="sb-eyebrow">Hari Paling Ramai ({peakDay.dayLabel})</div>
               <div className="sb-mono" style={{ fontSize: '15px', fontWeight: 600, color: 'var(--accent-cyan)' }}>
                 {formatRupiah(peakDay.total)}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                {peakDay.count} transaksi selesai
+                {peakDay.count} nota penjualan selesai
               </div>
             </div>
           </div>
@@ -938,16 +942,16 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="sb-panel-header">
               <div>
-                <div className="sb-eyebrow">Pengawasan Stok</div>
+                <div className="sb-eyebrow">Pengawasan Stok Toko</div>
                 <h3 className="sb-h2" style={{ marginTop: '4px' }}>
-                  Prioritas Restock Gudang
+                  Barang Menipis Perlu Dipesan Ulang
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
-                  SKU dengan stok menipis atau habis
+                  Segera pesan ke supplier sebelum barang habis agar pembeli tidak kecewa
                 </p>
               </div>
               {criticalProducts.length > 0 && (
-                <span className="sb-status sb-status-danger sb-mono">{criticalProducts.length} SKU</span>
+                <span className="sb-status sb-status-danger sb-mono">{criticalProducts.length} Barang</span>
               )}
             </div>
 
@@ -983,7 +987,7 @@ export default function AdminDashboard() {
                             <strong style={{ color: isZero ? 'var(--accent-red)' : 'var(--accent-amber-text)' }}>
                               {prod.stock} {prod.unit}
                             </strong>{' '}
-                            (Min {prod.minStock})
+                            (Batas minimal {prod.minStock})
                           </div>
                         </div>
 
@@ -1022,10 +1026,10 @@ export default function AdminDashboard() {
               >
                 <CheckCircle2 size={22} style={{ margin: '0 auto 10px', display: 'block', color: 'var(--accent-cyan)' }} />
                 <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-primary)' }}>
-                  Seluruh Stok Aman
+                  Semua Stok Masih Aman
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 300 }}>
-                  Semua produk berada di atas batas minimum inventaris.
+                  Seluruh barang dagangan berada di atas batas minimal. Anda tidak perlu khawatir kehabisan stok hari ini.
                 </p>
               </div>
             )}
@@ -1036,7 +1040,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab('products')}
             className="sb-btn sb-btn-full"
           >
-            <span>Kelola Seluruh Katalog ({products.length} SKU)</span>
+            <span>Lihat &amp; Kelola Semua Barang ({products.length} Produk)</span>
             <ArrowUpRight size={14} />
           </button>
         </section>
@@ -1048,16 +1052,16 @@ export default function AdminDashboard() {
         <section className="sb-panel">
           <div className="sb-panel-header">
             <div>
-              <div className="sb-eyebrow">Kanal Pembayaran</div>
+              <div className="sb-eyebrow">Pilihan Pembayaran Pembeli</div>
               <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                 <CreditCard size={15} style={{ color: 'var(--accent-cyan)' }} />
-                <span>Komposisi Metode Pembayaran</span>
+                <span>Komposisi Pembayaran (Tunai vs Non-Tunai)</span>
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
-                Rasio transaksi tunai vs pembayaran digital (non-tunai)
+                Ketahui kebiasaan bayar pembeli (Tunai, QRIS, Transfer, Debit) untuk memudahkan rekonsiliasi uang fisik kasir
               </p>
             </div>
-            <span className="sb-status sb-status-accent sb-mono">Digital: {digitalSharePct}%</span>
+            <span className="sb-status sb-status-accent sb-mono">Non-Tunai: {digitalSharePct}%</span>
           </div>
 
           <div className="sb-donut-layout">
@@ -1161,13 +1165,13 @@ export default function AdminDashboard() {
         <section className="sb-panel">
           <div className="sb-panel-header">
             <div>
-              <div className="sb-eyebrow">Peringkat Penjualan</div>
+              <div className="sb-eyebrow">Produk Unggulan</div>
               <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                 <Award size={15} style={{ color: 'var(--accent-cyan)' }} />
-                <span>Produk Terlaris (Top Performing SKU)</span>
+                <span>5 Produk Paling Cepat Terjual</span>
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
-                Kontribusi omzet tertinggi berdasarkan transaksi selesai
+                Barang yang paling banyak diminati pembeli dan menghasilkan perputaran omzet tertinggi
               </p>
             </div>
             <span className="sb-status sb-mono">Top 5</span>
@@ -1265,13 +1269,13 @@ export default function AdminDashboard() {
         <section className="sb-panel">
           <div className="sb-panel-header">
             <div>
-              <div className="sb-eyebrow">Segmentasi Katalog</div>
+              <div className="sb-eyebrow">Pengelompokan Barang</div>
               <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                 <Layers size={15} style={{ color: 'var(--accent-cyan)' }} />
-                <span>Performa &amp; Stok Per Kategori</span>
+                <span>Kontribusi Penjualan Per Kategori</span>
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
-                Sebaran pendapatan dan ketersediaan unit barang di setiap kategori
+                Ketahui kategori barang apa yang paling menghasilkan laba dan seberapa banyak sisa stoknya
               </p>
             </div>
           </div>
@@ -1333,13 +1337,13 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="sb-panel-header">
               <div>
-                <div className="sb-eyebrow">Audit Inventaris</div>
+                <div className="sb-eyebrow">Catatan Keluar-Masuk Barang</div>
                 <h3 className="sb-h2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                   <ClipboardList size={15} style={{ color: 'var(--accent-cyan)' }} />
-                  <span>Aktivitas Mutasi Gudang Terbaru</span>
+                  <span>Riwayat Mutasi Stok Terkini</span>
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
-                  Audit perubahan stok masuk, keluar, dan opname terakhir
+                  Pencatatan barang masuk dari supplier, barang keluar/rusak, dan penyesuaian stok fisik secara transparan
                 </p>
               </div>
               <button type="button" onClick={() => setActiveTab('products')} className="sb-btn sb-btn-sm">
@@ -1396,7 +1400,7 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                Belum ada log mutasi stok gudang.
+                Belum ada riwayat mutasi stok barang.
               </div>
             )}
           </div>
@@ -1416,11 +1420,11 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12.5px' }}>
               <Users size={15} style={{ color: 'var(--accent-cyan)' }} />
               <span>
-                Tim Kasir Toko: <strong>{activeCashiersCount} Aktif</strong> dari {cashiers.length} akun terdaftar
+                Akses Staf Kasir: <strong>{activeCashiersCount} Kasir Siap Bertugas</strong> dari {cashiers.length} akun terdaftar
               </span>
             </div>
             <button type="button" onClick={() => setActiveTab('settings')} className="sb-btn sb-btn-sm">
-              <span>Kelola Kasir</span>
+              <span>Atur Akun Kasir</span>
               <ArrowUpRight size={13} />
             </button>
           </div>
@@ -1441,12 +1445,12 @@ export default function AdminDashboard() {
           }}
         >
           <div>
-            <div className="sb-eyebrow">Log Terminal Kasir</div>
+            <div className="sb-eyebrow">Riwayat Kasir</div>
             <h3 className="sb-h2" style={{ marginTop: '4px' }}>
-              Transaksi Penjualan Terbaru
+              Nota Penjualan Terbaru
             </h3>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px', fontWeight: 300 }}>
-              5 aktivitas transaksi terakhir yang tercatat di terminal kasir toko Anda
+              5 penjualan terakhir yang baru saja dilayani di kasir toko Anda
             </p>
           </div>
           <button type="button" onClick={() => setActiveTab('reports')} className="sb-btn sb-btn-sm">
@@ -1460,11 +1464,11 @@ export default function AdminDashboard() {
             <thead>
               <tr>
                 <th>No. Nota</th>
-                <th>Waktu</th>
+                <th>Waktu Transaksi</th>
                 <th>Petugas Kasir</th>
-                <th>Ringkasan Item</th>
+                <th>Barang yang Dibeli</th>
                 <th>Metode Bayar</th>
-                <th>Total Tagihan</th>
+                <th>Total Bayar</th>
                 <th style={{ textAlign: 'right' }}>Struk</th>
               </tr>
             </thead>

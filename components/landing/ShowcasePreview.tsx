@@ -439,7 +439,7 @@ export default function ShowcasePreview({
                     Kelola harga modal (HPP), harga jual, kalkulasi persentase margin otomatis, serta lacak setiap stok masuk (IN), keluar (OUT), dan opname (ADJUSTMENT).
                   </p>
                 </div>
-                <span className="badge badge-cyan">Dilindungi Row Level Security (RLS)</span>
+                <span className="badge badge-cyan">Data Toko Terlindungi &amp; Aman</span>
               </div>
 
               <div className="sip-table-container desktop-table-wrap">

@@ -18,15 +18,15 @@ export const metadata: Metadata = {
     template: '%s | SIP Barang',
   },
   description:
-    'Platform operasional retail modern dengan terminal kasir POS tercepat, QRIS dinamis menyesuaikan nota, pemantauan margin HPP real-time, printer thermal Bluetooth, dan isolasi database multi-tenant Supabase.',
+    'Platform kasir POS dan operasional toko modern. Transaksi kasir kilat, QRIS dinamis pas sesuai nota, hitung laba bersih otomatis, cetak struk Bluetooth, dan data toko tersimpan aman di cloud.',
   applicationName: 'SIP Barang',
   keywords: [
     'aplikasi kasir POS',
     'sistem operasional penjualan barang',
-    'manajemen stok gudang',
+    'manajemen stok toko',
     'QRIS kasir dinamis',
     'cetak struk thermal bluetooth',
-    'laporan HPP toko retail',
+    'laporan laba rugi toko retail',
   ],
   authors: [{ name: 'SIP Barang', url: 'https://sipb.web.id' }],
   creator: 'SIP Barang',
@@ -40,9 +40,9 @@ export const metadata: Metadata = {
     locale: 'id_ID',
     url: 'https://sipb.web.id',
     siteName: 'SIP Barang',
-    title: 'SIP Barang — Kasir POS Cloud, QRIS Nota & Manajemen Stok',
+    title: 'SIP Barang — Kasir POS Cepat, QRIS Nota & Manajemen Stok Toko',
     description:
-      'Terminal kasir Point of Sale, pemantauan margin HPP real-time, kartu mutasi stok gudang, dan sinkronisasi multi-tenant PostgreSQL.',
+      'Terminal kasir Point of Sale kilat, perhitungan laba bersih otomatis, pantauan stok toko, dan pencatatan transaksi terpadu.',
   },
   twitter: {
     card: 'summary_large_image',
@@ -64,7 +64,7 @@ const websiteJsonLd = {
       '@id': 'https://sipb.web.id/#organization',
       name: 'SIP Barang',
       url: 'https://sipb.web.id',
-      description: 'Penyedia platform operasional kasir POS dan manajemen inventaris toko multi-tenant.',
+      description: 'Penyedia platform kasir POS dan operasional toko retail modern.',
     },
     {
       '@type': 'WebSite',
@@ -90,10 +90,10 @@ const websiteJsonLd = {
       featureList: [
         'Terminal Kasir Point of Sale (POS) dengan shortcut F2 dan F8',
         'QRIS Dinamis EMVCo menyesuaikan total tagihan dan nomor nota',
-        'Manajemen inventaris gudang, batas minStock, dan kartu log mutasi',
-        'Kalkulasi HPP dan margin laba kotor real-time',
+        'Manajemen inventaris gudang, batas stok aman, dan riwayat mutasi',
+        'Kalkulasi HPP dan keuntungan bersih otomatis secara real-time',
         'Cetak struk thermal 58mm/80mm via Web Bluetooth atau Print CSS',
-        'Isolasi data per toko dengan Supabase Row Level Security (RLS)',
+        'Perlindungan data toko pribadi yang aman dan terpisah di cloud',
       ],
     },
   ],

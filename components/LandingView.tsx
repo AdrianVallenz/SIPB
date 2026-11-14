@@ -41,7 +41,7 @@ const CORE_FEATURE_ICONS: Record<string, React.ComponentType<{ size?: number }>>
   'precision-accounting': TrendingUp,
   'warehouse-audit': History,
   'rbac-security': ShieldCheck,
-  'cloud-postgres': Database,
+  'cloud-sync': Database,
   'reporting-print': Printer,
 };
 
@@ -398,8 +398,8 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
           >
             <strong>SIP Barang</strong> dirancang untuk kecepatan transaksi kasir di smartphone maupun desktop.
             Dilengkapi kalkulasi HPP &amp; margin otomatis, otorisasi multi-peran (Admin &amp; Kasir), cetak struk
-            langsung ke <strong>Printer Thermal Bluetooth (58mm/80mm)</strong>, serta sinkronisasi database{' '}
-            <strong>Supabase Cloud PostgreSQL</strong>.
+            langsung ke <strong>Printer Thermal Bluetooth (58mm/80mm)</strong>, serta penyimpanan data aman di{' '}
+            <strong>Cloud dengan cadangan otomatis</strong>.
           </p>
 
           {/* Hero Action Buttons */}
@@ -527,7 +527,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
 
             <div className="sip-card" style={{ padding: '16px 18px', borderTop: '3px solid var(--accent-cyan)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>INFRASTRUKTUR DATABASE</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>KEAMANAN DATA TOKO</span>
                 <Globe size={15} style={{ color: 'var(--accent-cyan)' }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '15px', fontWeight: 800, marginTop: '3px' }}>
@@ -540,10 +540,10 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                     boxShadow: '0 0 8px var(--accent-cyan)',
                   }}
                 />
-                <span>Supabase + Vercel</span>
+                <span>Penyimpanan Cloud Terlindungi</span>
               </div>
               <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {isCloudConnected ? 'Cloud Sync Active (PostgreSQL)' : 'Hybrid Cloud + Local Storage'}
+                {isCloudConnected ? 'Data Tersimpan & Cadangan Aktif' : 'Penyimpanan Aman di Perangkat Anda'}
               </div>
             </div>
           </div>
@@ -754,13 +754,13 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
           <div className="sip-card" style={{ padding: '24px 20px' }}>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <span className="badge badge-cyan" style={{ marginBottom: '8px' }}>
-                MODERN CLOUD ARCHITECTURE
+                JAMINAN KEANDALAN SISTEM
               </span>
               <h2 style={{ fontSize: 'clamp(20px, 2.8vw, 24px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                Teknologi &amp; Infrastruktur Produksi
+                Kemudahan &amp; Keamanan Operasional Toko
               </h2>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Dideploy secara global di jaringan Edge Vercel dengan database terkelola Supabase PostgreSQL (Region Singapore).
+                Semua yang dibutuhkan pemilik toko dan kasir untuk berjualan dengan lancar setiap hari tanpa perlu pusing urusan teknis.
               </p>
             </div>
 

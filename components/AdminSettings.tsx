@@ -1066,19 +1066,15 @@ export default function AdminSettings() {
             <Database size={18} style={{ color: 'var(--accent-cyan)' }} />
             <div>
               <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                Isolasi Basis Data Per Akun (Supabase PostgreSQL + RLS)
+                Keamanan &amp; Perlindungan Data Toko
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Data katalog, stok, transaksi, dan kasir terisolasi oleh ID Tenant{' '}
-                <code className="font-mono" style={{ color: 'var(--accent-cyan)' }}>
-                  {user?.ownerId.slice(0, 8)}...
-                </code>{' '}
-                ({user?.email}).
+                Seluruh data barang, stok, riwayat nota, dan akun kasir terkunci aman khusus untuk toko Anda ({user?.email}).
               </p>
             </div>
           </div>
           <span className={`badge ${isCloudConnected ? 'badge-green' : 'badge-amber'}`}>
-            {isCloudConnected ? 'Terhubung ke Supabase Cloud' : 'Mode Cache Lokal'}
+            {isCloudConnected ? 'Tersimpan Aman di Cloud' : 'Penyimpanan Lokal Perangkat'}
           </span>
         </div>
 
