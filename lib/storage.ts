@@ -6,10 +6,6 @@ import {
   CashierAccount,
   StorePaymentSettings,
 } from './types';
-import { INITIAL_PRODUCTS, INITIAL_TRANSACTIONS, INITIAL_STOCK_LOGS } from './dummyData';
-
-export const DEMO_OWNER_ID = '00000000-0000-0000-0000-000000000001';
-export const DEMO_CASHIER_ID = '00000000-0000-0000-0000-000000000002';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'sip_products_v2',
@@ -22,7 +18,7 @@ const STORAGE_KEYS = {
   ACCOUNTS: 'sip_registered_accounts_v2',
 } as const;
 
-const tenantKey = (base: string, ownerId?: string) => `${base}_${ownerId || DEMO_OWNER_ID}`;
+const tenantKey = (base: string, ownerId: string) => `${base}_${ownerId}`;
 
 export interface RegisteredAccount {
   id: string;
@@ -38,23 +34,11 @@ export interface RegisteredAccount {
 // 12 hours max session duration (1 cashier shift)
 const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
-export const DEMO_ACCOUNTS: Record<
-  string,
-  { id: string; ownerId: string; name: string; role: 'admin' | 'user' }
-> = {
-  'admin@sip.com': {
-    id: DEMO_OWNER_ID,
-    ownerId: DEMO_OWNER_ID,
-    name: 'Administrator Toko',
-    role: 'admin',
-  },
-  'user@sip.com': {
-    id: DEMO_CASHIER_ID,
-    ownerId: DEMO_OWNER_ID,
-    name: 'Kasir Penjualan',
-    role: 'user',
-  },
-};
+const LEGACY_DEMO_IDS = new Set([
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000002',
+]);
+const LEGACY_DEMO_EMAILS = new Set(['admin@sip.com', 'user@sip.com']);
 
 export const getStoredAccounts = (): RegisteredAccount[] => {
   if (typeof window === 'undefined') return [];
@@ -119,31 +103,25 @@ const isValidProduct = (item: unknown): item is Product => {
   );
 };
 
-export const getStoredProducts = (ownerId: string = DEMO_OWNER_ID): Product[] => {
-  const defaultProducts = ownerId === DEMO_OWNER_ID ? INITIAL_PRODUCTS : [];
-  if (typeof window === 'undefined') return defaultProducts;
+export const getStoredProducts = (ownerId: string = ''): Product[] => {
+  if (!ownerId || typeof window === 'undefined') return [];
   try {
     const key = tenantKey(STORAGE_KEYS.PRODUCTS, ownerId);
     const raw = localStorage.getItem(key);
-    if (!raw) {
-      if (defaultProducts.length > 0) {
-        localStorage.setItem(key, JSON.stringify(defaultProducts));
-      }
-      return defaultProducts;
-    }
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || !parsed.every(isValidProduct)) {
-      return defaultProducts;
+      return [];
     }
     return parsed;
   } catch (err) {
     console.error('Failed to read products from storage', err);
-    return defaultProducts;
+    return [];
   }
 };
 
-export const saveStoredProducts = (products: Product[], ownerId: string = DEMO_OWNER_ID): void => {
-  if (typeof window === 'undefined') return;
+export const saveStoredProducts = (products: Product[], ownerId: string = ''): void => {
+  if (!ownerId || typeof window === 'undefined') return;
   try {
     localStorage.setItem(tenantKey(STORAGE_KEYS.PRODUCTS, ownerId), JSON.stringify(products));
   } catch (err) {
@@ -151,18 +129,12 @@ export const saveStoredProducts = (products: Product[], ownerId: string = DEMO_O
   }
 };
 
-export const getStoredTransactions = (ownerId: string = DEMO_OWNER_ID): Transaction[] => {
-  const defaultTrx = ownerId === DEMO_OWNER_ID ? INITIAL_TRANSACTIONS : [];
-  if (typeof window === 'undefined') return defaultTrx;
+export const getStoredTransactions = (ownerId: string = ''): Transaction[] => {
+  if (!ownerId || typeof window === 'undefined') return [];
   try {
     const key = tenantKey(STORAGE_KEYS.TRANSACTIONS, ownerId);
     const raw = localStorage.getItem(key);
-    if (!raw) {
-      if (defaultTrx.length > 0) {
-        localStorage.setItem(key, JSON.stringify(defaultTrx));
-      }
-      return defaultTrx;
-    }
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (
       !Array.isArray(parsed) ||
@@ -176,20 +148,20 @@ export const getStoredTransactions = (ownerId: string = DEMO_OWNER_ID): Transact
           Array.isArray(t.items)
       )
     ) {
-      return defaultTrx;
+      return [];
     }
     return parsed;
   } catch (err) {
     console.error('Failed to read transactions from storage', err);
-    return defaultTrx;
+    return [];
   }
 };
 
 export const saveStoredTransactions = (
   transactions: Transaction[],
-  ownerId: string = DEMO_OWNER_ID
+  ownerId: string = ''
 ): void => {
-  if (typeof window === 'undefined') return;
+  if (!ownerId || typeof window === 'undefined') return;
   try {
     localStorage.setItem(
       tenantKey(STORAGE_KEYS.TRANSACTIONS, ownerId),
@@ -200,18 +172,12 @@ export const saveStoredTransactions = (
   }
 };
 
-export const getStoredStockLogs = (ownerId: string = DEMO_OWNER_ID): StockLog[] => {
-  const defaultLogs = ownerId === DEMO_OWNER_ID ? INITIAL_STOCK_LOGS : [];
-  if (typeof window === 'undefined') return defaultLogs;
+export const getStoredStockLogs = (ownerId: string = ''): StockLog[] => {
+  if (!ownerId || typeof window === 'undefined') return [];
   try {
     const key = tenantKey(STORAGE_KEYS.STOCK_LOGS, ownerId);
     const raw = localStorage.getItem(key);
-    if (!raw) {
-      if (defaultLogs.length > 0) {
-        localStorage.setItem(key, JSON.stringify(defaultLogs));
-      }
-      return defaultLogs;
-    }
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (
       !Array.isArray(parsed) ||
@@ -220,17 +186,17 @@ export const getStoredStockLogs = (ownerId: string = DEMO_OWNER_ID): StockLog[] 
           l && typeof l === 'object' && typeof l.id === 'string' && typeof l.productName === 'string'
       )
     ) {
-      return defaultLogs;
+      return [];
     }
     return parsed;
   } catch (err) {
     console.error('Failed to read stock logs from storage', err);
-    return defaultLogs;
+    return [];
   }
 };
 
-export const saveStoredStockLogs = (logs: StockLog[], ownerId: string = DEMO_OWNER_ID): void => {
-  if (typeof window === 'undefined') return;
+export const saveStoredStockLogs = (logs: StockLog[], ownerId: string = ''): void => {
+  if (!ownerId || typeof window === 'undefined') return;
   try {
     localStorage.setItem(tenantKey(STORAGE_KEYS.STOCK_LOGS, ownerId), JSON.stringify(logs));
   } catch (err) {
@@ -238,32 +204,14 @@ export const saveStoredStockLogs = (logs: StockLog[], ownerId: string = DEMO_OWN
   }
 };
 
-export const getStoredCashiers = (ownerId: string = DEMO_OWNER_ID): CashierAccount[] => {
-  const defaultCashiers: CashierAccount[] =
-    ownerId === DEMO_OWNER_ID
-      ? [
-          {
-            id: DEMO_CASHIER_ID,
-            ownerId: DEMO_OWNER_ID,
-            email: 'user@sip.com',
-            name: 'Kasir Penjualan',
-            isActive: true,
-            createdAt: '2026-11-12T00:00:00.000Z',
-          },
-        ]
-      : [];
-  if (typeof window === 'undefined') return defaultCashiers;
+export const getStoredCashiers = (ownerId: string = ''): CashierAccount[] => {
+  if (!ownerId || typeof window === 'undefined') return [];
   try {
     const key = tenantKey(STORAGE_KEYS.CASHIERS, ownerId);
     const raw = localStorage.getItem(key);
-    if (!raw) {
-      if (defaultCashiers.length > 0) {
-        localStorage.setItem(key, JSON.stringify(defaultCashiers));
-      }
-      return defaultCashiers;
-    }
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return defaultCashiers;
+    if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (c) =>
         c &&
@@ -273,15 +221,15 @@ export const getStoredCashiers = (ownerId: string = DEMO_OWNER_ID): CashierAccou
         typeof c.name === 'string'
     );
   } catch {
-    return defaultCashiers;
+    return [];
   }
 };
 
 export const saveStoredCashiers = (
   cashiers: CashierAccount[],
-  ownerId: string = DEMO_OWNER_ID
+  ownerId: string = ''
 ): void => {
-  if (typeof window === 'undefined') return;
+  if (!ownerId || typeof window === 'undefined') return;
   try {
     localStorage.setItem(tenantKey(STORAGE_KEYS.CASHIERS, ownerId), JSON.stringify(cashiers));
   } catch (err) {
@@ -308,6 +256,14 @@ export const getStoredSession = (): UserSession | null => {
     }
 
     const emailLower = parsed.email.toLowerCase();
+    if (
+      LEGACY_DEMO_IDS.has(parsed.id) ||
+      LEGACY_DEMO_IDS.has(parsed.ownerId) ||
+      LEGACY_DEMO_EMAILS.has(emailLower)
+    ) {
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+      return null;
+    }
     const customAccount = getStoredAccounts().find((a) => a.email.toLowerCase() === emailLower);
     if (customAccount && customAccount.isActive === false) {
       localStorage.removeItem(STORAGE_KEYS.SESSION);
@@ -369,7 +325,7 @@ export const saveStoredTheme = (theme: 'dark' | 'light'): void => {
 };
 
 export const getDefaultStorePaymentSettings = (
-  ownerId: string = DEMO_OWNER_ID
+  ownerId: string = ''
 ): StorePaymentSettings => ({
   ownerId,
   qrisPayload: '',
@@ -386,10 +342,10 @@ export const getDefaultStorePaymentSettings = (
 });
 
 export const getStoredPaymentSettings = (
-  ownerId: string = DEMO_OWNER_ID
+  ownerId: string = ''
 ): StorePaymentSettings => {
   const defaults = getDefaultStorePaymentSettings(ownerId);
-  if (typeof window === 'undefined') return defaults;
+  if (!ownerId || typeof window === 'undefined') return defaults;
   try {
     const raw = localStorage.getItem(tenantKey(STORAGE_KEYS.PAYMENT_SETTINGS, ownerId));
     if (!raw) return defaults;
@@ -426,9 +382,9 @@ export const getStoredPaymentSettings = (
 
 export const saveStoredPaymentSettings = (
   settings: StorePaymentSettings,
-  ownerId: string = DEMO_OWNER_ID
+  ownerId: string = ''
 ): void => {
-  if (typeof window === 'undefined') return;
+  if (!ownerId || typeof window === 'undefined') return;
   try {
     localStorage.setItem(
       tenantKey(STORAGE_KEYS.PAYMENT_SETTINGS, ownerId),

@@ -268,7 +268,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     id: 'trx-1001',
     invoiceNo: 'TRX-20261012-0001',
     createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-    cashierEmail: 'user@sip.com',
+    cashierEmail: 'kasir@sipb.web.id',
     cashierName: 'Kasir Penjualan',
     items: [
       {
@@ -300,7 +300,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     id: 'trx-1002',
     invoiceNo: 'TRX-20261012-0002',
     createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-    cashierEmail: 'user@sip.com',
+    cashierEmail: 'kasir@sipb.web.id',
     cashierName: 'Kasir Penjualan',
     items: [
       {
@@ -340,7 +340,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     id: 'trx-1003',
     invoiceNo: 'TRX-20261012-0003',
     createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
-    cashierEmail: 'user@sip.com',
+    cashierEmail: 'kasir@sipb.web.id',
     cashierName: 'Kasir Penjualan',
     items: [
       {
@@ -381,7 +381,7 @@ export const INITIAL_STOCK_LOGS: StockLog[] = [
     newStock: 24,
     reason: 'Penerimaan stok baru dari Distributor Pangan Utama',
     createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    operator: 'admin@sip.com',
+    operator: 'admin@sipb.web.id',
   },
   {
     id: 'log-002',
@@ -393,6 +393,6 @@ export const INITIAL_STOCK_LOGS: StockLog[] = [
     newStock: 0,
     reason: 'Stok kemasan sobek/rusak saat bongkar muat gudang',
     createdAt: new Date(Date.now() - 3600000 * 10).toISOString(),
-    operator: 'admin@sip.com',
+    operator: 'admin@sipb.web.id',
   }
 ];

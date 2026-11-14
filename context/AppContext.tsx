@@ -20,8 +20,6 @@ import {
   UserSession,
 } from '@/lib/types';
 import {
-  DEMO_ACCOUNTS,
-  DEMO_OWNER_ID,
   getDefaultStorePaymentSettings,
   getStoredAccounts,
   getStoredCashiers,
@@ -45,7 +43,6 @@ import {
   createCashierCloud,
   deleteCashierCloud,
   fetchCloudSnapshot,
-  getSupabaseAccessToken,
   registerAdminCloud,
   setSupabaseAccessToken,
   signInSupabase,
@@ -60,7 +57,7 @@ import {
   toggleCashierCloud,
   updateCashierCloud,
 } from '@/lib/supabase';
-import { INITIAL_PRODUCTS, INITIAL_STOCK_LOGS, INITIAL_TRANSACTIONS } from '@/lib/dummyData';
+import { INITIAL_PRODUCTS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
 import { generateInvoiceNo } from '@/lib/format';
 
@@ -125,9 +122,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const ADMIN_TABS = new Set(['dashboard', 'products', 'reports', 'pos', 'settings']);
 const USER_TABS = new Set(['pos', 'my-transactions']);
 const emptySubscribe = () => () => {};
+const SSR_EMPTY_PRODUCTS: Product[] = [];
+const SSR_EMPTY_TRANSACTIONS: Transaction[] = [];
+const SSR_EMPTY_STOCK_LOGS: StockLog[] = [];
 const SSR_EMPTY_CASHIERS: CashierAccount[] = [];
-const SSR_DEFAULT_PAYMENT_SETTINGS: StorePaymentSettings =
-  getDefaultStorePaymentSettings(DEMO_OWNER_ID);
+const SSR_DEFAULT_PAYMENT_SETTINGS: StorePaymentSettings = getDefaultStorePaymentSettings('');
 
 function makeId(prefix: string): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -176,19 +175,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(() => getStoredSession());
   const [theme, setTheme] = useState<'dark' | 'light'>(() => getStoredTheme());
   const [products, setProducts] = useState<Product[]>(() =>
-    getStoredProducts(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+    getStoredProducts(getStoredSession()?.ownerId || '')
   );
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    getStoredTransactions(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+    getStoredTransactions(getStoredSession()?.ownerId || '')
   );
   const [stockLogs, setStockLogs] = useState<StockLog[]>(() =>
-    getStoredStockLogs(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+    getStoredStockLogs(getStoredSession()?.ownerId || '')
   );
   const [cashiers, setCashiers] = useState<CashierAccount[]>(() =>
-    getStoredCashiers(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+    getStoredCashiers(getStoredSession()?.ownerId || '')
   );
   const [paymentSettings, setPaymentSettings] = useState<StorePaymentSettings>(() =>
-    getStoredPaymentSettings(getStoredSession()?.ownerId || DEMO_OWNER_ID)
+    getStoredPaymentSettings(getStoredSession()?.ownerId || '')
   );
   const [activeTab, setActiveTabState] = useState<string>(() =>
     readStoredActiveTab(getStoredSession())
@@ -196,11 +195,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
-
-  const pendingDemoAuthRef = useRef<{
-    email: string;
-    promise: ReturnType<typeof signInSupabase>;
-  } | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -219,27 +213,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     const targetOwnerId = user.ownerId;
     (async () => {
-      // Await inflight demo sign-in triggered by fast-path login so we never fire duplicate auth requests
-      const inflight = pendingDemoAuthRef.current;
-      if (!getSupabaseAccessToken() && inflight && inflight.email === user.email) {
-        await inflight.promise;
-        if (pendingDemoAuthRef.current === inflight) {
-          pendingDemoAuthRef.current = null;
-        }
-      }
-      if (!active) return;
-
-      let snapshot = await fetchCloudSnapshot();
-      if (
-        !snapshot.connected &&
-        !getSupabaseAccessToken() &&
-        (user.email === 'admin@sip.com' || user.email === 'user@sip.com')
-      ) {
-        const authRes = await signInSupabase(user.email, '12345678');
-        if (authRes.accessToken) {
-          snapshot = await fetchCloudSnapshot(authRes.accessToken);
-        }
-      }
+      const snapshot = await fetchCloudSnapshot();
       if (!active || !snapshot.connected || getStoredSession()?.ownerId !== targetOwnerId) return;
       setIsCloudConnected(true);
       if (snapshot.products) {
@@ -316,27 +290,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: false, message: 'Email dan kata sandi wajib diisi.' };
     }
 
-    // 1. Instant fast-path for built-in demo credentials + single-flight background Supabase auth
-    const demoAccount = DEMO_ACCOUNTS[cleanEmail];
-    if (demoAccount && pass === '12345678') {
-      const session: UserSession = {
-        id: demoAccount.id,
-        ownerId: demoAccount.ownerId,
-        email: cleanEmail,
-        name: demoAccount.name,
-        role: demoAccount.role,
-        loginAt: new Date().toISOString(),
-      };
-      setSupabaseAccessToken(null);
-      pendingDemoAuthRef.current = {
-        email: cleanEmail,
-        promise: signInSupabase(cleanEmail, pass),
-      };
-      activateSession(session);
-      return { success: true };
-    }
-
-    // 2. Authenticate against Supabase Cloud Auth
+    // Authenticate against Supabase Cloud Auth
     const authRes = await signInSupabase(cleanEmail, pass);
     if (authRes.banned) {
       return {
@@ -413,9 +367,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!pass || pass.length < 6) {
       return { success: false, message: 'Kata sandi minimal terdiri dari 6 karakter.' };
     }
-    if (cleanEmail === 'admin@sip.com' || cleanEmail === 'user@sip.com') {
-      return { success: false, message: 'Email ini sudah terdaftar sebagai akun demo sistem.' };
-    }
 
     // Always register self-signup users as Administrator of their own isolated store
     const cloudReg = await registerAdminCloud(cleanName, cleanEmail, pass);
@@ -474,7 +425,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    pendingDemoAuthRef.current = null;
     setUser(null);
     setIsCloudConnected(false);
     setSupabaseAccessToken(null);
@@ -487,7 +437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Ignore storage error
       }
     }
-    hydrateTenantCache(DEMO_OWNER_ID);
+    hydrateTenantCache('');
   };
 
   const requireAdmin = (): ActionResult | null => {
@@ -518,9 +468,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     if (!password || password.length < 6) {
       return { success: false, error: 'Kata sandi kasir minimal 6 karakter.' };
-    }
-    if (cleanEmail === 'admin@sip.com' || cleanEmail === 'user@sip.com') {
-      return { success: false, error: 'Email tersebut reserved untuk akun demo sistem.' };
     }
 
     const cloudRes = await createCashierCloud(cleanName, cleanEmail, password);
@@ -1279,9 +1226,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isCloudConnected: isInitialized ? isCloudConnected : false,
       theme: isInitialized ? theme : 'dark',
       toggleTheme: stableToggleTheme,
-      products: isInitialized ? products : INITIAL_PRODUCTS,
-      transactions: isInitialized ? transactions : INITIAL_TRANSACTIONS,
-      stockLogs: isInitialized ? stockLogs : INITIAL_STOCK_LOGS,
+      products: isInitialized ? products : SSR_EMPTY_PRODUCTS,
+      transactions: isInitialized ? transactions : SSR_EMPTY_TRANSACTIONS,
+      stockLogs: isInitialized ? stockLogs : SSR_EMPTY_STOCK_LOGS,
       cashiers: isInitialized ? cashiers : SSR_EMPTY_CASHIERS,
       paymentSettings: isInitialized ? paymentSettings : SSR_DEFAULT_PAYMENT_SETTINGS,
       updatePaymentSettings: stableUpdatePaymentSettings,

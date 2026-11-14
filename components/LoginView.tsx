@@ -3,8 +3,6 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
-  ShieldCheck,
-  ShoppingCart,
   Sun,
   Moon,
   ArrowRight,
@@ -63,25 +61,6 @@ export default function LoginView({
         } else {
           onLoginSuccess?.();
         }
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleQuickDemo = async (targetRole: 'admin' | 'user') => {
-    if (isSubmitting) return;
-    const targetEmail = targetRole === 'admin' ? 'admin@sip.com' : 'user@sip.com';
-    setEmail(targetEmail);
-    setPassword('12345678');
-    setError('');
-    setIsSubmitting(true);
-    try {
-      const res = await login(targetEmail, '12345678');
-      if (!res.success) {
-        setError(res.message || 'Autentikasi gagal.');
-      } else {
-        onLoginSuccess?.();
       }
     } finally {
       setIsSubmitting(false);
@@ -461,92 +440,6 @@ export default function LoginView({
               )}
             </button>
           </form>
-
-          {/* Divider */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              margin: '18px 0 14px',
-              color: 'var(--text-muted)',
-              fontSize: '11px',
-              fontWeight: 600,
-            }}
-          >
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
-            <span>Akses Cepat Sesi Demo (1-Klik)</span>
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
-          </div>
-
-          {/* Quick Role Switcher */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={() => void handleQuickDemo('admin')}
-              className="btn btn-secondary"
-              style={{
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                padding: '10px 12px',
-                gap: '3px',
-                borderColor: 'rgba(var(--accent-cyan-rgb), 0.35)',
-                backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  color: 'var(--accent-cyan)',
-                }}
-              >
-                <ShieldCheck size={15} />
-                <span style={{ fontWeight: 700, fontSize: '12px' }}>Demo Admin</span>
-              </div>
-              <span
-                className="font-mono"
-                style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}
-              >
-                admin@sip.com
-              </span>
-            </button>
-
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={() => void handleQuickDemo('user')}
-              className="btn btn-secondary"
-              style={{
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                padding: '10px 12px',
-                gap: '3px',
-                borderColor: 'rgba(var(--accent-cyan-rgb), 0.35)',
-                backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  color: 'var(--accent-green-text)',
-                }}
-              >
-                <ShoppingCart size={15} />
-                <span style={{ fontWeight: 700, fontSize: '12px' }}>Demo Kasir</span>
-              </div>
-              <span
-                className="font-mono"
-                style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}
-              >
-                user@sip.com
-              </span>
-            </button>
-          </div>
         </div>
 
         <p

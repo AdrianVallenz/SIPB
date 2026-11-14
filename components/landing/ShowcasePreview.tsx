@@ -38,7 +38,7 @@ interface ShowcasePreviewProps {
   sampleProducts: Product[];
   sampleLogs: StockLog[];
   transactions: Transaction[];
-  onEnterApp: (role?: 'admin' | 'user', targetTab?: string) => void;
+  onEnterApp: (targetTab?: string) => void;
 }
 
 const SHOWCASE_TABS: { id: ShowcaseTab; label: string; shortLabel: string; icon: React.ComponentType<{ size?: number }> }[] = [
@@ -157,10 +157,7 @@ export default function ShowcasePreview({
             <button
               type="button"
               onClick={() =>
-                onEnterApp(
-                  activeShowcase === 'pos' ? 'user' : 'admin',
-                  activeShowcase === 'inventory' ? 'products' : activeShowcase
-                )
+                onEnterApp(activeShowcase === 'inventory' ? 'products' : activeShowcase)
               }
               className="btn btn-primary btn-sm"
             >

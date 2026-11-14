@@ -40,7 +40,7 @@ function writeStoredScreenMode(mode: ScreenMode) {
 }
 
 function AppContent() {
-  const { user, isHydrated, activeTab, setActiveTab, login } = useApp();
+  const { user, isHydrated, activeTab, setActiveTab } = useApp();
   const [manualScreen, setManualScreen] = useState<ScreenMode | null>(null);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
 
@@ -70,11 +70,10 @@ function AppContent() {
     navigateScreen('login');
   };
 
-  const handleEnterApp = async (role?: 'admin' | 'user', targetTab?: string) => {
-    if (role && (!user || user.role !== role)) {
-      const targetEmail = role === 'admin' ? 'admin@sip.com' : 'user@sip.com';
-      const res = await login(targetEmail, '12345678');
-      if (!res.success) return;
+  const handleEnterApp = (targetTab?: string) => {
+    if (!user) {
+      handleOpenAuth('login');
+      return;
     }
     if (targetTab) {
       setActiveTab(targetTab);

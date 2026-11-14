@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { formatRupiah } from '@/lib/format';
+import { INITIAL_PRODUCTS, INITIAL_STOCK_LOGS, INITIAL_TRANSACTIONS } from '@/lib/dummyData';
 import {
   ADMIN_CAPABILITIES,
   CASHIER_CAPABILITIES,
@@ -46,7 +47,7 @@ const CORE_FEATURE_ICONS: Record<string, React.ComponentType<{ size?: number }>>
 
 interface LandingViewProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
-  onEnterApp: (role?: 'admin' | 'user', targetTab?: string) => void;
+  onEnterApp: (targetTab?: string) => void;
 }
 
 export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps) {
@@ -55,10 +56,14 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
   const [selectedSimPayment, setSelectedSimPayment] = useState<'Tunai' | 'QRIS' | 'Transfer Bank' | 'Kartu Debit'>('QRIS');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const previewProducts = user ? products : INITIAL_PRODUCTS;
+  const previewTransactions = user ? transactions : INITIAL_TRANSACTIONS;
+  const previewLogs = user ? stockLogs : INITIAL_STOCK_LOGS;
+
   // Compute live showcase stats in O(P + T) using product buyPrice Map
   const stats = useMemo(() => {
-    const productBuyMap = new Map(products.map((p) => [p.id, p.buyPrice]));
-    const activeTrx = transactions.filter((t) => t.status !== 'VOIDED');
+    const productBuyMap = new Map(previewProducts.map((p) => [p.id, p.buyPrice]));
+    const activeTrx = previewTransactions.filter((t) => t.status !== 'VOIDED');
     let totalRevenue = 0;
     let totalCogs = 0;
 
@@ -73,7 +78,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
     let totalStockUnits = 0;
     let totalAssetValue = 0;
     let lowStockCount = 0;
-    for (const p of products) {
+    for (const p of previewProducts) {
       totalStockUnits += p.stock;
       totalAssetValue += p.buyPrice * p.stock;
       if (p.stock <= p.minStock) lowStockCount += 1;
@@ -82,7 +87,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
     const netProfit = totalRevenue - totalCogs;
 
     return {
-      totalProducts: products.length,
+      totalProducts: previewProducts.length,
       totalTransactions: activeTrx.length,
       totalRevenue,
       netProfit,
@@ -91,10 +96,10 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
       lowStockCount,
       profitMargin: totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 24,
     };
-  }, [products, transactions]);
+  }, [previewProducts, previewTransactions]);
 
-  const sampleProducts = useMemo(() => products.slice(0, 6), [products]);
-  const sampleLogs = useMemo(() => stockLogs.slice(0, 4), [stockLogs]);
+  const sampleProducts = useMemo(() => previewProducts.slice(0, 6), [previewProducts]);
+  const sampleLogs = useMemo(() => previewLogs.slice(0, 4), [previewLogs]);
 
   return (
     <div
@@ -408,38 +413,75 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               marginBottom: '38px',
             }}
           >
-            <button
-              onClick={() => onEnterApp('admin', 'dashboard')}
-              className="btn btn-primary"
-              style={{ padding: '12px 20px', fontSize: '13.5px' }}
-            >
-              <ShieldCheck size={17} />
-              <span>Buka Demo Administrator</span>
-              <ArrowRight size={16} />
-            </button>
+            {user ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onEnterApp(user.role === 'admin' ? 'dashboard' : 'pos')}
+                  className="btn btn-primary"
+                  style={{ padding: '12px 20px', fontSize: '13.5px' }}
+                >
+                  <ShieldCheck size={17} />
+                  <span>{user.role === 'admin' ? 'Buka Dashboard Admin' : 'Buka Terminal Kasir POS'}</span>
+                  <ArrowRight size={16} />
+                </button>
 
-            <button
-              onClick={() => onEnterApp('user', 'pos')}
-              className="btn btn-secondary"
-              style={{
-                padding: '12px 20px',
-                fontSize: '13.5px',
-                borderColor: 'rgba(var(--accent-cyan-rgb), 0.45)',
-                backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
-              }}
-            >
-              <ShoppingCart size={17} style={{ color: 'var(--accent-cyan)' }} />
-              <span>Buka Terminal Kasir POS</span>
-            </button>
+                {user.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => onEnterApp('pos')}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '12px 20px',
+                      fontSize: '13.5px',
+                      borderColor: 'rgba(var(--accent-cyan-rgb), 0.45)',
+                      backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
+                    }}
+                  >
+                    <ShoppingCart size={17} style={{ color: 'var(--accent-cyan)' }} />
+                    <span>Buka Terminal Kasir POS</span>
+                  </button>
+                )}
 
-            <button
-              onClick={() => onOpenAuth('register')}
-              className="btn btn-secondary"
-              style={{ padding: '12px 18px', fontSize: '13.5px' }}
-            >
-              <UserPlus size={15} />
-              <span>Daftar / Masuk Akun</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('login')}
+                  className="btn btn-secondary"
+                  style={{ padding: '12px 18px', fontSize: '13.5px' }}
+                >
+                  <LogIn size={15} />
+                  <span>Ganti Akun</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('login')}
+                  className="btn btn-primary"
+                  style={{ padding: '12px 22px', fontSize: '13.5px' }}
+                >
+                  <LogIn size={17} />
+                  <span>Masuk ke Sistem</span>
+                  <ArrowRight size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth('register')}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '12px 20px',
+                    fontSize: '13.5px',
+                    borderColor: 'rgba(var(--accent-cyan-rgb), 0.45)',
+                    backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.08)',
+                  }}
+                >
+                  <UserPlus size={16} style={{ color: 'var(--accent-cyan)' }} />
+                  <span>Daftar Akun Administrator</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Live System Telemetry Strip */}
@@ -472,7 +514,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
 
             <div className="sip-card" style={{ padding: '16px 18px', borderTop: '3px solid var(--accent-green)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>SIMULASI OMZET &amp; MARGIN</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>RINGKASAN OMZET &amp; MARGIN</span>
                 <TrendingUp size={15} style={{ color: 'var(--accent-green-text)' }} />
               </div>
               <div className="font-mono" style={{ fontSize: '20px', fontWeight: 800 }}>
@@ -514,10 +556,10 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
           selectedSimPayment={selectedSimPayment}
           onSelectSimPayment={setSelectedSimPayment}
           stats={stats}
-          products={products}
+          products={previewProducts}
           sampleProducts={sampleProducts}
           sampleLogs={sampleLogs}
-          transactions={transactions}
+          transactions={previewTransactions}
           onEnterApp={onEnterApp}
         />
 
@@ -587,7 +629,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               DUAL-ROLE ACCESS CONTROL
             </span>
             <h2 style={{ fontSize: 'clamp(21px, 3vw, 26px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              Pilih Sesi Demo atau Daftar Akun Administrator
+              Pemisahan Hak Akses Pemilik Toko &amp; Kasir
             </h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
               Pendaftaran akun baru otomatis menjadi Administrator pemilik toko dengan database terpisah. Akun Kasir POS dibuat langsung oleh Admin di dalam sistem.
@@ -609,8 +651,8 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
                   <span className="badge badge-cyan">FULL ACCESS CONTROL</span>
-                  <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                    admin@sip.com
+                  <span className="badge badge-muted font-mono" style={{ fontSize: '10.5px' }}>
+                    PEMILIK / ADMIN TOKO
                   </span>
                 </div>
                 <h3 style={{ fontSize: '19px', fontWeight: 800, marginBottom: '6px' }}>Mode Administrator Toko</h3>
@@ -630,12 +672,20 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
 
               <button
                 type="button"
-                onClick={() => onEnterApp('admin', 'dashboard')}
+                onClick={() =>
+                  user && user.role === 'admin'
+                    ? onEnterApp('dashboard')
+                    : onOpenAuth('register')
+                }
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '12px' }}
               >
                 <ShieldCheck size={16} />
-                <span>Masuk Instan sebagai Administrator</span>
+                <span>
+                  {user && user.role === 'admin'
+                    ? 'Buka Dashboard Administrator'
+                    : 'Daftar Akun Administrator'}
+                </span>
                 <ArrowRight size={15} />
               </button>
             </div>
@@ -653,8 +703,8 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
                   <span className="badge badge-green">POS TERMINAL OPERATOR</span>
-                  <span className="font-mono" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                    user@sip.com
+                  <span className="badge badge-muted font-mono" style={{ fontSize: '10.5px' }}>
+                    OPERATOR KASIR
                   </span>
                 </div>
                 <h3 style={{ fontSize: '19px', fontWeight: 800, marginBottom: '6px' }}>Mode Kasir Penjualan (POS)</h3>
@@ -674,7 +724,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
 
               <button
                 type="button"
-                onClick={() => onEnterApp('user', 'pos')}
+                onClick={() => (user ? onEnterApp('pos') : onOpenAuth('login'))}
                 className="btn btn-secondary"
                 style={{
                   width: '100%',
@@ -683,7 +733,9 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                 }}
               >
                 <ShoppingCart size={16} style={{ color: 'var(--accent-cyan)' }} />
-                <span>Masuk Instan sebagai Kasir POS</span>
+                <span>
+                  {user ? 'Buka Terminal Kasir POS' : 'Masuk sebagai Kasir POS'}
+                </span>
                 <ArrowRight size={15} />
               </button>
             </div>
@@ -793,7 +845,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 <a href="#showcase" style={{ color: 'inherit', textDecoration: 'none' }}>
-                  Simulasi Kasir &amp; Dashboard
+                  Pratinjau Kasir &amp; Dashboard
                 </a>
                 <a href="#fitur" style={{ color: 'inherit', textDecoration: 'none' }}>
                   Keunggulan &amp; Pembukuan Toko
