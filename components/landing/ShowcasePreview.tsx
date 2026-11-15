@@ -224,53 +224,112 @@ export default function ShowcasePreview({
               </div>
 
               <div className="dashboard-split">
-                <div className="sip-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div className="sip-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 700 }}>Tren Omzet &amp; Laba 7 Hari Terakhir</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Visualisasi grafik perbandingan pendapatan vs laba bersih</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Visualisasi grafik perbandingan pendapatan vs laba bersih harian
+                      </div>
                     </div>
-                    <span className="badge badge-muted font-mono">Real-Time Chart</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '11px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
+                        <span style={{ width: '9px', height: '9px', borderRadius: '2px', backgroundColor: 'var(--accent-cyan)', display: 'inline-block' }} />
+                        Omzet
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        <span style={{ width: '9px', height: '9px', borderRadius: '2px', backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.38)', display: 'inline-block' }} />
+                        Laba Bersih
+                      </span>
+                    </div>
                   </div>
 
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(7, 1fr)',
+                      gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
                       gap: '6px',
                       alignItems: 'end',
-                      height: '150px',
-                      paddingTop: '16px',
+                      paddingTop: '12px',
                       borderBottom: '1px solid var(--border-color)',
+                      backgroundImage:
+                        'linear-gradient(to bottom, var(--border-color) 1px, transparent 1px)',
+                      backgroundSize: '100% 36px',
                     }}
                   >
-                    {WEEKLY_SHOWCASE_BARS.map((bar) => (
-                      <div key={bar.day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center', height: '120px' }}>
-                          <div
-                            title="Omzet"
+                    {WEEKLY_SHOWCASE_BARS.map((bar) => {
+                      const revPx = Math.max(10, Math.round((bar.rev / 100) * 108));
+                      const profPx = Math.max(6, Math.round((bar.prof / 100) * 108));
+                      return (
+                        <div
+                          key={bar.day}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            gap: '5px',
+                            minWidth: 0,
+                          }}
+                        >
+                          <span
+                            className="font-mono"
                             style={{
-                              width: '10px',
-                              height: `${bar.rev}%`,
-                              backgroundColor: 'var(--accent-cyan)',
-                              borderRadius: '4px 4px 0 0',
+                              fontSize: '9.5px',
+                              fontWeight: 700,
+                              color: bar.rev >= 90 ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                              lineHeight: 1,
                             }}
-                          />
+                          >
+                            {bar.rev}%
+                          </span>
                           <div
-                            title="Laba Bersih"
                             style={{
-                              width: '10px',
-                              height: `${bar.prof}%`,
-                              backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.38)',
-                              borderRadius: '4px 4px 0 0',
+                              display: 'flex',
+                              alignItems: 'flex-end',
+                              justifyContent: 'center',
+                              gap: '3px',
+                              width: '100%',
+                              height: '112px',
                             }}
-                          />
+                          >
+                            <div
+                              title={`Omzet ${bar.day}: ${bar.rev}%`}
+                              style={{
+                                width: '100%',
+                                maxWidth: '12px',
+                                height: `${revPx}px`,
+                                backgroundColor: 'var(--accent-cyan)',
+                                borderRadius: '3px 3px 0 0',
+                                flexShrink: 0,
+                              }}
+                            />
+                            <div
+                              title={`Laba Bersih ${bar.day}: ${bar.prof}%`}
+                              style={{
+                                width: '100%',
+                                maxWidth: '12px',
+                                height: `${profPx}px`,
+                                backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.38)',
+                                borderRadius: '3px 3px 0 0',
+                                flexShrink: 0,
+                              }}
+                            />
+                          </div>
+                          <span
+                            className="font-mono"
+                            style={{
+                              fontSize: '10.5px',
+                              color: 'var(--text-secondary)',
+                              fontWeight: 600,
+                              paddingBottom: '6px',
+                            }}
+                          >
+                            {bar.day}
+                          </span>
                         </div>
-                        <span className="font-mono" style={{ fontSize: '10.5px', color: 'var(--text-secondary)', fontWeight: 600, paddingBottom: '6px' }}>
-                          {bar.day}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -283,33 +342,50 @@ export default function ShowcasePreview({
                     {products
                       .filter((p) => p.stock <= p.minStock)
                       .slice(0, 4)
-                      .map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '9px 12px',
-                            borderRadius: 'var(--radius-sm)',
-                            backgroundColor: 'var(--bg-subtle)',
-                            border: '1px solid var(--border-color)',
-                            gap: '8px',
-                          }}
-                        >
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {item.name}
+                      .map((item) => {
+                        const stockPct = Math.max(
+                          10,
+                          Math.min(100, Math.round((item.stock / Math.max(1, item.minStock)) * 100))
+                        );
+                        return (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '7px',
+                              padding: '10px 12px',
+                              borderRadius: 'var(--radius-sm)',
+                              backgroundColor: 'var(--bg-subtle)',
+                              border: '1px solid var(--border-color)',
+                              minWidth: 0,
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {item.name}
+                                </div>
+                                <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  {item.sku} &bull; Min: {item.minStock} {item.unit}
+                                </div>
+                              </div>
+                              <span className="badge badge-amber font-mono" style={{ flexShrink: 0 }}>
+                                Sisa {item.stock} {item.unit}
+                              </span>
                             </div>
-                            <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                              {item.sku} &bull; Min: {item.minStock} {item.unit}
+                            <div className="sb-progress-track">
+                              <div
+                                className="sb-progress-fill"
+                                style={{
+                                  width: `${stockPct}%`,
+                                  backgroundColor: item.stock === 0 ? 'var(--accent-red)' : 'var(--accent-amber)',
+                                }}
+                              />
                             </div>
                           </div>
-                          <span className="badge badge-amber font-mono">
-                            Sisa {item.stock} {item.unit}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </div>
               </div>

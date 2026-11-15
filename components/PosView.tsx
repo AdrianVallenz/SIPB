@@ -476,9 +476,27 @@ export default function PosView() {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Cari barang atau kode SKU..."
+                placeholder="Cari barang, ketik SKU + Enter / scan barcode..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const q = searchQuery.trim().toLowerCase();
+                    if (!q) return;
+                    const exactSkuMatch = products.find((p) => p.sku.toLowerCase() === q);
+                    const target =
+                      exactSkuMatch || (filteredProducts.length === 1 ? filteredProducts[0] : null);
+                    if (target) {
+                      e.preventDefault();
+                      if (target.stock <= 0) {
+                        notifyLimit(`Stok "${target.name}" sedang habis.`);
+                        return;
+                      }
+                      addToCart(target);
+                      setSearchQuery('');
+                    }
+                  }
+                }}
                 className="sip-input"
                 style={{ paddingLeft: '38px', paddingRight: searchQuery ? '38px' : '13px' }}
               />

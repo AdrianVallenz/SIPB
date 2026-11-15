@@ -34,6 +34,18 @@ const PAYMENT_ACCENTS: Record<PaymentMethod, { color: string; label: string }> =
   'Kartu Debit': { color: 'var(--text-muted)', label: 'EDC / Debit' },
 };
 
+function formatShortAmount(val: number): string {
+  if (val <= 0) return '0';
+  if (val >= 1_000_000) {
+    const jt = val / 1_000_000;
+    return `${jt >= 10 ? Math.round(jt) : Number(jt.toFixed(1)).toString().replace('.', ',')}jt`;
+  }
+  if (val >= 1_000) {
+    return `${Math.round(val / 1_000)}rb`;
+  }
+  return String(Math.round(val));
+}
+
 export default function AdminDashboard() {
   const { user, isCloudConnected, products, transactions, stockLogs, cashiers, setActiveTab } =
     useApp();
@@ -299,19 +311,23 @@ export default function AdminDashboard() {
     [chartData, chartMetric]
   );
 
-  const svgWidth = 680;
-  const svgHeight = 235;
-  const paddingX = 52;
-  const paddingY = 28;
+  const svgWidth = 560;
+  const svgHeight = 232;
+  const paddingLeft = 48;
+  const paddingRight = 24;
+  const paddingTop = 34;
+  const paddingBottom = 30;
+  const plotWidth = svgWidth - paddingLeft - paddingRight;
+  const plotHeight = svgHeight - paddingTop - paddingBottom;
+  const baselineY = svgHeight - paddingBottom;
 
   const points = chartData.map((d, index) => {
     const x =
       chartData.length > 1
-        ? paddingX + (index / (chartData.length - 1)) * (svgWidth - paddingX * 2)
+        ? paddingLeft + (index / (chartData.length - 1)) * plotWidth
         : svgWidth / 2;
-    const revY = svgHeight - paddingY - (d.total / maxChartVal) * (svgHeight - paddingY * 2);
-    const profY =
-      svgHeight - paddingY - (Math.max(0, d.profit) / maxChartVal) * (svgHeight - paddingY * 2);
+    const revY = baselineY - (d.total / maxChartVal) * plotHeight;
+    const profY = baselineY - (Math.max(0, d.profit) / maxChartVal) * plotHeight;
     return { x, revY, profY, ...d };
   });
 
@@ -361,7 +377,7 @@ export default function AdminDashboard() {
       <div className="sb-dashboard">
         {/* Executive Command Header */}
         <header className="sb-header-band">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, flex: '1 1 420px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, flex: '1 1 260px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span className="sb-status sb-status-solid">
                 <Activity size={11} /> Panel Kendali Toko
@@ -704,7 +720,7 @@ export default function AdminDashboard() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: '10px',
+                gap: '10px 14px',
                 padding: '10px 14px',
                 backgroundColor: 'var(--bg-subtle)',
                 border: '1px solid var(--border-color)',
@@ -712,21 +728,21 @@ export default function AdminDashboard() {
               }}
             >
               {activePoint ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px 14px', flexWrap: 'wrap', minWidth: 0 }}>
                   <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                     {activePoint.fullLabel}
                   </span>
+                  <span className="sb-status sb-mono">{activePoint.count} nota</span>
                   <span className="sb-mono" style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>
                     Omzet: {formatRupiah(activePoint.total)}
                   </span>
                   <span className="sb-mono" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-                    Laba Bersih: {formatRupiah(activePoint.profit)}
+                    Laba: {formatRupiah(activePoint.profit)}
                   </span>
-                  <span className="sb-status sb-mono">{activePoint.count} nota</span>
                 </div>
               ) : null}
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '11px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '11px' }}>
                 {(chartMetric === 'both' || chartMetric === 'revenue') && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
                     <span
@@ -735,6 +751,7 @@ export default function AdminDashboard() {
                         height: '8px',
                         backgroundColor: 'var(--accent-cyan)',
                         display: 'inline-block',
+                        flexShrink: 0,
                       }}
                     />
                     Total Omzet
@@ -749,15 +766,16 @@ export default function AdminDashboard() {
                         border: '1.5px solid var(--text-primary)',
                         backgroundColor: 'transparent',
                         display: 'inline-block',
+                        flexShrink: 0,
                       }}
                     />
-                    Laba Bersih (Setelah HPP)
+                    Laba Bersih
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Flat Geometric SVG Line Plot (Zero gradients, mobile-scroll safe with crisp readable scale) */}
+            {/* Flat Geometric SVG Bar + Line Plot (Mobile-safe, zero clipping) */}
             <div className="sb-chart-scroll">
               <svg
                 viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -765,30 +783,62 @@ export default function AdminDashboard() {
                 onMouseLeave={() => setHoveredIdx(null)}
               >
                 {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
-                  const y = svgHeight - paddingY - ratio * (svgHeight - paddingY * 2);
-                  const valK = Math.round((maxChartVal * ratio) / 1000);
+                  const y = baselineY - ratio * plotHeight;
+                  const axisVal = maxChartVal * ratio;
                   return (
                     <g key={i}>
                       <line
-                        x1={paddingX}
+                        x1={paddingLeft}
                         y1={y}
-                        x2={svgWidth - paddingX}
+                        x2={svgWidth - paddingRight}
                         y2={y}
                         stroke="var(--border-color)"
                         strokeDasharray={ratio === 0 ? undefined : '2 4'}
                         strokeWidth="1"
                       />
                       <text
-                        x={paddingX - 10}
+                        x={paddingLeft - 8}
                         y={y + 4}
                         fill="var(--text-muted)"
-                        fontSize="11"
+                        fontSize="10.5"
                         fontWeight="500"
                         fontFamily="var(--font-mono)"
                         textAnchor="end"
                       >
-                        {valK > 0 ? `${valK}k` : '0'}
+                        {formatShortAmount(axisVal)}
                       </text>
+                    </g>
+                  );
+                })}
+
+                {/* Subtle Vertical Data Bars Behind Points */}
+                {points.map((pt, idx) => {
+                  const isSelected = hoveredIdx === idx;
+                  const barWidth = chartRange === 7 ? 24 : 12;
+                  const revBarH = Math.max(0, baselineY - pt.revY);
+                  const profBarH = Math.max(0, baselineY - pt.profY);
+                  return (
+                    <g key={`bar-${pt.dateKey}`}>
+                      {(chartMetric === 'both' || chartMetric === 'revenue') && revBarH > 0 && (
+                        <rect
+                          x={pt.x - barWidth / 2}
+                          y={pt.revY}
+                          width={barWidth}
+                          height={revBarH}
+                          fill="var(--accent-cyan)"
+                          fillOpacity={isSelected ? '0.24' : '0.11'}
+                        />
+                      )}
+                      {chartMetric === 'profit' && profBarH > 0 && (
+                        <rect
+                          x={pt.x - barWidth / 2}
+                          y={pt.profY}
+                          width={barWidth}
+                          height={profBarH}
+                          fill="var(--text-primary)"
+                          fillOpacity={isSelected ? '0.22' : '0.10'}
+                        />
+                      )}
                     </g>
                   );
                 })}
@@ -809,7 +859,7 @@ export default function AdminDashboard() {
                     d={profitPathD}
                     fill="none"
                     stroke="var(--text-primary)"
-                    strokeOpacity={chartMetric === 'both' ? '0.68' : '0.9'}
+                    strokeOpacity={chartMetric === 'both' ? '0.72' : '0.9'}
                     strokeWidth={chartMetric === 'both' ? '1.75' : '2.25'}
                     strokeDasharray={chartMetric === 'both' ? '4 4' : undefined}
                     strokeLinecap="square"
@@ -821,9 +871,9 @@ export default function AdminDashboard() {
                 {activePoint && hoveredIdx !== null && (
                   <line
                     x1={activePoint.x}
-                    y1={paddingY - 6}
+                    y1={paddingTop - 8}
                     x2={activePoint.x}
-                    y2={svgHeight - paddingY}
+                    y2={baselineY}
                     stroke="var(--text-primary)"
                     strokeOpacity="0.45"
                     strokeWidth="1"
@@ -833,8 +883,10 @@ export default function AdminDashboard() {
                 {points.map((pt, idx) => {
                   const isSelected = hoveredIdx === idx;
                   const showXLabel = chartRange === 7 || idx % 2 === 0 || idx === points.length - 1;
-                  const revSize = isSelected ? 8 : 5;
+                  const revSize = isSelected ? 8 : 5.5;
                   const profSize = isSelected ? 7 : 4.5;
+                  const valLabelY = Math.max(15, (chartMetric === 'profit' ? pt.profY : pt.revY) - 10);
+                  const displayVal = chartMetric === 'profit' ? Math.max(0, pt.profit) : pt.total;
                   return (
                     <g
                       key={pt.dateKey}
@@ -844,9 +896,9 @@ export default function AdminDashboard() {
                     >
                       <rect
                         x={pt.x - 18}
-                        y={paddingY - 10}
+                        y={paddingTop - 12}
                         width="36"
-                        height={svgHeight - paddingY}
+                        height={svgHeight - paddingTop + 6}
                         fill="transparent"
                       />
 
@@ -874,24 +926,24 @@ export default function AdminDashboard() {
                         />
                       )}
 
-                      {pt.total > 0 && chartRange === 7 && chartMetric !== 'profit' && (
+                      {displayVal > 0 && (chartRange === 7 || isSelected) && (
                         <text
                           x={pt.x}
-                          y={pt.revY - 10}
-                          fill="var(--accent-cyan)"
-                          fontSize="11"
+                          y={valLabelY}
+                          fill={chartMetric === 'profit' ? 'var(--text-primary)' : 'var(--accent-cyan)'}
+                          fontSize="10.5"
                           fontWeight="600"
                           fontFamily="var(--font-mono)"
                           textAnchor="middle"
                         >
-                          {Math.round(pt.total / 1000)}k
+                          {formatShortAmount(displayVal)}
                         </text>
                       )}
 
                       {showXLabel && (
                         <text
                           x={pt.x}
-                          y={svgHeight - 7}
+                          y={svgHeight - 8}
                           fill={isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)'}
                           fontSize="11"
                           fontWeight={isSelected ? '700' : '500'}
@@ -964,7 +1016,9 @@ export default function AdminDashboard() {
               <div className="sb-list">
                 {criticalProducts.slice(0, 5).map((prod) => {
                   const isZero = prod.stock === 0;
-                  const fillPct = Math.min(100, Math.round((prod.stock / Math.max(1, prod.minStock)) * 100));
+                  const fillPct = isZero
+                    ? 8
+                    : Math.max(12, Math.min(100, Math.round((prod.stock / Math.max(1, prod.minStock)) * 100)));
                   return (
                     <div
                       key={prod.id}
@@ -974,7 +1028,7 @@ export default function AdminDashboard() {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ minWidth: 0 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
                           <div
                             style={{
                               fontWeight: 600,
@@ -992,7 +1046,7 @@ export default function AdminDashboard() {
                             <strong style={{ color: isZero ? 'var(--accent-red)' : 'var(--accent-amber-text)' }}>
                               {prod.stock} {prod.unit}
                             </strong>{' '}
-                            (Batas minimal {prod.minStock})
+                            (Min. {prod.minStock})
                           </div>
                         </div>
 
@@ -1120,44 +1174,57 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Method Breakdown Rows */}
+            {/* Method Breakdown Rows with Visual Data Bars */}
             <div className="sb-list" style={{ width: '100%' }}>
               {paymentBreakdown.map((item) => {
                 const accent = PAYMENT_ACCENTS[item.method];
+                const barWidthPct = item.total > 0 ? Math.max(8, item.sharePct) : 0;
                 return (
-                  <div key={item.method} className="sb-list-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                      <span
-                        style={{
-                          width: '9px',
-                          height: '9px',
-                          backgroundColor: accent.color,
-                          flexShrink: 0,
-                          display: 'inline-block',
-                        }}
-                      />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: '13px' }}>{item.method}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          {item.count} transaksi &bull; {accent.label}
+                  <div key={item.method} className="sb-list-row-col">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                        <span
+                          style={{
+                            width: '9px',
+                            height: '9px',
+                            backgroundColor: accent.color,
+                            flexShrink: 0,
+                            display: 'inline-block',
+                          }}
+                        />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '13px' }}>{item.method}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {item.count} transaksi &bull; {accent.label}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div className="sb-mono" style={{ fontWeight: 600, fontSize: '13px' }}>
+                          {formatRupiah(item.total)}
+                        </div>
+                        <div
+                          className="sb-mono"
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: item.method === 'QRIS' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                          }}
+                        >
+                          {item.sharePct}%
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div className="sb-mono" style={{ fontWeight: 600, fontSize: '13px' }}>
-                        {formatRupiah(item.total)}
-                      </div>
+                    <div className="sb-progress-track">
                       <div
-                        className="sb-mono"
+                        className="sb-progress-fill"
                         style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: item.method === 'QRIS' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                          width: `${barWidthPct}%`,
+                          backgroundColor: accent.color,
                         }}
-                      >
-                        {item.sharePct}%
-                      </div>
+                      />
                     </div>
                   </div>
                 );
@@ -1194,27 +1261,28 @@ export default function AdminDashboard() {
                     : 'var(--text-secondary)';
               return (
                 <div key={prod.sku} className="sb-list-row-col">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: 1 }}>
                       <span
                         className="sb-mono"
                         style={{
-                          width: '26px',
-                          height: '26px',
+                          width: '24px',
+                          height: '24px',
                           border: `1px solid ${idx === 0 ? 'var(--accent-cyan)' : 'var(--border-color)'}`,
                           backgroundColor: idx === 0 ? 'var(--accent-cyan)' : 'transparent',
                           color: idx === 0 ? 'var(--accent-cyan-text)' : 'var(--text-secondary)',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '11px',
+                          fontSize: '10.5px',
                           fontWeight: 600,
                           flexShrink: 0,
+                          marginTop: '1px',
                         }}
                       >
                         0{idx + 1}
                       </span>
-                      <div style={{ minWidth: 0 }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
                         <div
                           style={{
                             fontWeight: 600,
@@ -1226,16 +1294,15 @@ export default function AdminDashboard() {
                         >
                           {prod.name}
                         </div>
-                        <div className="sb-mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                        <div className="sb-mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
                           {prod.sku}
                           {prod.category ? ` • ${prod.category}` : ''}
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                      <span className="sb-status sb-mono">{prod.qty} terjual</span>
-                      <span
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div
                         className="sb-mono"
                         style={{
                           fontWeight: 600,
@@ -1244,7 +1311,10 @@ export default function AdminDashboard() {
                         }}
                       >
                         {formatRupiah(prod.revenue)}
-                      </span>
+                      </div>
+                      <div className="sb-mono" style={{ fontSize: '10.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {prod.qty} terjual
+                      </div>
                     </div>
                   </div>
                   <div className="sb-progress-track">
@@ -1289,44 +1359,53 @@ export default function AdminDashboard() {
             {categoryPerformance.map((cat) => {
               const isLeading = cat.revenue > 0 && cat.revenue === maxCategoryRevenue;
               const indicatorColor = isLeading ? 'var(--accent-cyan)' : 'var(--text-secondary)';
+              const barWidthPct =
+                cat.revenue > 0
+                  ? Math.max(10, Math.round((cat.revenue / maxCategoryRevenue) * 100))
+                  : 0;
               return (
                 <div key={cat.category} className="sb-list-row-col">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          backgroundColor: indicatorColor,
-                          display: 'inline-block',
-                        }}
-                      />
-                      <span style={{ fontWeight: 600, fontSize: '13px' }}>{cat.category}</span>
-                      <span className="sb-status sb-mono">
-                        {cat.skuCount} SKU / {cat.stockUnits} unit
-                      </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            backgroundColor: indicatorColor,
+                            display: 'inline-block',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={{ fontWeight: 600, fontSize: '13px' }}>{cat.category}</span>
+                      </div>
+                      <div className="sb-mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '3px', paddingLeft: '16px' }}>
+                        {cat.skuCount} SKU &bull; {cat.stockUnits} unit stok
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span className="sb-mono" style={{ fontWeight: 600, fontSize: '13px' }}>
+
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div className="sb-mono" style={{ fontWeight: 600, fontSize: '13px' }}>
                         {formatRupiah(cat.revenue)}
-                      </span>
-                      <span
+                      </div>
+                      <div
                         className="sb-mono"
                         style={{
-                          fontSize: '11.5px',
+                          fontSize: '11px',
                           fontWeight: 600,
                           color: isLeading ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                          marginTop: '2px',
                         }}
                       >
-                        {cat.sharePct}%
-                      </span>
+                        {cat.sharePct}% omzet
+                      </div>
                     </div>
                   </div>
                   <div className="sb-progress-track">
                     <div
                       className="sb-progress-fill"
                       style={{
-                        width: `${Math.max(cat.revenue > 0 ? 5 : 0, cat.sharePct)}%`,
+                        width: `${barWidthPct}%`,
                         backgroundColor: indicatorColor,
                       }}
                     />

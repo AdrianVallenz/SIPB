@@ -1,10 +1,10 @@
-import QRCode from 'qrcode';
-import jsQR from 'jsqr';
-
 interface TlvField {
   tag: string;
   value: string;
 }
+
+const qrDataUrlCache = new Map<string, string>();
+const MAX_QR_CACHE_ENTRIES = 64;
 
 export interface ParsedQrisInfo {
   valid: boolean;
@@ -247,7 +247,11 @@ export function buildDynamicQrisPayload(
 }
 
 export async function generateQrisQrDataUrl(payload: string): Promise<string> {
-  return QRCode.toDataURL(payload, {
+  const cached = qrDataUrlCache.get(payload);
+  if (cached) return cached;
+
+  const { default: QRCode } = await import('qrcode');
+  const dataUrl = await QRCode.toDataURL(payload, {
     errorCorrectionLevel: 'M',
     margin: 2,
     width: 340,
@@ -256,6 +260,13 @@ export async function generateQrisQrDataUrl(payload: string): Promise<string> {
       light: '#FFFFFF',
     },
   });
+
+  if (qrDataUrlCache.size >= MAX_QR_CACHE_ENTRIES) {
+    const oldestKey = qrDataUrlCache.keys().next().value;
+    if (oldestKey !== undefined) qrDataUrlCache.delete(oldestKey);
+  }
+  qrDataUrlCache.set(payload, dataUrl);
+  return dataUrl;
 }
 
 function loadImageFromFile(file: File): Promise<HTMLImageElement> {
@@ -274,14 +285,18 @@ function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   });
 }
 
-function decodeQrAtScale(img: HTMLImageElement, maxSide: number): string | null {
+function decodeQrAtScale(
+  img: HTMLImageElement,
+  maxSide: number,
+  canvas: HTMLCanvasElement,
+  jsQR: typeof import('jsqr').default
+): string | null {
   const ratio = Math.min(1, maxSide / Math.max(img.width, img.height));
   const width = Math.max(1, Math.round(img.width * ratio));
   const height = Math.max(1, Math.round(img.height * ratio));
-  const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return null;
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, width, height);
@@ -293,11 +308,14 @@ function decodeQrAtScale(img: HTMLImageElement, maxSide: number): string | null 
   return result?.data?.trim() || null;
 }
 
-function compressQrisImage(img: HTMLImageElement, maxSide = 520): string {
+function compressQrisImage(
+  img: HTMLImageElement,
+  canvas: HTMLCanvasElement,
+  maxSide = 520
+): string {
   const ratio = Math.min(1, maxSide / Math.max(img.width, img.height));
   const width = Math.max(1, Math.round(img.width * ratio));
   const height = Math.max(1, Math.round(img.height * ratio));
-  const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
@@ -318,12 +336,16 @@ export async function processQrisImageUpload(file: File): Promise<{
   parsedInfo: ParsedQrisInfo | null;
   compressedDataUrl: string;
 }> {
-  const img = await loadImageFromFile(file);
-  const compressedDataUrl = compressQrisImage(img, 540);
+  const [img, { default: jsQR }] = await Promise.all([
+    loadImageFromFile(file),
+    import('jsqr'),
+  ]);
+  const workCanvas = document.createElement('canvas');
+  const compressedDataUrl = compressQrisImage(img, workCanvas, 540);
 
   const scales = [1200, 800, 500];
   for (const scale of scales) {
-    const candidate = decodeQrAtScale(img, scale);
+    const candidate = decodeQrAtScale(img, scale, workCanvas, jsQR);
     if (candidate) {
       const parsed = parseAndValidateQris(candidate);
       if (parsed.valid) {
