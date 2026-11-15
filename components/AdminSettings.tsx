@@ -6,8 +6,6 @@ import { CashierAccount } from '@/lib/types';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import QrisConfigPanel from './QrisConfigPanel';
 import {
-  Shield,
-  Database,
   UserPlus,
   Users,
   Trash2,
@@ -22,61 +20,14 @@ import {
   User,
   Lock,
   X,
-  Bluetooth,
-  BluetoothConnected,
-  BluetoothOff,
   Printer,
   QrCode,
 } from 'lucide-react';
 
-const ROLE_MATRIX_ROWS = [
-  {
-    capability: 'Terminal Kasir / Point of Sale (POS) & Cetak Struk',
-    admin: 'Diizinkan',
-    cashier: 'Diizinkan (Akses Utama)',
-    cashierAllowed: true,
-  },
-  {
-    capability: 'Rekapitulasi Transaksi Shift Pribadi',
-    admin: 'Semua Kasir Toko',
-    cashier: 'Shift Pribadi',
-    cashierAllowed: true,
-  },
-  {
-    capability: 'Manajemen Master Produk (Tambah / Edit / Hapus SKU)',
-    admin: 'Diizinkan',
-    cashier: 'Dibatasi',
-    cashierAllowed: false,
-  },
-  {
-    capability: 'Akses Informasi Harga Modal & Margin Laba',
-    admin: 'Diizinkan',
-    cashier: 'Disembunyikan (Rahasia)',
-    cashierAllowed: false,
-  },
-  {
-    capability: 'Buat / Nonaktifkan Akun Petugas Kasir',
-    admin: 'Diizinkan',
-    cashier: 'Dibatasi',
-    cashierAllowed: false,
-  },
-  {
-    capability: 'Dashboard Finansial & Ekspor Laporan Sistem',
-    admin: 'Diizinkan',
-    cashier: 'Dibatasi',
-    cashierAllowed: false,
-  },
-] as const;
-
 export default function AdminSettings() {
   const {
-    user,
-    products,
-    transactions,
-    stockLogs,
     cashiers,
     paymentSettings,
-    isCloudConnected,
     createCashier,
     toggleCashierStatus,
     updateCashier,
@@ -99,43 +50,8 @@ export default function AdminSettings() {
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const {
-    runtime: printerRuntime,
-    settings: printerSettings,
-    supportInfo: btSupport,
-    isConnected: isPrinterConnected,
-    isBusy: isPrinterBusy,
-    connect: connectPrinter,
-    disconnect: disconnectPrinter,
-    updateSettings: updatePrinterSettings,
-    testPrint,
-  } = useBluetoothPrinter();
-
-  const handleConnectBt = async () => {
-    setFeedback(null);
-    const res = await connectPrinter();
-    if (res.success) {
-      setFeedback({
-        type: 'success',
-        text: `Printer Bluetooth "${res.deviceName}" berhasil terhubung.`,
-      });
-    } else if (res.error) {
-      setFeedback({ type: 'error', text: res.error });
-    }
-  };
-
-  const handleTestBtPrint = async () => {
-    setFeedback(null);
-    const res = await testPrint();
-    if (res.success) {
-      setFeedback({
-        type: 'success',
-        text: 'Tes cetak struk berhasil dikirim ke printer Bluetooth!',
-      });
-    } else if (res.error) {
-      setFeedback({ type: 'error', text: res.error });
-    }
-  };
+  const { settings: printerSettings, updateSettings: updatePrinterSettings } =
+    useBluetoothPrinter();
 
   const handleCreateCashier = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +66,7 @@ export default function AdminSettings() {
       }
       setFeedback({
         type: 'success',
-        text: `Akun kasir "${cashierEmail.trim().toLowerCase()}" berhasil dibuat dan siap digunakan di Terminal POS.`,
+        text: `Akun kasir "${cashierEmail.trim().toLowerCase()}" berhasil dibuat dan siap digunakan untuk masuk ke halaman kasir.`,
       });
       setCashierName('');
       setCashierEmail('');
@@ -231,14 +147,19 @@ export default function AdminSettings() {
     }
   };
 
+  const isQrisConfigured = Boolean(
+    paymentSettings.qrisPayload.trim() || paymentSettings.qrisImageData
+  );
+  const activeCashiersCount = cashiers.filter((c) => c.isActive).length;
+
   return (
     <div className="page-container">
       {/* Title */}
       <div className="page-header">
         <div>
-          <h2 className="page-title">Pengaturan Sistem &amp; Manajemen Akun Kasir</h2>
+          <h2 className="page-title">Pengaturan Toko, Pembayaran &amp; Staf Kasir</h2>
           <p className="page-subtitle">
-            Buat dan kelola akun petugas kasir untuk toko Anda, pantau status isolasi database per pengguna, serta otorisasi peran.
+            Atur identitas toko pada struk belanja, gambar QRIS &amp; nomor rekening pembayaran, serta akun petugas kasir toko Anda.
           </p>
         </div>
       </div>
@@ -286,7 +207,7 @@ export default function AdminSettings() {
         </div>
       )}
 
-      {/* Bluetooth Thermal Printer & Store Receipt Config */}
+      {/* Store Receipt Identity & Paper Width */}
       <div className="sip-card" style={{ padding: 0 }}>
         <div
           style={{
@@ -300,178 +221,20 @@ export default function AdminSettings() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {isPrinterConnected ? (
-              <BluetoothConnected size={18} style={{ color: 'var(--accent-green-text)' }} />
-            ) : (
-              <Bluetooth size={18} style={{ color: 'var(--accent-cyan)' }} />
-            )}
+            <Printer size={18} style={{ color: 'var(--accent-cyan)' }} />
             <div>
               <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                Printer Thermal Bluetooth &amp; Identitas Struk
+                Identitas Toko &amp; Tampilan Struk Belanja
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Hubungkan printer thermal 58mm/80mm langsung via Bluetooth (Android Chrome / Desktop) &amp; atur header struk.
+                Informasi nama toko, alamat, nomor telepon, dan pesan penutup yang tercetak otomatis pada struk pembeli.
               </p>
             </div>
           </div>
-          <span className={`badge ${isPrinterConnected ? 'badge-green' : 'badge-muted'}`}>
-            {isPrinterConnected
-              ? `Terhubung: ${printerRuntime.deviceName || printerSettings.lastDeviceName || 'Thermal BLE'}`
-              : 'Belum Terhubung'}
-          </span>
+          <span className="badge badge-cyan">Ukuran Kertas: {printerSettings.paperWidth}</span>
         </div>
 
         <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {!btSupport.supported && (
-            <div className="alert-box-warning" style={{ fontSize: '12px' }}>
-              <AlertCircle size={15} style={{ flexShrink: 0 }} />
-              <span>{btSupport.reason}</span>
-            </div>
-          )}
-
-          {/* Pairing & Paper Size */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '12px',
-              alignItems: 'stretch',
-            }}
-          >
-            <div
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid var(--border-color)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                gap: '10px',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  KONEKSI PRINTER BLUETOOTH
-                </div>
-                <div style={{ fontSize: '13.5px', fontWeight: 700, marginTop: '4px' }}>
-                  {isPrinterConnected
-                    ? printerRuntime.deviceName || printerSettings.lastDeviceName
-                    : printerSettings.lastDeviceName
-                    ? `Terakhir: ${printerSettings.lastDeviceName}`
-                    : 'Siap dipasangkan (BLE ESC/POS)'}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {!isPrinterConnected ? (
-                  <button
-                    type="button"
-                    disabled={isPrinterBusy || !btSupport.supported}
-                    onClick={() => void handleConnectBt()}
-                    className="btn btn-primary btn-sm"
-                    style={{ flex: 1, minHeight: '38px' }}
-                  >
-                    {printerRuntime.status === 'connecting' ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Bluetooth size={14} />
-                    )}
-                    <span>Hubungkan Printer</span>
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      disabled={isPrinterBusy}
-                      onClick={() => void handleTestBtPrint()}
-                      className="btn btn-primary btn-sm"
-                      style={{ flex: 1, minHeight: '38px' }}
-                    >
-                      {printerRuntime.status === 'printing' ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Printer size={14} />
-                      )}
-                      <span>Tes Cetak</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isPrinterBusy}
-                      onClick={disconnectPrinter}
-                      className="btn btn-secondary btn-sm"
-                      style={{ minHeight: '38px', color: 'var(--accent-red)' }}
-                    >
-                      <BluetoothOff size={14} />
-                      <span>Putus</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid var(--border-color)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                gap: '10px',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  UKURAN KERTAS &amp; OTOMATISASI
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  {(['58mm', '80mm'] as const).map((w) => {
-                    const selected = printerSettings.paperWidth === w;
-                    return (
-                      <button
-                        key={w}
-                        type="button"
-                        onClick={() => updatePrinterSettings({ paperWidth: w })}
-                        className="btn btn-sm"
-                        style={{
-                          borderColor: selected ? 'var(--accent-cyan)' : 'var(--border-color)',
-                          backgroundColor: selected
-                            ? 'rgba(var(--accent-cyan-rgb), 0.14)'
-                            : 'var(--bg-card)',
-                          color: selected ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                        }}
-                      >
-                        {w} ({w === '58mm' ? '32 kol' : '48 kol'})
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '10px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                <span>Cetak otomatis Bluetooth usai checkout</span>
-                <input
-                  type="checkbox"
-                  checked={printerSettings.autoPrintOnSale}
-                  onChange={(e) => updatePrinterSettings({ autoPrintOnSale: e.target.checked })}
-                  style={{ width: '17px', height: '17px', accentColor: 'var(--accent-cyan)' }}
-                />
-              </label>
-            </div>
-          </div>
-
           {/* Store Header Customization */}
           <div
             style={{
@@ -486,15 +249,17 @@ export default function AdminSettings() {
                 type="text"
                 value={printerSettings.storeName}
                 onChange={(e) => updatePrinterSettings({ storeName: e.target.value })}
+                placeholder="Contoh: Toko Sumber Rejeki"
                 className="sip-input"
               />
             </div>
             <div>
-              <label className="form-label">Tagline / Subjudul Struk</label>
+              <label className="form-label">Slogan / Subjudul Toko</label>
               <input
                 type="text"
                 value={printerSettings.storeTagline}
                 onChange={(e) => updatePrinterSettings({ storeTagline: e.target.value })}
+                placeholder="Contoh: Belanja Hemat Setiap Hari"
                 className="sip-input"
               />
             </div>
@@ -504,27 +269,67 @@ export default function AdminSettings() {
                 type="text"
                 value={printerSettings.storeAddress}
                 onChange={(e) => updatePrinterSettings({ storeAddress: e.target.value })}
+                placeholder="Contoh: Jl. Merdeka No. 12"
                 className="sip-input"
               />
             </div>
             <div>
-              <label className="form-label">Telepon / Website Struk</label>
+              <label className="form-label">Nomor Telepon / WhatsApp Toko</label>
               <input
                 type="text"
                 value={printerSettings.storePhone}
                 onChange={(e) => updatePrinterSettings({ storePhone: e.target.value })}
+                placeholder="Contoh: 0812-3456-7890"
                 className="sip-input"
               />
             </div>
           </div>
-          <div>
-            <label className="form-label">Pesan Footer Struk</label>
-            <input
-              type="text"
-              value={printerSettings.receiptFooter}
-              onChange={(e) => updatePrinterSettings({ receiptFooter: e.target.value })}
-              className="sip-input"
-            />
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+              alignItems: 'end',
+            }}
+          >
+            <div>
+              <label className="form-label">Pesan Penutup di Bawah Struk</label>
+              <input
+                type="text"
+                value={printerSettings.receiptFooter}
+                onChange={(e) => updatePrinterSettings({ receiptFooter: e.target.value })}
+                placeholder="Contoh: Terima kasih sudah berbelanja di toko kami!"
+                className="sip-input"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">Ukuran Kertas Struk Kasir</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {(['58mm', '80mm'] as const).map((w) => {
+                  const selected = printerSettings.paperWidth === w;
+                  return (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => updatePrinterSettings({ paperWidth: w })}
+                      className="btn btn-sm"
+                      style={{
+                        minHeight: '38px',
+                        borderColor: selected ? 'var(--accent-cyan)' : 'var(--border-color)',
+                        backgroundColor: selected
+                          ? 'rgba(var(--accent-cyan-rgb), 0.14)'
+                          : 'var(--bg-card)',
+                        color: selected ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                      }}
+                    >
+                      Kertas {w} ({w === '58mm' ? 'Kecil' : 'Lebar'})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -546,14 +351,16 @@ export default function AdminSettings() {
             <QrCode size={18} style={{ color: 'var(--accent-cyan)' }} />
             <div>
               <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                QRIS Bayar Toko &amp; Rekening Pembayaran
+                QRIS &amp; Rekening Pembayaran Toko
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Unggah gambar QRIS atau tempel kode EMVCo merchant Anda untuk membuat QRIS Dinamis otomatis per transaksi (tersinkron ke seluruh perangkat kasir).
+                Pasang gambar QRIS dan nomor rekening bank toko Anda agar kasir dapat menerima pembayaran non-tunai dengan mudah.
               </p>
             </div>
           </div>
-          <span className="badge badge-cyan">DINAMIS EMVCo</span>
+          <span className={`badge ${isQrisConfigured ? 'badge-green' : 'badge-muted'}`}>
+            {isQrisConfigured ? 'QRIS Siap Digunakan' : 'QRIS Belum Dipasang'}
+          </span>
         </div>
 
         <div style={{ padding: '18px 20px' }}>
@@ -578,14 +385,14 @@ export default function AdminSettings() {
             <Users size={18} style={{ color: 'var(--accent-cyan)' }} />
             <div>
               <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                Manajemen Akun Kasir Toko Anda ({cashiers.length})
+                Akun Staf Kasir Toko ({cashiers.length})
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Akun kasir hanya dapat dibuat oleh Administrator dan otomatis terhubung ke katalog &amp; stok toko ini.
+                Buat akun khusus untuk staf penjaga kasir. Kasir hanya dapat melayani penjualan tanpa bisa melihat harga modal atau laporan laba Anda.
               </p>
             </div>
           </div>
-          <span className="badge badge-cyan">ADMIN-PROVISIONED CASHIER</span>
+          <span className="badge badge-cyan">{activeCashiersCount} Kasir Aktif</span>
         </div>
 
         {/* Create New Cashier Form */}
@@ -671,7 +478,7 @@ export default function AdminSettings() {
             </div>
 
             <div>
-              <label className="form-label">Kata Sandi Awal (Min. 6)</label>
+              <label className="form-label">Kata Sandi Kasir (Min. 6 Karakter)</label>
               <div style={{ position: 'relative' }}>
                 <Lock
                   size={14}
@@ -746,8 +553,8 @@ export default function AdminSettings() {
                 <th>Nama Kasir</th>
                 <th>Email Login</th>
                 <th>Status Akses</th>
-                <th>Dibuat Pada</th>
-                <th style={{ textAlign: 'right' }}>Aksi</th>
+                <th>Terdaftar Sejak</th>
+                <th style={{ textAlign: 'right' }}>Pengaturan</th>
               </tr>
             </thead>
             <tbody>
@@ -782,7 +589,7 @@ export default function AdminSettings() {
                       </td>
                       <td>
                         <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
-                          {c.isActive ? 'Aktif (Bisa Masuk POS)' : 'Dinonaktifkan'}
+                          {c.isActive ? 'Aktif (Bisa Masuk Kasir)' : 'Dinonaktifkan'}
                         </span>
                       </td>
                       <td style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
@@ -802,10 +609,10 @@ export default function AdminSettings() {
                             disabled={isBusy}
                             onClick={() => openEditModal(c)}
                             className="btn btn-secondary btn-sm"
-                            title="Ubah Nama / Reset Kata Sandi"
+                            title="Ubah Nama / Ganti Kata Sandi"
                           >
                             <KeyRound size={13} />
-                            <span>Edit / Sandi</span>
+                            <span>Ubah / Sandi</span>
                           </button>
 
                           <button
@@ -900,7 +707,7 @@ export default function AdminSettings() {
                   </div>
 
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Dibuat: {formattedDate}
+                    Terdaftar: {formattedDate}
                   </div>
 
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid var(--border-color)' }}>
@@ -912,7 +719,7 @@ export default function AdminSettings() {
                       style={{ flex: 1, minHeight: '36px' }}
                     >
                       <KeyRound size={13} />
-                      <span>Edit</span>
+                      <span>Ubah / Sandi</span>
                     </button>
 
                     <button
@@ -970,213 +777,6 @@ export default function AdminSettings() {
         </div>
       </div>
 
-      {/* Role Matrix Comparison */}
-      <div className="sip-card" style={{ padding: 0 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--border-color)',
-          }}
-        >
-          <Shield size={18} style={{ color: 'var(--accent-cyan)' }} />
-          <div>
-            <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-              Matriks Otorisasi Hak Akses (Role-Based Access Control)
-            </h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              Pembatasan wewenang operasional antara Administrator pemilik toko dan Petugas Kasir buatannya
-            </p>
-          </div>
-        </div>
-
-        <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
-          <table className="sip-table">
-            <thead>
-              <tr>
-                <th>Modul &amp; Hak Operasional</th>
-                <th>
-                  <span className="badge badge-cyan">Administrator</span>
-                </th>
-                <th>
-                  <span className="badge badge-green">Kasir POS</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {ROLE_MATRIX_ROWS.map((row) => (
-                <tr key={row.capability}>
-                  <td>
-                    <strong>{row.capability}</strong>
-                  </td>
-                  <td>
-                    <span style={{ color: 'var(--accent-green-text)', fontWeight: 600 }}>
-                      {row.admin}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        color: row.cashierAllowed ? 'var(--accent-green-text)' : 'var(--accent-red)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {row.cashier}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Card Representation of Role Matrix */}
-        <div className="mobile-card-list" style={{ padding: '12px 14px' }}>
-          {ROLE_MATRIX_ROWS.map((row) => (
-            <div key={row.capability} className="mobile-data-card">
-              <div style={{ fontSize: '12.5px', fontWeight: 700, lineHeight: 1.35 }}>
-                {row.capability}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span className="badge badge-cyan">Admin: {row.admin}</span>
-                <span className={row.cashierAllowed ? 'badge badge-green' : 'badge badge-red'}>
-                  Kasir: {row.cashier}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Database Status Card */}
-      <div className="sip-card">
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '10px',
-            marginBottom: '16px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Database size={18} style={{ color: 'var(--accent-cyan)' }} />
-            <div>
-              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                Keamanan &amp; Perlindungan Data Toko
-              </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Seluruh data barang, stok, riwayat nota, dan akun kasir terkunci aman khusus untuk toko Anda ({user?.email}).
-              </p>
-            </div>
-          </div>
-          <span className={`badge ${isCloudConnected ? 'badge-green' : 'badge-amber'}`}>
-            {isCloudConnected ? 'Tersimpan Aman di Cloud' : 'Penyimpanan Lokal Perangkat'}
-          </span>
-        </div>
-
-        <div className="kpi-grid">
-          <div
-            style={{
-              padding: '14px',
-              backgroundColor: 'var(--bg-subtle)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-              Master Produk Toko Ini
-            </div>
-            <div
-              className="font-mono"
-              style={{
-                fontSize: '20px',
-                fontWeight: 700,
-                color: 'var(--text-primary)',
-                marginTop: '4px',
-              }}
-            >
-              {products.length} SKU
-            </div>
-          </div>
-
-          <div
-            style={{
-              padding: '14px',
-              backgroundColor: 'var(--bg-subtle)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-              Transaksi Toko Ini
-            </div>
-            <div
-              className="font-mono"
-              style={{
-                fontSize: '20px',
-                fontWeight: 700,
-                color: 'var(--accent-cyan)',
-                marginTop: '4px',
-              }}
-            >
-              {transactions.length} Nota
-            </div>
-          </div>
-
-          <div
-            style={{
-              padding: '14px',
-              backgroundColor: 'var(--bg-subtle)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-              Catatan Log Mutasi Stok
-            </div>
-            <div
-              className="font-mono"
-              style={{
-                fontSize: '20px',
-                fontWeight: 700,
-                color: 'var(--accent-green-text)',
-                marginTop: '4px',
-              }}
-            >
-              {stockLogs.length} Log
-            </div>
-          </div>
-
-          <div
-            style={{
-              padding: '14px',
-              backgroundColor: 'var(--bg-subtle)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-              Akun Kasir Terdaftar
-            </div>
-            <div
-              className="font-mono"
-              style={{
-                fontSize: '20px',
-                fontWeight: 700,
-                color: 'var(--accent-cyan)',
-                marginTop: '4px',
-              }}
-            >
-              {cashiers.length} Kasir
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Edit Cashier Modal */}
       {editingCashier && (
         <div className="modal-backdrop" onClick={() => setEditingCashier(null)}>
@@ -1193,7 +793,7 @@ export default function AdminSettings() {
                 marginBottom: '16px',
               }}
             >
-              <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Edit Akun Kasir</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Ubah Data Akun Kasir</h3>
               <button
                 type="button"
                 onClick={() => setEditingCashier(null)}
@@ -1242,7 +842,7 @@ export default function AdminSettings() {
                 <input
                   type="password"
                   minLength={6}
-                  placeholder="Min. 6 karakter untuk reset sandi"
+                  placeholder="Min. 6 karakter untuk mengganti sandi"
                   value={editPassword}
                   onChange={(e) => setEditPassword(e.target.value)}
                   className="sip-input font-mono"

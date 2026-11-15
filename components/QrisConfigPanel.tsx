@@ -40,7 +40,6 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
   const [qrisPayload, setQrisPayload] = useState(paymentSettings.qrisPayload);
   const [qrisImageData, setQrisImageData] = useState(paymentSettings.qrisImageData);
   const [merchantName, setMerchantName] = useState(paymentSettings.qrisMerchantName);
-  const [nmid, setNmid] = useState(paymentSettings.qrisNmid);
   const [qrisTheme, setQrisTheme] = useState<QrisCardTheme>(paymentSettings.qrisTheme || 'classic');
   const [qrisCustomNote, setQrisCustomNote] = useState(paymentSettings.qrisCustomNote || '');
   const [showQrisOnReceipt, setShowQrisOnReceipt] = useState(
@@ -69,7 +68,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
       parsedPayload.cleanedPayload,
       25000,
       true,
-      'TRX-20261112-DEMO'
+      'TRX-CONTOH'
     );
     void generateQrisQrDataUrl(sampleDynamic)
       .then((url) => {
@@ -82,22 +81,6 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
       active = false;
     };
   }, [parsedPayload]);
-
-  const handlePayloadChange = (val: string) => {
-    setQrisPayload(val);
-    setFeedback(null);
-    const trimmed = val.trim();
-    if (!trimmed) return;
-    const check = parseAndValidateQris(trimmed);
-    if (check.valid) {
-      if (check.merchantName && !merchantName.trim()) {
-        setMerchantName(check.merchantName);
-      }
-      if (check.nmid && !nmid.trim()) {
-        setNmid(check.nmid);
-      }
-    }
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -120,23 +103,21 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
         if (result.parsedInfo.merchantName) {
           setMerchantName(result.parsedInfo.merchantName);
         }
-        if (result.parsedInfo.nmid) {
-          setNmid(result.parsedInfo.nmid);
-        }
         setFeedback({
           type: 'success',
-          text: `QRIS berhasil terbaca (${result.parsedInfo.merchantName || 'Merchant QRIS'}). Nominal tagihan akan otomatis dinamis saat kasir checkout.`,
+          text: `Gambar QRIS berhasil dipasang (${result.parsedInfo.merchantName || 'Toko Anda'}). Nominal belanja pembeli akan muncul otomatis saat bayar di kasir.`,
         });
       } else {
+        setQrisPayload('');
         setFeedback({
           type: 'info',
-          text: 'Gambar QRIS tersimpan sebagai QRIS statis. Untuk fitur nominal otomatis, unggah foto QRIS yang lebih tajam/jelas atau tempel string kode QRIS.',
+          text: 'Gambar QRIS berhasil dipasang dan siap ditampilkan di layar kasir saat pembayaran.',
         });
       }
     } catch {
       setFeedback({
         type: 'error',
-        text: 'Gagal memproses gambar QRIS. Pastikan file gambar valid.',
+        text: 'Gagal memproses gambar QRIS. Pastikan file gambar tidak rusak.',
       });
     } finally {
       setIsDecodingImage(false);
@@ -146,27 +127,15 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
-
-    const trimmedPayload = qrisPayload.trim();
-    if (trimmedPayload) {
-      const check = parseAndValidateQris(trimmedPayload);
-      if (!check.valid) {
-        setFeedback({
-          type: 'error',
-          text: check.error || 'Format string QRIS tidak valid.',
-        });
-        return;
-      }
-    }
-
     setIsSaving(true);
     try {
+      const trimmedPayload = qrisPayload.trim();
       const cleaned = trimmedPayload ? parseAndValidateQris(trimmedPayload) : null;
       const res = await updatePaymentSettings({
         qrisPayload: cleaned?.valid ? cleaned.cleanedPayload : '',
         qrisImageData,
         qrisMerchantName: (merchantName || cleaned?.merchantName || '').trim(),
-        qrisNmid: (nmid || cleaned?.nmid || '').trim(),
+        qrisNmid: (cleaned?.nmid || paymentSettings.qrisNmid || '').trim(),
         qrisTheme,
         qrisCustomNote: qrisCustomNote.trim(),
         showQrisOnReceipt,
@@ -175,12 +144,12 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
         bankAccountHolder: bankAccountHolder.trim(),
       });
       if (!res.success) {
-        setFeedback({ type: 'error', text: res.error || 'Gagal menyimpan pengaturan QRIS.' });
+        setFeedback({ type: 'error', text: res.error || 'Gagal menyimpan pengaturan pembayaran.' });
         return;
       }
       setFeedback({
         type: 'success',
-        text: 'Konfigurasi QRIS Bayar & Rekening Toko berhasil disimpan dan disinkronkan ke seluruh kasir.',
+        text: 'Pengaturan QRIS & rekening bank toko berhasil disimpan.',
       });
       onSaved?.();
     } finally {
@@ -192,7 +161,6 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
     setQrisPayload('');
     setQrisImageData('');
     setMerchantName('');
-    setNmid('');
     setPreviewQrUrl('');
     setIsSaving(true);
     try {
@@ -202,14 +170,13 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
         qrisMerchantName: '',
         qrisNmid: '',
       });
-      setFeedback({ type: 'info', text: 'Data QRIS toko dikosongkan.' });
+      setFeedback({ type: 'info', text: 'Gambar QRIS toko telah dihapus.' });
     } finally {
       setIsSaving(false);
     }
   };
 
   const isDynamicReady = Boolean(parsedPayload?.valid);
-  const isStaticReady = !isDynamicReady && Boolean(qrisImageData);
   const selectedThemeSpec = QRIS_THEMES.find((t) => t.id === qrisTheme) || QRIS_THEMES[0];
 
   return (
@@ -221,37 +188,6 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
         onChange={handleImageUpload}
         style={{ display: 'none' }}
       />
-
-      {/* Status Row */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '8px',
-          padding: '12px 14px',
-          borderRadius: 'var(--radius-md)',
-          backgroundColor: 'var(--bg-subtle)',
-          border: '1px solid var(--border-color)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px' }}>
-          <QrCode size={16} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
-          <span style={{ fontWeight: 600 }}>Status QRIS Bayar Toko:</span>
-        </div>
-        <span
-          className={`badge ${
-            isDynamicReady ? 'badge-green' : isStaticReady ? 'badge-cyan' : 'badge-muted'
-          }`}
-        >
-          {isDynamicReady
-            ? 'Aktif • Dinamis (Nominal Otomatis)'
-            : isStaticReady
-            ? 'Aktif • Gambar Statis'
-            : 'Belum Diatur'}
-        </span>
-      </div>
 
       {feedback && (
         <div
@@ -288,14 +224,14 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-          gap: '14px',
-          alignItems: 'start',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: '16px',
+          alignItems: 'stretch',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
           <div>
-            <label className="form-label">1. Unggah / Foto QRIS Merchant (Paling Praktis)</label>
+            <label className="form-label">Gambar QRIS Toko</label>
             <button
               type="button"
               disabled={isDecodingImage}
@@ -303,7 +239,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
               className="btn btn-secondary"
               style={{
                 width: '100%',
-                minHeight: '44px',
+                minHeight: '46px',
                 borderStyle: 'dashed',
                 borderColor: 'rgba(var(--accent-cyan-rgb), 0.5)',
                 color: 'var(--accent-cyan)',
@@ -316,43 +252,26 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
               )}
               <span>
                 {isDecodingImage
-                  ? 'Membaca kode QRIS...'
-                  : qrisImageData
-                  ? 'Ganti Gambar QRIS Merchant'
-                  : 'Pilih / Foto Gambar QRIS'}
+                  ? 'Memproses gambar QRIS...'
+                  : qrisImageData || isDynamicReady
+                  ? 'Ganti Gambar QRIS Toko'
+                  : 'Pilih / Unggah Gambar QRIS'}
               </span>
             </button>
-            <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '5px', lineHeight: 1.45 }}>
-              Unggah screenshot QRIS dari GoPay Merchant, DANA Bisnis, BCA, BRI, Mandiri, ShopeePay, atau foto papan QRIS toko Anda. Sistem otomatis membaca kode EMVCo untuk QRIS Dinamis.
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.5 }}>
+              Unggah gambar atau foto QRIS toko Anda (dari GoPay Merchant, DANA Bisnis, BCA, BRI, Mandiri, ShopeePay, dll). Saat kasir memilih metode bayar QRIS, kode ini langsung tampil untuk di-scan pembeli.
             </p>
           </div>
 
           <div>
-            <label className="form-label">2. Atau Tempel Kode String QRIS (EMVCo)</label>
-            <textarea
-              rows={3}
-              value={qrisPayload}
-              onChange={(e) => handlePayloadChange(e.target.value)}
-              placeholder="00020101021126610014COM.GO-JEK.WWW..."
-              className="sip-input font-mono"
-              style={{
-                fontSize: '12px',
-                resize: 'vertical',
-                minHeight: '78px',
-                wordBreak: 'break-all',
-              }}
+            <label className="form-label">Nama Toko pada Tampilan QRIS</label>
+            <input
+              type="text"
+              value={merchantName}
+              onChange={(e) => setMerchantName(e.target.value)}
+              placeholder="Contoh: TOKO SUMBER REJEKI"
+              className="sip-input"
             />
-            {parsedPayload && !parsedPayload.valid && (
-              <div style={{ fontSize: '11.5px', color: 'var(--accent-red)', marginTop: '4px' }}>
-                {parsedPayload.error}
-              </div>
-            )}
-            {parsedPayload && parsedPayload.valid && (
-              <div style={{ fontSize: '11.5px', color: 'var(--accent-green-text)', marginTop: '4px' }}>
-                Kode QRIS valid ({parsedPayload.merchantName || 'Merchant'}
-                {parsedPayload.merchantCity ? ` • ${parsedPayload.merchantCity}` : ''})
-              </div>
-            )}
           </div>
         </div>
 
@@ -366,16 +285,13 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'center',
             textAlign: 'center',
             gap: '8px',
           }}
         >
           <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
-            {isDynamicReady
-              ? 'PRATINJAU QRIS DINAMIS (CONTOH RP 25.000)'
-              : isStaticReady
-              ? 'PRATINJAU GAMBAR QRIS TOKO'
-              : 'PRATINJAU QRIS BAYAR'}
+            CONTOH TAMPILAN QRIS DI KASIR
           </div>
 
           {isDynamicReady && previewQrUrl ? (
@@ -387,22 +303,16 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
                 borderRadius: '10px',
                 border: '1px solid rgba(148, 163, 184, 0.35)',
                 width: '100%',
-                maxWidth: '220px',
+                maxWidth: '210px',
               }}
             >
-              <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '2px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '6px' }}>
                 {merchantName || parsedPayload?.merchantName || 'TOKO ANDA'}
-              </div>
-              <div
-                className="font-mono"
-                style={{ fontSize: '9.5px', opacity: 0.78, marginBottom: '6px' }}
-              >
-                No. Nota: TRX-20261112-DEMO
               </div>
               <div style={{ backgroundColor: '#FFFFFF', padding: '6px', borderRadius: '6px' }}>
                 <img
                   src={previewQrUrl}
-                  alt="Pratinjau QRIS Dinamis"
+                  alt="Pratinjau QRIS Toko"
                   style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '4px' }}
                 />
               </div>
@@ -415,7 +325,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
                   color: selectedThemeSpec.accent,
                 }}
               >
-                Uji Tagihan: {formatRupiah(25000)}
+                Tagihan: {formatRupiah(25000)}
               </div>
               {qrisCustomNote.trim() && (
                 <div style={{ fontSize: '9.5px', opacity: 0.85, marginTop: '3px' }}>
@@ -429,16 +339,16 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
                 backgroundColor: '#FFFFFF',
                 padding: '8px',
                 borderRadius: '10px',
-                maxWidth: '210px',
+                maxWidth: '200px',
                 width: '100%',
               }}
             >
               <img
                 src={qrisImageData}
-                alt="QRIS Merchant"
+                alt="QRIS Toko"
                 style={{
                   width: '100%',
-                  maxHeight: '220px',
+                  maxHeight: '200px',
                   objectFit: 'contain',
                   display: 'block',
                   borderRadius: '6px',
@@ -448,8 +358,8 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
           ) : (
             <div
               style={{
-                width: '160px',
-                height: '160px',
+                width: '148px',
+                height: '148px',
                 borderRadius: '10px',
                 border: '1px dashed var(--border-color)',
                 display: 'flex',
@@ -462,14 +372,14 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
                 padding: '12px',
               }}
             >
-              <QrCode size={38} opacity={0.45} />
-              <span>Belum ada QRIS</span>
+              <QrCode size={34} opacity={0.45} />
+              <span>Belum ada gambar QRIS</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Merchant Identity & Bank Details */}
+      {/* Bank Transfer Details */}
       <div
         style={{
           display: 'grid',
@@ -478,27 +388,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
         }}
       >
         <div>
-          <label className="form-label">Nama Merchant QRIS</label>
-          <input
-            type="text"
-            value={merchantName}
-            onChange={(e) => setMerchantName(e.target.value)}
-            placeholder="Contoh: TOKO MAJU JAYA"
-            className="sip-input"
-          />
-        </div>
-        <div>
-          <label className="form-label">NMID QRIS (Opsional)</label>
-          <input
-            type="text"
-            value={nmid}
-            onChange={(e) => setNmid(e.target.value)}
-            placeholder="ID10200..."
-            className="sip-input font-mono"
-          />
-        </div>
-        <div>
-          <label className="form-label">Bank Transfer Toko (Opsional)</label>
+          <label className="form-label">Nama Bank Transfer (Opsional)</label>
           <input
             type="text"
             value={bankName}
@@ -508,7 +398,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
           />
         </div>
         <div>
-          <label className="form-label">No. Rekening Transfer (Opsional)</label>
+          <label className="form-label">Nomor Rekening Toko (Opsional)</label>
           <input
             type="text"
             value={bankAccountNumber}
@@ -517,13 +407,13 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
             className="sip-input font-mono"
           />
         </div>
-        <div style={{ gridColumn: '1 / -1' }}>
+        <div>
           <label className="form-label">Atas Nama Rekening (Opsional)</label>
           <input
             type="text"
             value={bankAccountHolder}
             onChange={(e) => setBankAccountHolder(e.target.value)}
-            placeholder="Contoh: PT / Nama Pemilik Toko"
+            placeholder="Contoh: Nama Pemilik Toko"
             className="sip-input"
           />
         </div>
@@ -542,7 +432,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
         }}
       >
         <div>
-          <label className="form-label">Tema Kartu QRIS Nota</label>
+          <label className="form-label">Tema Warna Bingkai QRIS</label>
           <div
             style={{
               display: 'grid',
@@ -592,12 +482,12 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
         </div>
 
         <div>
-          <label className="form-label">Catatan Custom di Kartu QRIS &amp; Nota (Opsional)</label>
+          <label className="form-label">Catatan Singkat di Bawah QRIS (Opsional)</label>
           <input
             type="text"
             value={qrisCustomNote}
             onChange={(e) => setQrisCustomNote(e.target.value)}
-            placeholder="Contoh: Pastikan nama toko sesuai & tunjukkan bukti bayar ke kasir"
+            placeholder="Contoh: Tunjukkan bukti bayar ke petugas kasir"
             className="sip-input"
           />
         </div>
@@ -613,7 +503,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
             cursor: 'pointer',
           }}
         >
-          <span>Sertakan QR Code Custom pada Struk / Nota Cetak</span>
+          <span>Tampilkan Kode QRIS pada Struk Belanja Cetak</span>
           <input
             type="checkbox"
             checked={showQrisOnReceipt}
@@ -650,7 +540,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
 
         <button
           type="submit"
-          disabled={isSaving || (Boolean(qrisPayload.trim()) && !parsedPayload?.valid)}
+          disabled={isSaving}
           className="btn btn-primary"
           style={{ minHeight: '42px', padding: '0 18px' }}
         >
@@ -659,7 +549,7 @@ export default function QrisConfigPanel({ onSaved }: QrisConfigPanelProps) {
           ) : (
             <Save size={15} />
           )}
-          <span>Simpan Konfigurasi QRIS &amp; Bayar</span>
+          <span>Simpan Pengaturan Pembayaran</span>
         </button>
       </div>
     </form>
