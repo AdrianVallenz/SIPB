@@ -35,67 +35,96 @@ export default function AdminReports() {
 
   const todayKey = getLocalDateKey(new Date());
 
-  const { filteredTransactions, activeTransactions, totalOmzet, totalItemsSold, averageTransaction } =
-    useMemo(() => {
-      const now = new Date();
-      const past7StartMs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0).getTime();
-      const past30StartMs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0).getTime();
-      const q = searchQuery.trim().toLowerCase();
+  const {
+    filteredTransactions,
+    activeTransactions,
+    totalOmzet,
+    totalProfit,
+    totalItemsSold,
+    averageTransaction,
+  } = useMemo(() => {
+    const now = new Date();
+    const past7StartMs = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 6,
+      0,
+      0,
+      0,
+      0
+    ).getTime();
+    const past30StartMs = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 29,
+      0,
+      0,
+      0,
+      0
+    ).getTime();
+    const q = searchQuery.trim().toLowerCase();
 
-      const filtered = transactions.filter((t) => {
-        let matchesDate = true;
-        if (dateFilter === 'today') {
-          matchesDate = getLocalDateKey(t.createdAt) === todayKey;
-        } else if (dateFilter === '7days') {
-          matchesDate = Date.parse(t.createdAt) >= past7StartMs;
-        } else if (dateFilter === '30days') {
-          matchesDate = Date.parse(t.createdAt) >= past30StartMs;
-        }
-
-        const matchesMethod = methodFilter === 'Semua' || t.paymentMethod === methodFilter;
-        const matchesSearch =
-          !q ||
-          t.invoiceNo.toLowerCase().includes(q) ||
-          t.cashierName.toLowerCase().includes(q) ||
-          t.items.some((i) => i.name.toLowerCase().includes(q));
-
-        return matchesDate && matchesMethod && matchesSearch;
-      });
-
-      const active: Transaction[] = [];
-      let omzet = 0;
-      let itemsSold = 0;
-
-      for (const t of filtered) {
-        if (t.status !== 'VOIDED') {
-          active.push(t);
-          omzet += t.total;
-          for (const i of t.items) {
-            itemsSold += i.quantity;
-          }
-        }
+    const filtered = transactions.filter((t) => {
+      let matchesDate = true;
+      if (dateFilter === 'today') {
+        matchesDate = getLocalDateKey(t.createdAt) === todayKey;
+      } else if (dateFilter === '7days') {
+        matchesDate = Date.parse(t.createdAt) >= past7StartMs;
+      } else if (dateFilter === '30days') {
+        matchesDate = Date.parse(t.createdAt) >= past30StartMs;
       }
 
-      const avg = active.length > 0 ? Math.round(omzet / active.length) : 0;
+      const matchesMethod = methodFilter === 'Semua' || t.paymentMethod === methodFilter;
+      const matchesSearch =
+        !q ||
+        t.invoiceNo.toLowerCase().includes(q) ||
+        t.cashierName.toLowerCase().includes(q) ||
+        t.items.some((i) => i.name.toLowerCase().includes(q));
 
-      return {
-        filteredTransactions: filtered,
-        activeTransactions: active,
-        totalOmzet: omzet,
-        totalItemsSold: itemsSold,
-        averageTransaction: avg,
-      };
-    }, [transactions, dateFilter, methodFilter, searchQuery, todayKey]);
+      return matchesDate && matchesMethod && matchesSearch;
+    });
+
+    const active: Transaction[] = [];
+    let omzet = 0;
+    let profit = 0;
+    let itemsSold = 0;
+
+    for (const t of filtered) {
+      if (t.status !== 'VOIDED') {
+        active.push(t);
+        omzet += t.total;
+        let cogs = 0;
+        for (const i of t.items) {
+          itemsSold += i.quantity;
+          cogs += (Number(i.buyPrice) || 0) * i.quantity;
+        }
+        profit += Math.max(0, t.total - cogs);
+      }
+    }
+
+    const avg = active.length > 0 ? Math.round(omzet / active.length) : 0;
+
+    return {
+      filteredTransactions: filtered,
+      activeTransactions: active,
+      totalOmzet: omzet,
+      totalProfit: profit,
+      totalItemsSold: itemsSold,
+      averageTransaction: avg,
+    };
+  }, [transactions, dateFilter, methodFilter, searchQuery, todayKey]);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(5);
+  const [isPrintingAll, setIsPrintingAll] = useState<boolean>(false);
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
   const paginatedTransactions = useMemo(() => {
+    if (isPrintingAll) return filteredTransactions;
     const start = (safePage - 1) * pageSize;
     return filteredTransactions.slice(start, start + pageSize);
-  }, [filteredTransactions, safePage, pageSize]);
+  }, [filteredTransactions, safePage, pageSize, isPrintingAll]);
 
   const handleExportCsv = () => {
     if (filteredTransactions.length === 0) return;
@@ -109,20 +138,26 @@ export default function AdminReports() {
       'Subtotal',
       'Diskon',
       'Total Bayar',
+      'Estimasi Laba Bersih',
       'Keterangan Void',
     ];
-    const rows = filteredTransactions.map((t) => [
-      sanitizeCsvCell(t.invoiceNo),
-      sanitizeCsvCell(t.status === 'VOIDED' ? 'VOID / DIBATALKAN' : 'SELESAI'),
-      sanitizeCsvCell(formatDateTime(t.createdAt, true)),
-      sanitizeCsvCell(t.cashierName),
-      sanitizeCsvCell(t.paymentMethod),
-      t.items.reduce((s, i) => s + i.quantity, 0),
-      t.subtotal,
-      t.discount,
-      t.status === 'VOIDED' ? 0 : t.total,
-      sanitizeCsvCell(t.voidReason || '-'),
-    ]);
+    const rows = filteredTransactions.map((t) => {
+      const cogs = t.items.reduce((s, i) => s + (Number(i.buyPrice) || 0) * i.quantity, 0);
+      const netProfit = t.status === 'VOIDED' ? 0 : Math.max(0, t.total - cogs);
+      return [
+        sanitizeCsvCell(t.invoiceNo),
+        sanitizeCsvCell(t.status === 'VOIDED' ? 'VOID / DIBATALKAN' : 'SELESAI'),
+        sanitizeCsvCell(formatDateTime(t.createdAt, true)),
+        sanitizeCsvCell(t.cashierName),
+        sanitizeCsvCell(t.paymentMethod),
+        t.items.reduce((s, i) => s + i.quantity, 0),
+        t.subtotal,
+        t.discount,
+        t.status === 'VOIDED' ? 0 : t.total,
+        netProfit,
+        sanitizeCsvCell(t.voidReason || '-'),
+      ];
+    });
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -131,6 +166,15 @@ export default function AdminReports() {
     link.download = `Laporan-Penjualan-SIP-${todayKey}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handlePrintReport = () => {
+    if (typeof window === 'undefined') return;
+    setIsPrintingAll(true);
+    setTimeout(() => {
+      window.print();
+      setIsPrintingAll(false);
+    }, 120);
   };
 
   const handleConfirmVoid = (e: React.FormEvent) => {
@@ -178,9 +222,7 @@ export default function AdminReports() {
             <span>Ekspor CSV</span>
           </button>
           <button
-            onClick={() => {
-              if (typeof window !== 'undefined') window.print();
-            }}
+            onClick={handlePrintReport}
             className="btn btn-primary btn-sm"
           >
             <Printer size={14} />
@@ -204,6 +246,9 @@ export default function AdminReports() {
           </div>
           <div className="font-mono" style={{ fontSize: '22px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
             {formatRupiah(totalOmzet)}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--accent-green-text)', marginTop: '4px', fontWeight: 600 }}>
+            Est. Laba Bersih: <span className="font-mono">{formatRupiah(totalProfit)}</span>
           </div>
         </div>
 

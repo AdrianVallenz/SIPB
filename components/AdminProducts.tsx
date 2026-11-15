@@ -9,6 +9,8 @@ import {
   parseNumberInput,
   formatDateTime,
   calcMarginPct,
+  sanitizeCsvCell,
+  getLocalDateKey,
 } from '@/lib/format';
 import {
   Plus,
@@ -25,6 +27,7 @@ import {
   Tag,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from 'lucide-react';
 
 export default function AdminProducts() {
@@ -111,6 +114,8 @@ export default function AdminProducts() {
   const [pageSize, setPageSize] = useState<number>(5);
   const [logPage, setLogPage] = useState<number>(1);
   const [logPageSize, setLogPageSize] = useState<number>(8);
+  const [logSearchQuery, setLogSearchQuery] = useState<string>('');
+  const [logTypeFilter, setLogTypeFilter] = useState<'Semua' | 'IN' | 'OUT' | 'ADJUSTMENT'>('Semua');
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -119,12 +124,62 @@ export default function AdminProducts() {
     return filteredProducts.slice(start, start + pageSize);
   }, [filteredProducts, safePage, pageSize]);
 
-  const totalLogPages = Math.max(1, Math.ceil(stockLogs.length / logPageSize));
+  const filteredLogs = useMemo(() => {
+    const q = logSearchQuery.trim().toLowerCase();
+    return stockLogs.filter((l) => {
+      const matchesType = logTypeFilter === 'Semua' || l.type === logTypeFilter;
+      const matchesQuery =
+        !q ||
+        l.productName.toLowerCase().includes(q) ||
+        l.reason.toLowerCase().includes(q) ||
+        l.operator.toLowerCase().includes(q);
+      return matchesType && matchesQuery;
+    });
+  }, [stockLogs, logSearchQuery, logTypeFilter]);
+
+  const totalLogPages = Math.max(1, Math.ceil(filteredLogs.length / logPageSize));
   const safeLogPage = Math.min(logPage, totalLogPages);
   const paginatedLogs = useMemo(() => {
     const start = (safeLogPage - 1) * logPageSize;
-    return stockLogs.slice(start, start + logPageSize);
-  }, [stockLogs, safeLogPage, logPageSize]);
+    return filteredLogs.slice(start, start + logPageSize);
+  }, [filteredLogs, safeLogPage, logPageSize]);
+
+  const handleExportCatalogCsv = () => {
+    if (filteredProducts.length === 0) return;
+    const todayKey = getLocalDateKey(new Date());
+    const headers = [
+      'Kode SKU',
+      'Nama Produk',
+      'Kategori',
+      'Harga Beli (Modal)',
+      'Harga Jual',
+      'Margin (%)',
+      'Stok Saat Ini',
+      'Batas Stok Minimum',
+      'Satuan',
+      'Nilai Aset Modal',
+    ];
+    const rows = filteredProducts.map((p) => [
+      sanitizeCsvCell(p.sku),
+      sanitizeCsvCell(p.name),
+      sanitizeCsvCell(p.category),
+      p.buyPrice,
+      p.sellPrice,
+      calcMarginPct(p.buyPrice, p.sellPrice),
+      p.stock,
+      p.minStock,
+      sanitizeCsvCell(p.unit),
+      p.buyPrice * p.stock,
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Katalog-Inventaris-SIP-${todayKey}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleOpenAdd = () => {
     const randomSku = 'PRD-' + Math.floor(100 + Math.random() * 900);
@@ -304,6 +359,17 @@ export default function AdminProducts() {
               <span>Log Mutasi ({stockLogs.length})</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={handleExportCatalogCsv}
+            disabled={filteredProducts.length === 0}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '8px 14px' }}
+          >
+            <Download size={14} />
+            <span>Ekspor CSV</span>
+          </button>
 
           <button
             type="button"
@@ -831,11 +897,64 @@ export default function AdminProducts() {
       ) : (
         /* Stock Mutation Logs View */
         <div className="sip-card" style={{ padding: 0 }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Riwayat Log Mutasi Stok Gudang</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              Catatan audit setiap penambahan barang masuk, pengurangan barang rusak, dan koreksi stok.
-            </p>
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--border-color)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Riwayat Log Mutasi Stok Gudang</h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Catatan audit setiap penambahan barang masuk, pengurangan barang keluar, dan koreksi stok.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: '1 1 320px', justifyContent: 'flex-end' }}>
+              <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '280px' }}>
+                <Search
+                  size={14}
+                  style={{
+                    position: 'absolute',
+                    left: '11px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--text-muted)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Cari produk, alasan, operator..."
+                  value={logSearchQuery}
+                  onChange={(e) => {
+                    setLogSearchQuery(e.target.value);
+                    setLogPage(1);
+                  }}
+                  className="sip-input"
+                  style={{ paddingLeft: '32px', fontSize: '12.5px', minHeight: '36px' }}
+                />
+              </div>
+              <select
+                value={logTypeFilter}
+                onChange={(e) => {
+                  setLogTypeFilter(e.target.value as 'Semua' | 'IN' | 'OUT' | 'ADJUSTMENT');
+                  setLogPage(1);
+                }}
+                className="sip-select"
+                style={{ width: 'auto', fontSize: '12.5px', minHeight: '36px', padding: '6px 28px 6px 10px' }}
+                aria-label="Filter tipe mutasi"
+              >
+                <option value="Semua">Semua Mutasi</option>
+                <option value="IN">Stok Masuk (+)</option>
+                <option value="OUT">Stok Keluar (-)</option>
+                <option value="ADJUSTMENT">Koreksi Opname</option>
+              </select>
+            </div>
           </div>
           <div className="sip-table-container desktop-table-wrap" style={{ border: 'none', borderRadius: 0 }}>
             <table className="sip-table">
@@ -888,10 +1007,10 @@ export default function AdminProducts() {
                     </td>
                   </tr>
                 ))}
-                {stockLogs.length === 0 && (
+                {filteredLogs.length === 0 && (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                      Belum ada riwayat mutasi stok yang tercatat.
+                      Belum ada riwayat mutasi stok yang cocok dengan filter pencarian.
                     </td>
                   </tr>
                 )}
@@ -925,14 +1044,14 @@ export default function AdminProducts() {
                 </div>
               </div>
             ))}
-            {stockLogs.length === 0 && (
+            {filteredLogs.length === 0 && (
               <div style={{ textAlign: 'center', padding: '24px 8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
-                Belum ada riwayat mutasi stok yang tercatat.
+                Belum ada riwayat mutasi stok yang cocok dengan filter pencarian.
               </div>
             )}
           </div>
 
-          {stockLogs.length > 0 && (
+          {filteredLogs.length > 0 && (
             <div
               style={{
                 padding: '12px 18px',
@@ -949,11 +1068,11 @@ export default function AdminProducts() {
                   Menampilkan{' '}
                   <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
                     {(safeLogPage - 1) * logPageSize + 1}&ndash;
-                    {Math.min(safeLogPage * logPageSize, stockLogs.length)}
+                    {Math.min(safeLogPage * logPageSize, filteredLogs.length)}
                   </strong>{' '}
                   dari{' '}
                   <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                    {stockLogs.length}
+                    {filteredLogs.length}
                   </strong>{' '}
                   log mutasi
                 </span>
@@ -984,7 +1103,7 @@ export default function AdminProducts() {
                   style={{ padding: '6px 10px', minHeight: '32px' }}
                 >
                   <ChevronLeft size={14} />
-                  <span>Sebelumnya</span>
+                  <span className="hide-xs">Sebelumnya</span>
                 </button>
                 {Array.from({ length: totalLogPages }, (_, idx) => idx + 1)
                   .slice(0, 7)
@@ -1008,7 +1127,7 @@ export default function AdminProducts() {
                   className="btn btn-secondary btn-sm"
                   style={{ padding: '6px 10px', minHeight: '32px' }}
                 >
-                  <span>Berikutnya</span>
+                  <span className="hide-xs">Berikutnya</span>
                   <ChevronRight size={14} />
                 </button>
               </div>
