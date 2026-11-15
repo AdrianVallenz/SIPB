@@ -3,7 +3,13 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, ProductCategory, PRODUCT_CATEGORIES } from '@/lib/types';
-import { formatRupiah, formatDateTime, calcMarginPct } from '@/lib/format';
+import {
+  formatRupiah,
+  formatNumberDots,
+  parseNumberInput,
+  formatDateTime,
+  calcMarginPct,
+} from '@/lib/format';
 import {
   Plus,
   Search,
@@ -959,28 +965,68 @@ export default function AdminProducts() {
               <div className="form-grid-2">
                 <div>
                   <label className="form-label">Harga Modal / Beli (Rp)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    placeholder="0"
-                    value={formData.buyPrice === 0 ? '' : formData.buyPrice}
-                    onChange={(e) => setFormData({ ...formData, buyPrice: Math.max(0, parseInt(e.target.value) || 0) })}
-                    className="sip-input font-mono"
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <span
+                      className="font-mono"
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      Rp
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      required
+                      placeholder="0"
+                      value={formatNumberDots(formData.buyPrice)}
+                      onChange={(e) =>
+                        setFormData({ ...formData, buyPrice: parseNumberInput(e.target.value) })
+                      }
+                      className="sip-input font-mono"
+                      style={{ paddingLeft: '36px' }}
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="form-label">Harga Jual Kasir (Rp)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    placeholder="0"
-                    value={formData.sellPrice === 0 ? '' : formData.sellPrice}
-                    onChange={(e) => setFormData({ ...formData, sellPrice: Math.max(0, parseInt(e.target.value) || 0) })}
-                    className="sip-input font-mono"
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <span
+                      className="font-mono"
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: 'var(--accent-cyan)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      Rp
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      required
+                      placeholder="0"
+                      value={formatNumberDots(formData.sellPrice)}
+                      onChange={(e) =>
+                        setFormData({ ...formData, sellPrice: parseNumberInput(e.target.value) })
+                      }
+                      className="sip-input font-mono"
+                      style={{ paddingLeft: '36px' }}
+                    />
+                  </div>
                 </div>
               </div>
 

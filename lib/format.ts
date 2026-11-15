@@ -22,6 +22,18 @@ export function formatRupiah(amount: number): string {
   return `Rp ${idNumberFormatter.format(safeAmount)}`;
 }
 
+export function formatNumberDots(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return '';
+  return idNumberFormatter.format(Math.round(amount));
+}
+
+export function parseNumberInput(raw: string): number {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return 0;
+  const parsed = parseInt(digits, 10);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+}
+
 export function getLocalDateKey(dateInput: Date | string = new Date()): string {
   const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
   const time = d.getTime();

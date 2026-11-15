@@ -3,7 +3,12 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
-import { formatRupiah, generateInvoiceNo } from '@/lib/format';
+import {
+  formatRupiah,
+  formatNumberDots,
+  parseNumberInput,
+  generateInvoiceNo,
+} from '@/lib/format';
 import { buildDynamicQrisPayload, parseAndValidateQris } from '@/lib/qris';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import ReceiptModal from './ReceiptModal';
@@ -398,15 +403,32 @@ export default function PosView() {
       <div style={{ paddingTop: '12px', marginTop: '12px', borderTop: '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
           <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Potongan Diskon (Rp)</span>
-          <input
-            type="number"
-            min="0"
-            value={discount || ''}
-            onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value) || 0))}
-            placeholder="0"
-            className="sip-input font-mono"
-            style={{ width: '120px', padding: '6px 10px', fontSize: '13px', textAlign: 'right' }}
-          />
+          <div style={{ position: 'relative', width: '138px' }}>
+            <span
+              className="font-mono"
+              style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                color: 'var(--text-secondary)',
+                pointerEvents: 'none',
+              }}
+            >
+              Rp
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formatNumberDots(discount)}
+              onChange={(e) => setDiscount(parseNumberInput(e.target.value))}
+              placeholder="0"
+              className="sip-input font-mono"
+              style={{ width: '100%', padding: '6px 10px 6px 30px', fontSize: '13px', textAlign: 'right' }}
+            />
+          </div>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: 'var(--text-secondary)' }}>
@@ -865,22 +887,40 @@ export default function PosView() {
             {paymentMethod === 'Tunai' && (
               <div style={{ marginBottom: '16px' }}>
                 <label className="form-label">Nominal Uang Tunai Diterima (Rp)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={cashGiven || ''}
-                  onChange={(e) => setCashGiven(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="sip-input font-mono"
-                  style={{ fontSize: '16px', fontWeight: 700 }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <span
+                    className="font-mono"
+                    style={{
+                      position: 'absolute',
+                      left: '14px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: 'var(--accent-cyan)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    Rp
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={formatNumberDots(cashGiven)}
+                    onChange={(e) => setCashGiven(parseNumberInput(e.target.value))}
+                    className="sip-input font-mono"
+                    style={{ paddingLeft: '44px', fontSize: '16px', fontWeight: 700 }}
+                  />
+                </div>
 
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
                   {[
-                    { label: 'Uang Pas', val: grandTotal },
-                    { label: '50.000', val: 50000 },
-                    { label: '100.000', val: 100000 },
-                    { label: '200.000', val: 200000 },
-                    { label: '500.000', val: 500000 },
+                    { label: `Uang Pas (${formatRupiah(grandTotal)})`, val: grandTotal },
+                    { label: 'Rp 50.000', val: 50000 },
+                    { label: 'Rp 100.000', val: 100000 },
+                    { label: 'Rp 200.000', val: 200000 },
+                    { label: 'Rp 500.000', val: 500000 },
                   ].map((preset) => (
                     <button
                       key={preset.label}
