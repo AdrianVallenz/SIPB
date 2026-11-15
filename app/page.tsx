@@ -133,10 +133,7 @@ function AppContent() {
 
   return (
     <div className="app-shell">
-      <Header
-        onOpenShowcase={() => navigateScreen('landing')}
-        onOpenAuth={handleOpenAuth}
-      />
+      <Header onOpenAuth={handleOpenAuth} />
       <div className="app-body">
         <Sidebar />
         <main className="app-main">{renderCurrentView()}</main>

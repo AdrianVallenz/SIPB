@@ -132,60 +132,34 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  height: 64px;
-  padding: 0 22px;
-  background-color: var(--bg-header);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  height: 60px;
+  padding: 0 24px;
+  background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 50;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, var(--shadow-sm);
-}
-
-.app-header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--accent-cyan-rgb), 0.35) 50%,
-    transparent 100%
-  );
-  pointer-events: none;
 }
 
 .brand-emblem {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--accent-cyan-rgb), 0.22) 0%,
-    rgba(59, 130, 246, 0.14) 100%
-  );
-  border: 1px solid rgba(var(--accent-cyan-rgb), 0.45);
+  width: 34px;
+  height: 34px;
+  border-radius: 0;
+  background-color: rgba(var(--accent-cyan-rgb), 0.1);
+  border: 1px solid var(--accent-cyan);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--accent-cyan);
-  box-shadow: 0 2px 10px rgba(var(--accent-cyan-rgb), 0.16);
   flex-shrink: 0;
 }
 
 .header-toolbar {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 12px;
-  background-color: var(--bg-subtle);
+  gap: 0;
   border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
 }
 
 .header-tool-btn {
@@ -193,95 +167,101 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 9px;
-  border: 1px solid transparent;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--border-color);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.header-tool-btn:last-child {
+  border-right: none;
 }
 
 .header-tool-btn:hover {
-  background-color: var(--bg-card);
+  background-color: var(--bg-card-hover);
   color: var(--text-primary);
-  border-color: var(--border-color);
 }
 
 .header-tool-btn.is-active {
-  background-color: var(--accent-green-bg);
-  color: var(--accent-green-text);
-  border-color: rgba(var(--accent-cyan-rgb), 0.4);
+  background-color: rgba(var(--accent-cyan-rgb), 0.12);
+  color: var(--accent-cyan);
 }
 
 .header-tool-icon {
-  width: 32px;
+  width: 34px;
   padding: 0;
 }
 
 .header-status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 11px;
-  border-radius: 999px;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 0;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-color);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .header-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
+  width: 6px;
+  height: 6px;
+  border-radius: 0;
   flex-shrink: 0;
 }
 
 .header-status-dot.online {
-  background-color: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  background-color: var(--accent-cyan);
 }
 
 .header-status-dot.local {
-  background-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+  background-color: var(--accent-amber);
 }
 
 .header-account-btn {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 3px 10px 3px 4px;
-  height: 38px;
-  border-radius: 12px;
+  gap: 10px;
+  padding: 0 10px 0 6px;
+  height: 34px;
+  border-radius: 0;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.14s ease, background-color 0.14s ease;
 }
 
 .header-account-btn:hover {
-  background-color: var(--bg-card);
-  border-color: rgba(var(--accent-cyan-rgb), 0.45);
+  background-color: var(--bg-card-hover);
+  border-color: var(--accent-cyan);
 }
 
 .header-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #10b981 0%, #0284c7 100%);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 800;
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  background-color: var(--accent-cyan);
+  color: var(--accent-cyan-text);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -291,11 +271,11 @@ body {
 
 .header-popover {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   right: 0;
-  width: 268px;
-  padding: 10px;
-  border-radius: 14px;
+  width: 264px;
+  padding: 0;
+  border-radius: 0;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
@@ -309,16 +289,21 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 9px 10px;
-  border-radius: 9px;
+  padding: 11px 14px;
+  border-radius: 0;
   border: none;
+  border-bottom: 1px solid var(--border-color);
   background: transparent;
   color: var(--text-primary);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
   transition: background-color 0.14s ease;
+}
+
+.header-popover-item:last-child {
+  border-bottom: none;
 }
 
 .header-popover-item:hover {
@@ -743,9 +728,9 @@ body {
     gap: 8px;
   }
   .brand-emblem {
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
+    width: 30px;
+    height: 30px;
+    border-radius: 0;
   }
   .app-body {
     flex-direction: column;
