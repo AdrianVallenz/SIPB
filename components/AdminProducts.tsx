@@ -797,7 +797,7 @@ export default function AdminProducts() {
                   style={{ padding: '6px 10px', minHeight: '32px' }}
                 >
                   <ChevronLeft size={14} />
-                  <span>Sebelumnya</span>
+                  <span className="hide-xs">Sebelumnya</span>
                 </button>
 
                 {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
@@ -821,7 +821,7 @@ export default function AdminProducts() {
                   className="btn btn-secondary btn-sm"
                   style={{ padding: '6px 10px', minHeight: '32px' }}
                 >
-                  <span>Berikutnya</span>
+                  <span className="hide-xs">Berikutnya</span>
                   <ChevronRight size={14} />
                 </button>
               </div>

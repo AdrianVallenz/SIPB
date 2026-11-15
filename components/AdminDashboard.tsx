@@ -320,19 +320,21 @@ export default function AdminDashboard() {
   );
 
   const svgWidth = 560;
-  const svgHeight = 232;
-  const paddingLeft = 48;
-  const paddingRight = 24;
+  const svgHeight = 236;
+  const paddingLeft = 62;
+  const paddingRight = 28;
   const paddingTop = 34;
-  const paddingBottom = 30;
-  const plotWidth = svgWidth - paddingLeft - paddingRight;
+  const paddingBottom = 32;
+  const plotStartX = paddingLeft + 22;
+  const plotEndX = svgWidth - paddingRight - 14;
+  const plotWidth = plotEndX - plotStartX;
   const plotHeight = svgHeight - paddingTop - paddingBottom;
   const baselineY = svgHeight - paddingBottom;
 
   const points = chartData.map((d, index) => {
     const x =
       chartData.length > 1
-        ? paddingLeft + (index / (chartData.length - 1)) * plotWidth
+        ? plotStartX + (index / (chartData.length - 1)) * plotWidth
         : svgWidth / 2;
     const revY = baselineY - (d.total / maxChartVal) * plotHeight;
     const profY = baselineY - (Math.max(0, d.profit) / maxChartVal) * plotHeight;
@@ -934,7 +936,7 @@ export default function AdminDashboard() {
                         />
                       )}
 
-                      {displayVal > 0 && (chartRange === 7 || isSelected) && (
+                      {displayVal > 0 && (isSelected || idx === points.length - 1) && (
                         <text
                           x={pt.x}
                           y={valLabelY}

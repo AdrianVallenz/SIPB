@@ -220,18 +220,18 @@ export default function AdminSettings() {
             borderBottom: '1px solid var(--border-color)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Printer size={18} style={{ color: 'var(--accent-cyan)' }} />
-            <div>
-              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: '1 1 220px' }}>
+            <Printer size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>
                 Identitas Toko &amp; Tampilan Struk Belanja
               </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 Informasi nama toko, alamat, nomor telepon, dan pesan penutup yang tercetak otomatis pada struk pembeli.
               </p>
             </div>
           </div>
-          <span className="badge badge-cyan">Ukuran Kertas: {printerSettings.paperWidth}</span>
+          <span className="badge badge-cyan" style={{ flexShrink: 0 }}>Ukuran Kertas: {printerSettings.paperWidth}</span>
         </div>
 
         <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -347,18 +347,18 @@ export default function AdminSettings() {
             borderBottom: '1px solid var(--border-color)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <QrCode size={18} style={{ color: 'var(--accent-cyan)' }} />
-            <div>
-              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: '1 1 220px' }}>
+            <QrCode size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>
                 QRIS &amp; Rekening Pembayaran Toko
               </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 Pasang gambar QRIS dan nomor rekening bank toko Anda agar kasir dapat menerima pembayaran non-tunai dengan mudah.
               </p>
             </div>
           </div>
-          <span className={`badge ${isQrisConfigured ? 'badge-green' : 'badge-muted'}`}>
+          <span className={`badge ${isQrisConfigured ? 'badge-green' : 'badge-muted'}`} style={{ flexShrink: 0 }}>
             {isQrisConfigured ? 'QRIS Siap Digunakan' : 'QRIS Belum Dipasang'}
           </span>
         </div>
@@ -381,18 +381,18 @@ export default function AdminSettings() {
             borderBottom: '1px solid var(--border-color)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Users size={18} style={{ color: 'var(--accent-cyan)' }} />
-            <div>
-              <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: '1 1 220px' }}>
+            <Users size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>
                 Akun Staf Kasir Toko ({cashiers.length})
               </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 Buat akun khusus untuk staf penjaga kasir. Kasir hanya dapat melayani penjualan tanpa bisa melihat harga modal atau laporan laba Anda.
               </p>
             </div>
           </div>
-          <span className="badge badge-cyan">{activeCashiersCount} Kasir Aktif</span>
+          <span className="badge badge-cyan" style={{ flexShrink: 0 }}>{activeCashiersCount} Kasir Aktif</span>
         </div>
 
         {/* Create New Cashier Form */}

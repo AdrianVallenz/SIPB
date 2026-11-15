@@ -52,6 +52,7 @@ export default function PosView() {
 
   // Mobile Cart Sheet & Printer Modal
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [isMiniListExpanded, setIsMiniListExpanded] = useState(true);
   const [isPrinterModalOpen, setIsPrinterModalOpen] = useState(false);
   const [isQrisSetupOpen, setIsQrisSetupOpen] = useState(false);
 
@@ -245,165 +246,186 @@ export default function PosView() {
   };
 
   const renderCartBody = (isSheet = false) => (
-    <>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        {/* Cart Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingBottom: '12px',
-            borderBottom: '1px solid var(--border-color)',
-            marginBottom: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ShoppingCart size={17} style={{ color: 'var(--accent-cyan)' }} />
-            <h2 style={{ fontSize: '15px', fontWeight: 700 }}>Keranjang Transaksi</h2>
-            {totalPcsInCart > 0 && (
-              <span className="badge badge-cyan font-mono" style={{ padding: '1px 7px', fontSize: '10.5px' }}>
-                {totalPcsInCart}
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {cart.length > 0 && (
-              <button
-                type="button"
-                onClick={clearCart}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '11px', color: 'var(--accent-red)', padding: '4px 8px' }}
-                title="Kosongkan Keranjang"
-              >
-                <RotateCcw size={12} /> Kosongkan
-              </button>
-            )}
-            {isSheet && (
-              <button
-                type="button"
-                onClick={() => setIsMobileCartOpen(false)}
-                className="btn btn-secondary btn-icon"
-                aria-label="Tutup Keranjang"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        height: '100%',
+        minHeight: 0,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Fixed Top Cart Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingBottom: '12px',
+          borderBottom: '1px solid var(--border-color)',
+          marginBottom: '10px',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <ShoppingCart size={17} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+          <h2 style={{ fontSize: '15px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Keranjang Transaksi
+          </h2>
+          {totalPcsInCart > 0 && (
+            <span className="badge badge-cyan font-mono" style={{ padding: '1px 7px', fontSize: '10.5px', flexShrink: 0 }}>
+              {totalPcsInCart}
+            </span>
+          )}
         </div>
-
-        {/* Cart Item List */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            maxHeight: isSheet ? '38vh' : undefined,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            paddingRight: '4px',
-          }}
-        >
-          {validCart.map((item) => {
-            const prod = productMap.get(item.productId);
-            if (!prod) return null;
-            const itemTotal = prod.sellPrice * item.quantity;
-
-            return (
-              <div
-                key={item.productId}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--bg-subtle)',
-                  border: '1px solid var(--border-color)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', gap: '6px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, flex: 1 }}>{prod.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFromCart(prod.id)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer',
-                      padding: '4px',
-                    }}
-                    title="Hapus item"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div className="font-mono" style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                    @ {formatRupiah(prod.sellPrice)}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(prod.id, -1)}
-                      className="btn btn-secondary btn-icon"
-                      style={{ width: '30px', height: '30px', padding: 0 }}
-                    >
-                      <Minus size={13} />
-                    </button>
-
-                    <span className="font-mono" style={{ fontWeight: 700, fontSize: '13px', minWidth: '22px', textAlign: 'center' }}>
-                      {item.quantity}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(prod.id, 1)}
-                      disabled={item.quantity >= prod.stock}
-                      className="btn btn-secondary btn-icon"
-                      style={{ width: '30px', height: '30px', padding: 0 }}
-                    >
-                      <Plus size={13} />
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  className="font-mono"
-                  style={{
-                    textAlign: 'right',
-                    marginTop: '4px',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    color: 'var(--accent-cyan)',
-                  }}
-                >
-                  {formatRupiah(itemTotal)}
-                </div>
-              </div>
-            );
-          })}
-
-          {validCart.length === 0 && (
-            <div
-              style={{
-                padding: '32px 16px',
-                textAlign: 'center',
-                color: 'var(--text-muted)',
-                fontSize: '12.5px',
-              }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {cart.length > 0 && (
+            <button
+              type="button"
+              onClick={clearCart}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '11px', color: 'var(--accent-red)', padding: '4px 8px' }}
+              title="Kosongkan Keranjang"
             >
-              Keranjang masih kosong. Pilih barang dari daftar katalog untuk memulai transaksi.
-            </div>
+              <RotateCcw size={12} /> Kosongkan
+            </button>
+          )}
+          {isSheet && (
+            <button
+              type="button"
+              onClick={() => setIsMobileCartOpen(false)}
+              className="btn btn-secondary btn-icon"
+              aria-label="Tutup Keranjang"
+            >
+              <X size={16} />
+            </button>
           )}
         </div>
       </div>
 
-      {/* Cart Bottom Summary */}
-      <div style={{ paddingTop: '12px', marginTop: '12px', borderTop: '1px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Potongan Diskon (Rp)</span>
-          <div style={{ position: 'relative', width: '138px' }}>
+      {/* Scrollable Middle Cart Item List */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          paddingRight: '4px',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {validCart.map((item) => {
+          const prod = productMap.get(item.productId);
+          if (!prod) return null;
+          const itemTotal = prod.sellPrice * item.quantity;
+
+          return (
+            <div
+              key={item.productId}
+              style={{
+                padding: '10px 12px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, flex: 1, minWidth: 0 }}>{prod.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFromCart(prod.id)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    flexShrink: 0,
+                  }}
+                  title="Hapus item"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <div className="font-mono" style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                  @ {formatRupiah(prod.sellPrice)}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => updateQuantity(prod.id, -1)}
+                    className="btn btn-secondary btn-icon"
+                    style={{ width: '30px', height: '30px', padding: 0 }}
+                  >
+                    <Minus size={13} />
+                  </button>
+
+                  <span className="font-mono" style={{ fontWeight: 700, fontSize: '13px', minWidth: '22px', textAlign: 'center' }}>
+                    {item.quantity}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => updateQuantity(prod.id, 1)}
+                    disabled={item.quantity >= prod.stock}
+                    className="btn btn-secondary btn-icon"
+                    style={{ width: '30px', height: '30px', padding: 0 }}
+                  >
+                    <Plus size={13} />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className="font-mono"
+                style={{
+                  textAlign: 'right',
+                  marginTop: '4px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  color: 'var(--accent-cyan)',
+                }}
+              >
+                {formatRupiah(itemTotal)}
+              </div>
+            </div>
+          );
+        })}
+
+        {validCart.length === 0 && (
+          <div
+            style={{
+              padding: '32px 16px',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+              fontSize: '12.5px',
+            }}
+          >
+            Keranjang masih kosong. Pilih barang dari daftar katalog untuk memulai transaksi.
+          </div>
+        )}
+      </div>
+
+      {/* Fixed Bottom Cart Summary & Checkout Frame */}
+      <div
+        style={{
+          paddingTop: '12px',
+          marginTop: '10px',
+          borderTop: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-card)',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '8px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Potongan Diskon (Rp)</span>
+          <div style={{ position: 'relative', width: '138px', flexShrink: 0 }}>
             <span
               className="font-mono"
               style={{
@@ -448,16 +470,17 @@ export default function PosView() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'baseline',
-            marginTop: '8px',
-            marginBottom: '12px',
-            padding: '10px 12px',
+            marginTop: '6px',
+            marginBottom: '10px',
+            padding: '9px 12px',
             borderRadius: 'var(--radius-md)',
             backgroundColor: 'rgba(var(--accent-cyan-rgb), 0.1)',
             border: '1px solid rgba(var(--accent-cyan-rgb), 0.28)',
+            gap: '8px',
           }}
         >
-          <span style={{ fontSize: '13px', fontWeight: 700 }}>Total Tagihan:</span>
-          <span className="font-mono" style={{ fontSize: '19px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+          <span style={{ fontSize: '12.5px', fontWeight: 700 }}>Total Tagihan:</span>
+          <span className="font-mono" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
             {formatRupiah(grandTotal)}
           </span>
         </div>
@@ -473,7 +496,7 @@ export default function PosView() {
           <span>Bayar &amp; Cetak Nota ({validCart.length} SKU)</span>
         </button>
       </div>
-    </>
+    </div>
   );
 
   return (
@@ -746,15 +769,167 @@ export default function PosView() {
         </div>
       </div>
 
-      {/* DESKTOP RIGHT: Sticky Cart Panel (hidden on tablet/mobile) */}
+      {/* DESKTOP / LANDSCAPE RIGHT: Fixed Frame Cart Panel */}
       <div className="sip-card pos-cart">{renderCartBody(false)}</div>
 
-      {/* MOBILE / TABLET FLOATING CART BAR (always accessible without scrolling!) */}
-      {validCart.length > 0 && (
-        <div className="mobile-pos-cart-bar no-print">
+      {/* MOBILE PORTRAIT FIXED CASHIER PANEL FRAME (Scrollable Item List + Fixed Bayar Button) */}
+      <div className="mobile-pos-cart-bar no-print">
+        {validCart.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              paddingBottom: isMiniListExpanded ? '8px' : '6px',
+              marginBottom: isMiniListExpanded ? '8px' : '6px',
+              borderBottom: '1px solid var(--border-color)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsMiniListExpanded((prev) => !prev)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-primary)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <ShoppingCart size={14} style={{ color: 'var(--accent-cyan)' }} />
+              <span>Daftar Belanja ({validCart.length} SKU &bull; {totalPcsInCart} pcs)</span>
+              <span style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                {isMiniListExpanded ? '[Sembunyikan]' : '[Lihat Daftar]'}
+              </span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setIsMobileCartOpen(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '3px 8px', fontSize: '11px', minHeight: '26px' }}
+              >
+                Diskon / Rincian
+              </button>
+              <button
+                type="button"
+                onClick={clearCart}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '3px 8px', fontSize: '11px', minHeight: '26px', color: 'var(--accent-red)' }}
+                title="Kosongkan"
+              >
+                <RotateCcw size={11} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Scrollable Selected Items List right inside the Fixed Mobile Cashier Frame */}
+        {validCart.length > 0 && isMiniListExpanded && (
+          <div
+            style={{
+              maxHeight: '132px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              marginBottom: '10px',
+              paddingRight: '2px',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {validCart.map((item) => {
+              const prod = productMap.get(item.productId);
+              if (!prod) return null;
+              return (
+                <div
+                  key={item.productId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    padding: '6px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-subtle)',
+                    border: '1px solid var(--border-color)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {prod.name}
+                    </div>
+                    <div className="font-mono" style={{ fontSize: '11px', color: 'var(--accent-cyan)', fontWeight: 700 }}>
+                      {formatRupiah(prod.sellPrice * item.quantity)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(prod.id, -1)}
+                      className="btn btn-secondary btn-icon"
+                      style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', padding: 0 }}
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span className="font-mono" style={{ fontSize: '12px', fontWeight: 700, minWidth: '18px', textAlign: 'center' }}>
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={item.quantity >= prod.stock}
+                      onClick={() => updateQuantity(prod.id, 1)}
+                      className="btn btn-secondary btn-icon"
+                      style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', padding: 0 }}
+                    >
+                      <Plus size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeFromCart(prod.id)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--accent-red)',
+                        padding: '2px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                      }}
+                      aria-label="Hapus"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Fixed Bottom Checkout Row (Always Visible, Zero Scrolling Needed) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {totalPcsInCart} pcs ({validCart.length} SKU) di keranjang
+            <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {validCart.length > 0
+                ? `Total Tagihan (${totalPcsInCart} pcs)`
+                : 'Belum ada barang dipilih'}
             </div>
             <div className="font-mono" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent-cyan)' }}>
               {formatRupiah(grandTotal)}
@@ -763,23 +938,32 @@ export default function PosView() {
 
           <button
             type="button"
-            onClick={() => setIsMobileCartOpen(true)}
+            disabled={validCart.length === 0}
+            onClick={handleOpenCheckout}
             className="btn btn-primary"
-            style={{ padding: '10px 16px', minHeight: '42px', flexShrink: 0 }}
+            style={{ padding: '10px 16px', minHeight: '42px', flexShrink: 0, fontWeight: 700 }}
           >
-            <ShoppingCart size={16} />
-            <span>Keranjang</span>
+            <CreditCard size={15} />
+            <span>Bayar Sekarang</span>
             <ChevronRight size={15} />
           </button>
         </div>
-      )}
+      </div>
 
-      {/* MOBILE CART BOTTOM SHEET */}
+      {/* MOBILE CART BOTTOM SHEET (Full View with Discount) */}
       {isMobileCartOpen && (
         <div className="modal-backdrop" onClick={() => setIsMobileCartOpen(false)}>
           <div
             className="modal-content modal-sheet"
-            style={{ maxWidth: '520px', padding: '18px' }}
+            style={{
+              maxWidth: '520px',
+              height: '80dvh',
+              maxHeight: '80dvh',
+              padding: '22px 16px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             {renderCartBody(true)}
@@ -787,60 +971,86 @@ export default function PosView() {
         </div>
       )}
 
-      {/* PAYMENT MODAL */}
+      {/* PAYMENT MODAL (Fixed Header + Scrollable Middle + Fixed Confirmation Button Frame) */}
       {isPaymentModalOpen && (
         <div className="modal-backdrop">
-          <div className="modal-content modal-sheet" style={{ maxWidth: '500px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '6px',
-              }}
-            >
-              <h3 style={{ fontSize: '17px', fontWeight: 700 }}>Penyelesaian Pembayaran</h3>
-              <button
-                type="button"
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="btn btn-secondary btn-icon"
-                aria-label="Tutup"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-              Pilih metode pembayaran pelanggan dan verifikasi nominal yang diterima.
-            </p>
-
-            {paymentError && (
-              <div className="alert-box" style={{ marginBottom: '14px' }}>
-                <AlertTriangle size={16} />
-                <span>{paymentError}</span>
-              </div>
-            )}
-
-            {/* Total Highlight */}
-            <div
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid var(--border-color)',
-                textAlign: 'center',
-                marginBottom: '14px',
-              }}
-            >
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
-                TOTAL TAGIHAN PELANGGAN
-              </div>
+          <div
+            className="modal-content modal-sheet"
+            style={{
+              maxWidth: '500px',
+              maxHeight: '88dvh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              padding: '20px 18px 16px',
+            }}
+          >
+            {/* Fixed Modal Header */}
+            <div style={{ flexShrink: 0 }}>
               <div
-                className="font-mono"
-                style={{ fontSize: '25px', fontWeight: 700, color: 'var(--accent-cyan)', marginTop: '2px' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '4px',
+                }}
               >
-                {formatRupiah(grandTotal)}
+                <h3 style={{ fontSize: '17px', fontWeight: 700 }}>Penyelesaian Pembayaran</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="btn btn-secondary btn-icon"
+                  aria-label="Tutup"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                Pilih metode pembayaran pelanggan dan verifikasi nominal yang diterima.
+              </p>
+
+              {/* Total Highlight */}
+              <div
+                style={{
+                  padding: '11px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-subtle)',
+                  border: '1px solid var(--border-color)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '10px',
+                  marginBottom: '12px',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
+                  TOTAL TAGIHAN
+                </div>
+                <div
+                  className="font-mono"
+                  style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-cyan)' }}
+                >
+                  {formatRupiah(grandTotal)}
+                </div>
               </div>
             </div>
+
+            {/* Scrollable Payment Details Body */}
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                paddingRight: '2px',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {paymentError && (
+                <div className="alert-box" style={{ marginBottom: '12px' }}>
+                  <AlertTriangle size={16} />
+                  <span>{paymentError}</span>
+                </div>
+              )}
 
             {/* Payment Method Selector */}
             <div style={{ marginBottom: '14px' }}>
@@ -1025,8 +1235,20 @@ export default function PosView() {
                 </div>
               </div>
             )}
+            </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            {/* Fixed Bottom Confirmation Button Frame */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                paddingTop: '12px',
+                marginTop: '8px',
+                borderTop: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-card)',
+                flexShrink: 0,
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setIsPaymentModalOpen(false)}
