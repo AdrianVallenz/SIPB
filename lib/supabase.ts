@@ -110,7 +110,7 @@ async function fetchWithSupabaseAuth(
   });
 
   let res = await fetch(url, { ...init, headers: buildHeaders(token) });
-  if (res.status === 401 && token) {
+  if ((res.status === 401 || res.status === 403) && token) {
     const refreshed = await refreshSupabaseToken();
     if (refreshed) {
       res = await fetch(url, { ...init, headers: buildHeaders(refreshed) });
