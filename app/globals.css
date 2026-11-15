@@ -1170,6 +1170,11 @@ body {
   box-shadow: var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
+.btn-nav-compact {
+  padding: 0 14px;
+  font-size: 13px;
+}
+
 .btn:focus-visible,
 .sip-input:focus-visible,
 .sip-select:focus-visible {

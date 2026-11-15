@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, ProductCategory, PRODUCT_CATEGORIES } from '@/lib/types';
 import { formatRupiah, formatDateTime, calcMarginPct } from '@/lib/format';
@@ -63,19 +63,21 @@ export default function AdminProducts() {
     feedbackTimerRef.current = setTimeout(() => setFeedbackMsg(''), 3500);
   };
 
-  // Filtering products
-  const filteredProducts = products.filter((p) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
-    const matchesCategory = categoryFilter === 'Semua' || p.category === categoryFilter;
+  // Memoized filtering: skips string lowercasing if search is empty
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return products.filter((p) => {
+      const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+      const matchesCategory = categoryFilter === 'Semua' || p.category === categoryFilter;
 
-    let matchesStatus = true;
-    if (stockStatusFilter === 'Aman') matchesStatus = p.stock > p.minStock;
-    else if (stockStatusFilter === 'Menipis') matchesStatus = p.stock > 0 && p.stock <= p.minStock;
-    else if (stockStatusFilter === 'Habis') matchesStatus = p.stock === 0;
+      let matchesStatus = true;
+      if (stockStatusFilter === 'Aman') matchesStatus = p.stock > p.minStock;
+      else if (stockStatusFilter === 'Menipis') matchesStatus = p.stock > 0 && p.stock <= p.minStock;
+      else if (stockStatusFilter === 'Habis') matchesStatus = p.stock === 0;
 
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [products, searchQuery, categoryFilter, stockStatusFilter]);
 
   const handleOpenAdd = () => {
     const randomSku = 'PRD-' + Math.floor(100 + Math.random() * 900);
@@ -234,9 +236,27 @@ export default function AdminProducts() {
       </div>
 
       {feedbackMsg && (
-        <div className="alert-box-info">
-          <CheckCircle2 size={16} />
-          <span>{feedbackMsg}</span>
+        <div className="alert-box-info" style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={16} />
+            <span>{feedbackMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFeedbackMsg('')}
+            aria-label="Tutup pemberitahuan"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 

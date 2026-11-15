@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction, PAYMENT_METHODS } from '@/lib/types';
 import { formatRupiah, formatDateTime, getLocalDateKey, sanitizeCsvCell } from '@/lib/format';
@@ -31,42 +31,59 @@ export default function AdminReports() {
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const now = new Date();
-  const todayKey = getLocalDateKey(now);
-  const past7Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
-  const past30Start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+  const todayKey = getLocalDateKey(new Date());
 
-  const filteredTransactions = transactions.filter((t) => {
-    const tDate = new Date(t.createdAt);
+  const { filteredTransactions, activeTransactions, totalOmzet, totalItemsSold, averageTransaction } =
+    useMemo(() => {
+      const now = new Date();
+      const past7StartMs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0).getTime();
+      const past30StartMs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0).getTime();
+      const q = searchQuery.trim().toLowerCase();
 
-    let matchesDate = true;
-    if (dateFilter === 'today') {
-      matchesDate = getLocalDateKey(tDate) === todayKey;
-    } else if (dateFilter === '7days') {
-      matchesDate = tDate >= past7Start;
-    } else if (dateFilter === '30days') {
-      matchesDate = tDate >= past30Start;
-    }
+      const filtered = transactions.filter((t) => {
+        let matchesDate = true;
+        if (dateFilter === 'today') {
+          matchesDate = getLocalDateKey(t.createdAt) === todayKey;
+        } else if (dateFilter === '7days') {
+          matchesDate = Date.parse(t.createdAt) >= past7StartMs;
+        } else if (dateFilter === '30days') {
+          matchesDate = Date.parse(t.createdAt) >= past30StartMs;
+        }
 
-    const matchesMethod = methodFilter === 'Semua' || t.paymentMethod === methodFilter;
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      t.invoiceNo.toLowerCase().includes(q) ||
-      t.cashierName.toLowerCase().includes(q) ||
-      t.items.some((i) => i.name.toLowerCase().includes(q));
+        const matchesMethod = methodFilter === 'Semua' || t.paymentMethod === methodFilter;
+        const matchesSearch =
+          !q ||
+          t.invoiceNo.toLowerCase().includes(q) ||
+          t.cashierName.toLowerCase().includes(q) ||
+          t.items.some((i) => i.name.toLowerCase().includes(q));
 
-    return matchesDate && matchesMethod && matchesSearch;
-  });
+        return matchesDate && matchesMethod && matchesSearch;
+      });
 
-  // Active (non-voided) transactions for financial KPIs
-  const activeTransactions = filteredTransactions.filter((t) => t.status !== 'VOIDED');
-  const totalOmzet = activeTransactions.reduce((sum, t) => sum + t.total, 0);
-  const totalItemsSold = activeTransactions.reduce(
-    (sum, t) => sum + t.items.reduce((iSum, i) => iSum + i.quantity, 0),
-    0
-  );
-  const averageTransaction =
-    activeTransactions.length > 0 ? Math.round(totalOmzet / activeTransactions.length) : 0;
+      const active: Transaction[] = [];
+      let omzet = 0;
+      let itemsSold = 0;
+
+      for (const t of filtered) {
+        if (t.status !== 'VOIDED') {
+          active.push(t);
+          omzet += t.total;
+          for (const i of t.items) {
+            itemsSold += i.quantity;
+          }
+        }
+      }
+
+      const avg = active.length > 0 ? Math.round(omzet / active.length) : 0;
+
+      return {
+        filteredTransactions: filtered,
+        activeTransactions: active,
+        totalOmzet: omzet,
+        totalItemsSold: itemsSold,
+        averageTransaction: avg,
+      };
+    }, [transactions, dateFilter, methodFilter, searchQuery, todayKey]);
 
   const handleExportCsv = () => {
     if (filteredTransactions.length === 0) return;
@@ -325,7 +342,7 @@ export default function AdminReports() {
                         {t.items.length} SKU ({t.items.reduce((s, i) => s + i.quantity, 0)} pcs)
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {t.items.map((i) => `${i.name} (${i.quantity}x)`).slice(0, 2).join(', ')}
+                        {t.items.slice(0, 2).map((i) => `${i.name} (${i.quantity}x)`).join(', ')}
                         {t.items.length > 2 ? '...' : ''}
                       </div>
                     </td>
@@ -428,7 +445,7 @@ export default function AdminReports() {
 
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                 {t.items.length} SKU ({t.items.reduce((s, i) => s + i.quantity, 0)} pcs) &bull;{' '}
-                {t.items.map((i) => `${i.name} (${i.quantity}x)`).slice(0, 2).join(', ')}
+                {t.items.slice(0, 2).map((i) => `${i.name} (${i.quantity}x)`).join(', ')}
                 {t.items.length > 2 ? '...' : ''}
               </div>
 

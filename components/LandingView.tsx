@@ -246,8 +246,8 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               <button
                 type="button"
                 onClick={() => onEnterApp()}
-                className="btn btn-primary btn-sm"
-                style={{ height: '38px', padding: '0 14px', borderRadius: '11px' }}
+                className="btn btn-primary btn-sm btn-nav-compact"
+                style={{ height: '36px', borderRadius: '10px' }}
               >
                 <span>Dashboard</span>
                 <ArrowRight size={14} />
@@ -257,7 +257,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                 type="button"
                 onClick={() => onOpenAuth('register')}
                 className="btn btn-primary btn-sm btn-nav-compact"
-                style={{ height: '38px', padding: '0 14px', borderRadius: '11px' }}
+                style={{ height: '36px', borderRadius: '10px' }}
               >
                 <UserPlus size={14} className="hide-xs" />
                 <span>Daftar</span>

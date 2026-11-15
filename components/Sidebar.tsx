@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   LayoutDashboard,
@@ -16,10 +16,14 @@ import {
 export default function Sidebar() {
   const { user, activeTab, setActiveTab, products, cashiers } = useApp();
 
+  const lowStockCount = useMemo(
+    () => products.reduce((count, p) => count + (p.stock <= p.minStock ? 1 : 0), 0),
+    [products]
+  );
+
   if (!user) return null;
 
   const isAdmin = user.role === 'admin';
-  const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
 
   const adminNav = [
     {

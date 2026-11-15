@@ -405,16 +405,19 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
       return { connected: false };
     }
 
-    const [prodRows, trxRows, logRows] = (await Promise.all([
+    const [prodRows, trxRows, logRows, cashRows, payRows] = (await Promise.all([
       prodRes.json(),
       trxRes.json(),
       logRes.json(),
-    ])) as [DbProductRow[], DbTransactionRow[], DbStockLogRow[]];
-
-    const cashRows: DbCashierRow[] = cashRes.ok ? ((await cashRes.json()) as DbCashierRow[]) : [];
-    const payRows: DbStorePaymentSettingsRow[] = payRes.ok
-      ? ((await payRes.json()) as DbStorePaymentSettingsRow[])
-      : [];
+      cashRes.ok ? cashRes.json() : Promise.resolve([]),
+      payRes.ok ? payRes.json() : Promise.resolve([]),
+    ])) as [
+      DbProductRow[],
+      DbTransactionRow[],
+      DbStockLogRow[],
+      DbCashierRow[],
+      DbStorePaymentSettingsRow[],
+    ];
 
     const products: Product[] = prodRows.map((r) => ({
       id: r.id,

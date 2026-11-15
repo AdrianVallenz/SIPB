@@ -66,6 +66,7 @@ export default function PosView() {
 
   const categories = ['Semua', ...PRODUCT_CATEGORIES];
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const notifyLimit = (msg: string) => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
@@ -121,7 +122,7 @@ export default function PosView() {
   };
 
   const updateQuantity = (productId: string, delta: number) => {
-    const prod = products.find((p) => p.id === productId);
+    const prod = productMap.get(productId);
     if (!prod) return;
 
     playBeep();
@@ -473,6 +474,7 @@ export default function PosView() {
                 }}
               />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Cari barang atau kode SKU..."
                 value={searchQuery}
@@ -997,6 +999,10 @@ export default function PosView() {
           onClose={() => {
             setCompletedTransaction(null);
             setReceiptPrintNotice(null);
+            setSearchQuery('');
+            setTimeout(() => {
+              searchInputRef.current?.focus();
+            }, 60);
           }}
         />
       )}

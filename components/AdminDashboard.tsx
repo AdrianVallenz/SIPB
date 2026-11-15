@@ -74,7 +74,6 @@ export default function AdminDashboard() {
     periodProfit,
     avgDailyRevenue,
     peakDay,
-    maxChartVal,
     topProducts,
     paymentBreakdown,
     categoryPerformance,
@@ -82,8 +81,34 @@ export default function AdminDashboard() {
     activeCashiersCount,
   } = useMemo(() => {
     const todayKey = getLocalDateKey();
-    const productBuyMap = new Map(products.map((p) => [p.id, p.buyPrice]));
-    const productCatMap = new Map(products.map((p) => [p.id, p.category]));
+    const productMetaMap = new Map<string, { buyPrice: number; category: ProductCategory }>();
+
+    let stockAssetVal = 0;
+    let potentialSalesVal = 0;
+    let unitsInStock = 0;
+    const critical: typeof products = [];
+    const outOfStock: typeof products = [];
+    const stockByCat = new Map<ProductCategory, { skuCount: number; stockUnits: number }>(
+      PRODUCT_CATEGORIES.map((c) => [c, { skuCount: 0, stockUnits: 0 }])
+    );
+
+    // Single O(P) pass: build lookup map + compute inventory valuation & category stock
+    for (const p of products) {
+      productMetaMap.set(p.id, { buyPrice: p.buyPrice, category: p.category });
+      stockAssetVal += p.buyPrice * p.stock;
+      potentialSalesVal += p.sellPrice * p.stock;
+      unitsInStock += p.stock;
+      if (p.stock <= p.minStock) critical.push(p);
+      if (p.stock === 0) outOfStock.push(p);
+
+      const catStock = stockByCat.get(p.category) || { skuCount: 0, stockUnits: 0 };
+      stockByCat.set(p.category, {
+        skuCount: catStock.skuCount + 1,
+        stockUnits: catStock.stockUnits + p.stock,
+      });
+    }
+
+    critical.sort((a, b) => a.stock - b.stock);
 
     const todayTrx: Transaction[] = [];
     const byDate = new Map<string, { total: number; profit: number; count: number }>();
@@ -125,11 +150,12 @@ export default function AdminDashboard() {
 
       let trxCost = 0;
       for (const item of t.items) {
+        const meta = productMetaMap.get(item.productId);
         const unitCost =
-          item.buyPrice ?? productBuyMap.get(item.productId) ?? Math.round(item.price * 0.78);
+          item.buyPrice ?? meta?.buyPrice ?? Math.round(item.price * 0.78);
         trxCost += unitCost * item.quantity;
 
-        const cat = productCatMap.get(item.productId);
+        const cat = meta?.category;
         if (cat) {
           const prevCat = revByCategory.get(cat) || { revenue: 0, unitsSold: 0 };
           revByCategory.set(cat, {
@@ -166,31 +192,6 @@ export default function AdminDashboard() {
       });
     }
 
-    let stockAssetVal = 0;
-    let potentialSalesVal = 0;
-    let unitsInStock = 0;
-    const critical: typeof products = [];
-    const outOfStock: typeof products = [];
-    const stockByCat = new Map<ProductCategory, { skuCount: number; stockUnits: number }>(
-      PRODUCT_CATEGORIES.map((c) => [c, { skuCount: 0, stockUnits: 0 }])
-    );
-
-    for (const p of products) {
-      stockAssetVal += p.buyPrice * p.stock;
-      potentialSalesVal += p.sellPrice * p.stock;
-      unitsInStock += p.stock;
-      if (p.stock <= p.minStock) critical.push(p);
-      if (p.stock === 0) outOfStock.push(p);
-
-      const catStock = stockByCat.get(p.category) || { skuCount: 0, stockUnits: 0 };
-      stockByCat.set(p.category, {
-        skuCount: catStock.skuCount + 1,
-        stockUnits: catStock.stockUnits + p.stock,
-      });
-    }
-
-    critical.sort((a, b) => a.stock - b.stock);
-
     const daysSeries = Array.from({ length: chartRange }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (chartRange - 1 - i));
@@ -221,10 +222,6 @@ export default function AdminDashboard() {
     const peak = daysSeries.reduce(
       (best, cur) => (cur.total > best.total ? cur : best),
       daysSeries[0] || { dayLabel: '-', fullLabel: '-', total: 0, profit: 0, count: 0 }
-    );
-    const maxVal = Math.max(
-      ...daysSeries.map((d) => (chartMetric === 'profit' ? Math.max(d.profit, 0) : d.total)),
-      250000
     );
 
     const sortedTopProducts = Array.from(salesByProduct.values())
@@ -285,14 +282,22 @@ export default function AdminDashboard() {
       periodProfit: pProfit,
       avgDailyRevenue: avgDaily,
       peakDay: peak,
-      maxChartVal: maxVal,
       topProducts: sortedTopProducts,
       paymentBreakdown: paymentList,
       categoryPerformance: catList,
       digitalSharePct: revTotal > 0 ? Math.round((digitalTotal / revTotal) * 100) : 0,
-      activeCashiersCount: cashiers.filter((c) => c.isActive).length,
+      activeCashiersCount: cashiers.reduce((acc, c) => acc + (c.isActive ? 1 : 0), 0),
     };
-  }, [products, transactions, cashiers, chartRange, chartMetric]);
+  }, [products, transactions, cashiers, chartRange]);
+
+  const maxChartVal = useMemo(
+    () =>
+      Math.max(
+        ...chartData.map((d) => (chartMetric === 'profit' ? Math.max(d.profit, 0) : d.total)),
+        250000
+      ),
+    [chartData, chartMetric]
+  );
 
   const svgWidth = 680;
   const svgHeight = 235;

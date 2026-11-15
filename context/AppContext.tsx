@@ -175,22 +175,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(() => getStoredSession());
   const [theme, setTheme] = useState<'dark' | 'light'>(() => getStoredTheme());
   const [products, setProducts] = useState<Product[]>(() =>
-    getStoredProducts(getStoredSession()?.ownerId || '')
+    getStoredProducts(user?.ownerId || '')
   );
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    getStoredTransactions(getStoredSession()?.ownerId || '')
+    getStoredTransactions(user?.ownerId || '')
   );
   const [stockLogs, setStockLogs] = useState<StockLog[]>(() =>
-    getStoredStockLogs(getStoredSession()?.ownerId || '')
+    getStoredStockLogs(user?.ownerId || '')
   );
   const [cashiers, setCashiers] = useState<CashierAccount[]>(() =>
-    getStoredCashiers(getStoredSession()?.ownerId || '')
+    getStoredCashiers(user?.ownerId || '')
   );
   const [paymentSettings, setPaymentSettings] = useState<StorePaymentSettings>(() =>
-    getStoredPaymentSettings(getStoredSession()?.ownerId || '')
+    getStoredPaymentSettings(user?.ownerId || '')
   );
   const [activeTab, setActiveTabState] = useState<string>(() =>
-    readStoredActiveTab(getStoredSession())
+    readStoredActiveTab(user)
   );
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
@@ -852,26 +852,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Keranjang belanja masih kosong.' };
     }
 
+    // Build O(1) lookup Map for products and aggregate quantities
+    const productById = new Map<string, Product>(products.map((p) => [p.id, p]));
+    const cartQtyById = new Map<string, number>();
+
     for (const item of cartItems) {
       const qty = Math.floor(Number(item.quantity) || 0);
       if (qty <= 0) {
         return { success: false, error: 'Kuantitas item tidak valid.' };
       }
-      const prod = products.find((p) => p.id === item.productId);
+      const prod = productById.get(item.productId);
       if (!prod) {
         return { success: false, error: `Produk tidak ditemukan.` };
       }
-      if (prod.stock < qty) {
+      const accumulatedQty = (cartQtyById.get(item.productId) || 0) + qty;
+      if (prod.stock < accumulatedQty) {
         return {
           success: false,
-          error: `Stok "${prod.name}" tidak mencukupi (Tersedia: ${prod.stock}, Diminta: ${qty}).`,
+          error: `Stok "${prod.name}" tidak mencukupi (Tersedia: ${prod.stock}, Diminta: ${accumulatedQty}).`,
         };
       }
+      cartQtyById.set(item.productId, accumulatedQty);
     }
 
     let subtotal = 0;
     const transactionItems = cartItems.map((item) => {
-      const prod = products.find((p) => p.id === item.productId)!;
+      const prod = productById.get(item.productId)!;
       const qty = Math.floor(item.quantity);
       const itemSubtotal = prod.sellPrice * qty;
       subtotal += itemSubtotal;
@@ -935,28 +941,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const saleLogs: StockLog[] = [];
+    const stockSyncQueue: Array<{ id: string; stock: number; updatedAt: string }> = [];
+
     const updatedProducts = products.map((p) => {
-      const cartItem = cartItems.find((ci) => ci.productId === p.id);
-      if (cartItem) {
-        const qty = Math.floor(cartItem.quantity);
-        const newStock = p.stock - qty;
+      const deductQty = cartQtyById.get(p.id);
+      if (deductQty && deductQty > 0) {
+        const newStock = p.stock - deductQty;
+        const updatedAt = now.toISOString();
         saleLogs.push({
           id: makeId('log'),
           ownerId: user.ownerId,
           productId: p.id,
           productName: p.name,
           type: 'OUT',
-          quantity: qty,
+          quantity: deductQty,
           previousStock: p.stock,
           newStock,
           reason: `Penjualan Kasir (${invoiceNo})`,
-          createdAt: now.toISOString(),
+          createdAt: updatedAt,
           operator: user.email,
         });
+        stockSyncQueue.push({ id: p.id, stock: newStock, updatedAt });
         return {
           ...p,
           stock: newStock,
-          updatedAt: now.toISOString(),
+          updatedAt,
         };
       }
       return p;
@@ -965,12 +974,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProducts(updatedProducts);
     saveStoredProducts(updatedProducts, user.ownerId);
 
-    // Use PATCH for stock updates so Cashier RLS succeeds without Admin INSERT privileges
-    for (const ci of cartItems) {
-      const changedProd = updatedProducts.find((p) => p.id === ci.productId);
-      if (changedProd) {
-        void syncUpdateProductStock(changedProd.id, changedProd.stock, changedProd.updatedAt);
-      }
+    // Concurrently dispatch stock updates to Supabase without serial bottlenecks
+    if (stockSyncQueue.length > 0) {
+      void Promise.allSettled(
+        stockSyncQueue.map((item) => syncUpdateProductStock(item.id, item.stock, item.updatedAt))
+      );
     }
 
     if (saleLogs.length > 0) {
@@ -1005,6 +1013,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const cleanReason = reason.trim() || 'Pembatalan nota / retur barang oleh Administrator';
     const nowIso = new Date().toISOString();
     const voidLogs: StockLog[] = [];
+    const voidStockSyncQueue: Array<{ id: string; stock: number; updatedAt: string }> = [];
 
     const itemQtyByProduct = new Map<string, number>();
     for (const item of targetTrx.items) {
@@ -1031,6 +1040,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: nowIso,
           operator: user.email,
         });
+        voidStockSyncQueue.push({ id: p.id, stock: newStock, updatedAt: nowIso });
         return {
           ...p,
           stock: newStock,
@@ -1053,11 +1063,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setProducts(updatedProducts);
     saveStoredProducts(updatedProducts, user.ownerId);
-    for (const [prodId] of itemQtyByProduct) {
-      const changedProd = updatedProducts.find((p) => p.id === prodId);
-      if (changedProd) {
-        void syncUpdateProductStock(changedProd.id, changedProd.stock, changedProd.updatedAt);
-      }
+    if (voidStockSyncQueue.length > 0) {
+      void Promise.allSettled(
+        voidStockSyncQueue.map((item) => syncUpdateProductStock(item.id, item.stock, item.updatedAt))
+      );
     }
 
     if (voidLogs.length > 0) {

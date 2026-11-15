@@ -1,28 +1,41 @@
+const idNumberFormatter = new Intl.NumberFormat('id-ID');
+
+const idDateTimeFormatter = new Intl.DateTimeFormat('id-ID', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const idDateTimeSecondsFormatter = new Intl.DateTimeFormat('id-ID', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
 export function formatRupiah(amount: number): string {
   const safeAmount = Number.isFinite(amount) ? Math.round(amount) : 0;
-  return `Rp ${safeAmount.toLocaleString('id-ID')}`;
+  return `Rp ${idNumberFormatter.format(safeAmount)}`;
 }
 
 export function getLocalDateKey(dateInput: Date | string = new Date()): string {
   const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-  if (Number.isNaN(d.getTime())) return '';
+  const time = d.getTime();
+  if (Number.isNaN(time)) return '';
   const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${year}-${month < 10 ? `0${month}` : month}-${day < 10 ? `0${day}` : day}`;
 }
 
 export function formatDateTime(isoString: string, includeSeconds = false): string {
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(includeSeconds ? { second: '2-digit' } : {}),
-  });
+  return includeSeconds ? idDateTimeSecondsFormatter.format(d) : idDateTimeFormatter.format(d);
 }
 
 export function generateInvoiceNo(ownerId: string = ''): string {

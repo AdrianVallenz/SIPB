@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction } from '@/lib/types';
 import { formatRupiah, formatDateTime } from '@/lib/format';
@@ -11,14 +11,43 @@ export default function CashierHistory() {
   const { user, transactions } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<Transaction | null>(null);
 
-  const cashierTransactions = transactions.filter((t) => t.cashierEmail === user?.email);
-  const activeCashierTransactions = cashierTransactions.filter((t) => t.status !== 'VOIDED');
+  const {
+    cashierTransactions,
+    activeCount,
+    totalShiftSales,
+    cashSales,
+    nonCashSales,
+  } = useMemo(() => {
+    const email = user?.email;
+    const filtered: Array<Transaction & { totalQty: number }> = [];
+    let active = 0;
+    let totalSales = 0;
+    let cashTotal = 0;
 
-  const totalShiftSales = activeCashierTransactions.reduce((sum, t) => sum + t.total, 0);
-  const cashSales = activeCashierTransactions
-    .filter((t) => t.paymentMethod === 'Tunai')
-    .reduce((sum, t) => sum + t.total, 0);
-  const nonCashSales = totalShiftSales - cashSales;
+    for (const t of transactions) {
+      if (t.cashierEmail !== email) continue;
+      let totalQty = 0;
+      for (const item of t.items) {
+        totalQty += item.quantity;
+      }
+      filtered.push({ ...t, totalQty });
+      if (t.status !== 'VOIDED') {
+        active += 1;
+        totalSales += t.total;
+        if (t.paymentMethod === 'Tunai') {
+          cashTotal += t.total;
+        }
+      }
+    }
+
+    return {
+      cashierTransactions: filtered,
+      activeCount: active,
+      totalShiftSales: totalSales,
+      cashSales: cashTotal,
+      nonCashSales: totalSales - cashTotal,
+    };
+  }, [transactions, user?.email]);
 
   return (
     <div className="page-container">
@@ -45,9 +74,9 @@ export default function CashierHistory() {
             {formatRupiah(totalShiftSales)}
           </div>
           <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Dari {activeCashierTransactions.length} nota aktif
-            {cashierTransactions.length > activeCashierTransactions.length
-              ? ` (${cashierTransactions.length - activeCashierTransactions.length} void)`
+            Dari {activeCount} nota aktif
+            {cashierTransactions.length > activeCount
+              ? ` (${cashierTransactions.length - activeCount} void)`
               : ''}
           </div>
         </div>
@@ -117,7 +146,7 @@ export default function CashierHistory() {
                   </td>
                   <td>
                     <span style={{ fontSize: '12.5px' }}>
-                      {t.items.reduce((s, i) => s + i.quantity, 0)} pcs ({t.items.length} SKU)
+                      {t.totalQty} pcs ({t.items.length} SKU)
                     </span>
                   </td>
                   <td>
@@ -181,7 +210,7 @@ export default function CashierHistory() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: 'var(--text-secondary)' }}>
                   <span>{formatDateTime(t.createdAt, true)}</span>
                   <span>
-                    {t.items.reduce((s, i) => s + i.quantity, 0)} pcs ({t.items.length} SKU)
+                    {t.totalQty} pcs ({t.items.length} SKU)
                   </span>
                 </div>
 
