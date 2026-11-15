@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function AdminReports() {
@@ -84,6 +86,16 @@ export default function AdminReports() {
         averageTransaction: avg,
       };
     }, [transactions, dateFilter, methodFilter, searchQuery, todayKey]);
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedTransactions = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredTransactions.slice(start, start + pageSize);
+  }, [filteredTransactions, safePage, pageSize]);
 
   const handleExportCsv = () => {
     if (filteredTransactions.length === 0) return;
@@ -246,14 +258,20 @@ export default function AdminReports() {
               type="text"
               placeholder="Cari nomor nota, nama kasir, atau item barang..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="sip-input"
               style={{ paddingLeft: '36px', paddingRight: searchQuery ? '36px' : '13px' }}
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
                 aria-label="Hapus pencarian"
                 style={{
                   position: 'absolute',
@@ -280,7 +298,10 @@ export default function AdminReports() {
           <div>
             <select
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value as 'today' | '7days' | '30days' | 'all')}
+              onChange={(e) => {
+                setDateFilter(e.target.value as 'today' | '7days' | '30days' | 'all');
+                setCurrentPage(1);
+              }}
               className="sip-select"
             >
               <option value="all">Semua Periode Waktu</option>
@@ -293,7 +314,10 @@ export default function AdminReports() {
           <div>
             <select
               value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
+              onChange={(e) => {
+                setMethodFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="sip-select"
             >
               <option value="Semua">Semua Metode Bayar</option>
@@ -326,7 +350,7 @@ export default function AdminReports() {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((t) => {
+              {paginatedTransactions.map((t) => {
                 const isVoided = t.status === 'VOIDED';
                 return (
                   <tr key={t.id} style={{ opacity: isVoided ? 0.65 : 1 }}>
@@ -420,7 +444,7 @@ export default function AdminReports() {
 
       {/* Mobile Reports Card List */}
       <div className="mobile-card-list no-print">
-        {filteredTransactions.map((t) => {
+        {paginatedTransactions.map((t) => {
           const isVoided = t.status === 'VOIDED';
           return (
             <div key={t.id} className="mobile-data-card" style={{ opacity: isVoided ? 0.68 : 1 }}>
@@ -512,6 +536,93 @@ export default function AdminReports() {
           </div>
         )}
       </div>
+
+      {/* Pagination Bar */}
+      {filteredTransactions.length > 0 && (
+        <div
+          className="sip-card no-print"
+          style={{
+            padding: '12px 18px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+              Menampilkan{' '}
+              <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
+                {(safePage - 1) * pageSize + 1}&ndash;
+                {Math.min(safePage * pageSize, filteredTransactions.length)}
+              </strong>{' '}
+              dari{' '}
+              <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
+                {filteredTransactions.length}
+              </strong>{' '}
+              transaksi
+            </span>
+
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="sip-select font-mono"
+              style={{ width: 'auto', padding: '4px 28px 4px 10px', fontSize: '12px', minHeight: '32px' }}
+              aria-label="Jumlah transaksi per halaman"
+            >
+              {[5, 10, 20, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size} / halaman
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="btn btn-secondary btn-sm"
+              style={{ padding: '6px 10px', minHeight: '32px' }}
+            >
+              <ChevronLeft size={14} />
+              <span>Sebelumnya</span>
+            </button>
+
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+              .slice(0, 7)
+              .map((pageNum) => (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`btn btn-sm font-mono ${
+                    pageNum === safePage ? 'btn-primary' : 'btn-secondary'
+                  }`}
+                  style={{ minWidth: '32px', minHeight: '32px', padding: '0 8px' }}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="btn btn-secondary btn-sm"
+              style={{ padding: '6px 10px', minHeight: '32px' }}
+            >
+              <span>Berikutnya</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* VOID TRANSACTION CONFIRMATION MODAL */}
       {voidingTrx && (

@@ -439,6 +439,57 @@ export default function LoginView({
                 </>
               )}
             </button>
+
+            {authMode === 'login' && (
+              <div
+                style={{
+                  marginTop: '6px',
+                  paddingTop: '14px',
+                  borderTop: '1px solid var(--border-color)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    marginBottom: '8px',
+                    textAlign: 'center',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  AKUN DEMO CEPAT (ADMIN &amp; KASIR)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setEmail('admin@sipb.web.id');
+                      setPassword('admin123');
+                      setError('');
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11.5px', padding: '7px 10px' }}
+                  >
+                    <span>Isi Demo Admin</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setEmail('kasir@sipb.web.id');
+                      setPassword('kasir123');
+                      setError('');
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11.5px', padding: '7px 10px' }}
+                  >
+                    <span>Isi Demo Kasir</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
         </div>
 

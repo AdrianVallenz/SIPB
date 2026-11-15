@@ -41,6 +41,42 @@ const LEGACY_DEMO_IDS = new Set([
 ]);
 const LEGACY_DEMO_EMAILS = new Set(['admin@sip.com', 'user@sip.com']);
 
+export const hashPasswordSha256 = async (plainPassword: string): Promise<string> => {
+  if (!plainPassword) return '';
+  if (plainPassword.startsWith('sha256$')) return plainPassword;
+  try {
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const data = new TextEncoder().encode(`sip_salt_v1:${plainPassword}`);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      const hex = Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      return `sha256$${hex}`;
+    }
+  } catch {
+    // Fallback below if Web Crypto is unavailable
+  }
+  let hash = 2166136261;
+  const salted = `sip_salt_v1:${plainPassword}`;
+  for (let i = 0; i < salted.length; i++) {
+    hash ^= salted.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `sha256$${(hash >>> 0).toString(16).padStart(8, '0')}`;
+};
+
+export const verifyPasswordHash = async (
+  plainPassword: string,
+  storedHashOrPlain: string
+): Promise<boolean> => {
+  if (!plainPassword || !storedHashOrPlain) return false;
+  if (storedHashOrPlain.startsWith('sha256$')) {
+    const computed = await hashPasswordSha256(plainPassword);
+    return computed === storedHashOrPlain;
+  }
+  return storedHashOrPlain === plainPassword;
+};
+
 export const getStoredAccounts = (): RegisteredAccount[] => {
   if (typeof window === 'undefined') return [];
   try {

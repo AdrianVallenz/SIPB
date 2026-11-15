@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#090c10"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bgGrad)"/>
+
+  <!-- Top Header -->
+  <rect x="0" y="0" width="1200" height="60" fill="#0d1117" stroke="#21262d" stroke-width="1"/>
+  <rect x="20" y="14" width="32" height="32" rx="4" fill="rgba(16,185,129,0.14)" stroke="#10b981" stroke-width="1.5"/>
+  <text x="64" y="31" font-family="monospace, sans-serif" font-size="15" font-weight="800" fill="#f0f6fc">SIP <tspan fill="#10b981">BARANG</tspan></text>
+  <text x="64" y="46" font-family="sans-serif" font-size="11" fill="#8b949e">Dashboard • Toko Ritel Utama</text>
+
+  <rect x="740" y="14" width="190" height="32" rx="4" fill="#161b22" stroke="#21262d"/>
+  <circle cx="758" cy="30" r="4" fill="#10b981"/>
+  <text x="770" y="34" font-family="monospace" font-size="11" fill="#f0f6fc">Cloud Sync | Min, 15 Nov</text>
+
+  <rect x="945" y="14" width="230" height="32" rx="4" fill="#161b22" stroke="#21262d"/>
+  <text x="962" y="34" font-family="sans-serif" font-size="12" font-weight="700" fill="#f0f6fc">Admin Toko • Otorisasi Penuh</text>
+
+  <!-- Sidebar -->
+  <rect x="0" y="60" width="240" height="615" fill="#0d1117" stroke="#21262d" stroke-width="1"/>
+  <text x="24" y="95" font-family="monospace" font-size="10" font-weight="700" fill="#8b949e" letter-spacing="1.5">01 / NAVIGASI ADMIN</text>
+
+  <rect x="14" y="110" width="212" height="40" rx="4" fill="rgba(16,185,129,0.12)" stroke="rgba(16,185,129,0.35)"/>
+  <rect x="14" y="110" width="3" height="40" fill="#10b981"/>
+  <text x="36" y="135" font-family="sans-serif" font-size="13" font-weight="700" fill="#10b981">Ringkasan Utama</text>
+
+  <text x="36" y="180" font-family="sans-serif" font-size="13" fill="#8b949e">Inventaris &amp; Stok</text>
+  <text x="36" y="222" font-family="sans-serif" font-size="13" fill="#8b949e">Terminal Kasir (POS)</text>
+  <text x="36" y="264" font-family="sans-serif" font-size="13" fill="#8b949e">Laporan Transaksi</text>
+  <text x="36" y="306" font-family="sans-serif" font-size="13" fill="#8b949e">Pengaturan &amp; Kasir</text>
+
+  <!-- Main Content -->
+  <!-- Hero Banner -->
+  <rect x="270" y="84" width="900" height="130" rx="4" fill="#161b22" stroke="#21262d"/>
+  <rect x="294" y="102" width="150" height="22" rx="3" fill="#10b981"/>
+  <text x="306" y="117" font-family="monospace" font-size="10" font-weight="700" fill="#052e1c">PANEL KENDALI TOKO</text>
+  <text x="294" y="152" font-family="sans-serif" font-size="24" font-weight="800" fill="#f0f6fc">Selamat bertugas, Administrator</text>
+  <text x="294" y="176" font-family="sans-serif" font-size="12.5" fill="#8b949e">Pantau pemasukan uang, keuntungan bersih, ketersediaan barang, dan aktivitas kasir dalam satu tampilan.</text>
+
+  <!-- 4 KPI Strip -->
+  <rect x="270" y="232" width="216" height="110" rx="4" fill="#161b22" stroke="#21262d"/>
+  <rect x="270" y="232" width="216" height="3" fill="#10b981"/>
+  <text x="288" y="258" font-family="monospace" font-size="10" fill="#8b949e">01 / PEMASUKAN HARI INI</text>
+  <text x="288" y="294" font-family="monospace" font-size="22" font-weight="800" fill="#10b981">Rp 4.850.000</text>
+  <text x="288" y="320" font-family="sans-serif" font-size="11" fill="#8b949e">18 Nota • Rata-rata Rp 269.444</text>
+
+  <rect x="498" y="232" width="216" height="110" rx="4" fill="#161b22" stroke="#21262d"/>
+  <text x="516" y="258" font-family="monospace" font-size="10" fill="#8b949e">02 / TOTAL LABA BERSIH</text>
+  <text x="516" y="294" font-family="monospace" font-size="22" font-weight="800" fill="#3fb950">Rp 12.420.000</text>
+  <text x="516" y="320" font-family="sans-serif" font-size="11" fill="#8b949e">Margin +28% dari total omzet</text>
+
+  <rect x="726" y="232" width="216" height="110" rx="4" fill="#161b22" stroke="#21262d"/>
+  <text x="744" y="258" font-family="monospace" font-size="10" fill="#8b949e">03 / NILAI ASET STOK</text>
+  <text x="744" y="294" font-family="monospace" font-size="22" font-weight="800" fill="#f0f6fc">Rp 38.750.000</text>
+  <text x="744" y="320" font-family="sans-serif" font-size="11" fill="#8b949e">8 SKU • 154 unit tersedia</text>
+
+  <rect x="954" y="232" width="216" height="110" rx="4" fill="#161b22" stroke="#21262d"/>
+  <text x="972" y="258" font-family="monospace" font-size="10" fill="#8b949e">04 / PERINGATAN STOK</text>
+  <text x="972" y="294" font-family="monospace" font-size="22" font-weight="800" fill="#d29922">2 SKU Menipis</text>
+  <text x="972" y="320" font-family="sans-serif" font-size="11" fill="#8b949e">Kesehatan Gudang: 88%</text>
+
+  <!-- Revenue Bar Chart Card -->
+  <rect x="270" y="360" width="580" height="290" rx="4" fill="#161b22" stroke="#21262d"/>
+  <text x="294" y="392" font-family="monospace" font-size="10" fill="#10b981">GRAFIK PENJUALAN HARIAN</text>
+  <text x="294" y="414" font-family="sans-serif" font-size="16" font-weight="700" fill="#f0f6fc">Tren Omzet &amp; Keuntungan Bersih (7 Hari)</text>
+
+  <!-- Bars -->
+  <rect x="310" y="510" width="44" height="95" rx="4" fill="url(#emeraldGrad)" opacity="0.55"/>
+  <rect x="385" y="485" width="44" height="120" rx="4" fill="url(#emeraldGrad)" opacity="0.65"/>
+  <rect x="460" y="525" width="44" height="80" rx="4" fill="url(#emeraldGrad)" opacity="0.55"/>
+  <rect x="535" y="465" width="44" height="140" rx="4" fill="url(#emeraldGrad)" opacity="0.75"/>
+  <rect x="610" y="495" width="44" height="110" rx="4" fill="url(#emeraldGrad)" opacity="0.65"/>
+  <rect x="685" y="455" width="44" height="150" rx="4" fill="url(#emeraldGrad)" opacity="0.85"/>
+  <rect x="760" y="435" width="44" height="170" rx="4" fill="url(#emeraldGrad)"/>
+
+  <text x="320" y="625" font-family="monospace" font-size="10" fill="#8b949e">Sen</text>
+  <text x="395" y="625" font-family="monospace" font-size="10" fill="#8b949e">Sel</text>
+  <text x="470" y="625" font-family="monospace" font-size="10" fill="#8b949e">Rab</text>
+  <text x="545" y="625" font-family="monospace" font-size="10" fill="#8b949e">Kam</text>
+  <text x="620" y="625" font-family="monospace" font-size="10" fill="#8b949e">Jum</text>
+  <text x="695" y="625" font-family="monospace" font-size="10" fill="#8b949e">Sab</text>
+  <text x="765" y="625" font-family="monospace" font-size="10" font-weight="700" fill="#10b981">Hari Ini</text>
+
+  <!-- Right Side Category Card -->
+  <rect x="866" y="360" width="304" height="290" rx="4" fill="#161b22" stroke="#21262d"/>
+  <text x="888" y="392" font-family="monospace" font-size="10" fill="#10b981">ANALISIS KATEGORI</text>
+  <text x="888" y="414" font-family="sans-serif" font-size="15" font-weight="700" fill="#f0f6fc">Kontribusi Penjualan</text>
+
+  <text x="888" y="452" font-family="sans-serif" font-size="12" font-weight="600" fill="#f0f6fc">Elektronik</text>
+  <text x="1095" y="452" font-family="monospace" font-size="12" font-weight="700" fill="#10b981">52%</text>
+  <rect x="888" y="460" width="260" height="8" rx="4" fill="#0d1117"/>
+  <rect x="888" y="460" width="135" height="8" rx="4" fill="#10b981"/>
+
+  <text x="888" y="502" font-family="sans-serif" font-size="12" font-weight="600" fill="#f0f6fc">Sembako &amp; Pangan</text>
+  <text x="1095" y="502" font-family="monospace" font-size="12" font-weight="700" fill="#10b981">28%</text>
+  <rect x="888" y="510" width="260" height="8" rx="4" fill="#0d1117"/>
+  <rect x="888" y="510" width="73" height="8" rx="4" fill="#10b981"/>
+
+  <text x="888" y="552" font-family="sans-serif" font-size="12" font-weight="600" fill="#f0f6fc">Alat Tulis Kantor</text>
+  <text x="1095" y="552" font-family="monospace" font-size="12" font-weight="700" fill="#10b981">14%</text>
+  <rect x="888" y="560" width="260" height="8" rx="4" fill="#0d1117"/>
+  <rect x="888" y="560" width="38" height="8" rx="4" fill="#10b981"/>
+
+  <text x="888" y="602" font-family="sans-serif" font-size="12" font-weight="600" fill="#f0f6fc">Rumah Tangga</text>
+  <text x="1095" y="602" font-family="monospace" font-size="12" font-weight="700" fill="#10b981">6%</text>
+  <rect x="888" y="610" width="260" height="8" rx="4" fill="#0d1117"/>
+  <rect x="888" y="610" width="18" height="8" rx="4" fill="#10b981"/>
+</svg>

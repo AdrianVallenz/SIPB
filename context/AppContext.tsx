@@ -31,6 +31,7 @@ import {
   getStoredStockLogs,
   getStoredTheme,
   getStoredTransactions,
+  hashPasswordSha256,
   removeStoredAccount,
   saveStoredAccount,
   saveStoredCashiers,
@@ -41,6 +42,7 @@ import {
   saveStoredStockLogs,
   saveStoredTheme,
   saveStoredTransactions,
+  verifyPasswordHash,
 } from '@/lib/storage';
 import {
   createCashierCloud,
@@ -324,29 +326,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: true };
     }
 
-    // 3. Offline fallback ONLY when offline or for offline-created local accounts
-    if (authRes.offline) {
-      const customAcc = getStoredAccounts().find(
-        (a) => a.email.toLowerCase() === cleanEmail && a.password === pass
-      );
-      if (customAcc) {
-        if (customAcc.isActive === false) {
-          return {
-            success: false,
-            message: 'Akun kasir sedang dinonaktifkan oleh Administrator.',
-          };
-        }
-        const session: UserSession = {
-          id: customAcc.id,
-          ownerId: customAcc.ownerId,
-          email: customAcc.email.toLowerCase(),
-          name: customAcc.name,
-          role: customAcc.role,
-          loginAt: new Date().toISOString(),
-        };
-        activateSession(session);
-        return { success: true };
+    // 3. Built-in Demo Accounts (for evaluation / testing as documented in README.md)
+    const DEMO_OWNER_ID = 'demo-store-sip-barang';
+    if (
+      (cleanEmail === 'admin@sipb.web.id' && pass === 'admin123') ||
+      (cleanEmail === 'kasir@sipb.web.id' && pass === 'kasir123')
+    ) {
+      const isDemoAdmin = cleanEmail === 'admin@sipb.web.id';
+      const existingDemoProducts = getStoredProducts(DEMO_OWNER_ID);
+      if (existingDemoProducts.length === 0) {
+        const nowIso = new Date().toISOString();
+        const seeded: Product[] = INITIAL_PRODUCTS.map((p, idx) => ({
+          ...p,
+          id: `demo-prd-${idx + 1}`,
+          ownerId: DEMO_OWNER_ID,
+          updatedAt: nowIso,
+        }));
+        saveStoredProducts(seeded, DEMO_OWNER_ID);
       }
+      const existingDemoCashiers = getStoredCashiers(DEMO_OWNER_ID);
+      if (existingDemoCashiers.length === 0) {
+        saveStoredCashiers(
+          [
+            {
+              id: 'demo-cashier-01',
+              ownerId: DEMO_OWNER_ID,
+              email: 'kasir@sipb.web.id',
+              name: 'Budi Santoso (Kasir Demo)',
+              isActive: true,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          DEMO_OWNER_ID
+        );
+      }
+      const demoSession: UserSession = {
+        id: isDemoAdmin ? DEMO_OWNER_ID : 'demo-cashier-01',
+        ownerId: DEMO_OWNER_ID,
+        email: cleanEmail,
+        name: isDemoAdmin ? 'Administrator Toko Demo' : 'Budi Santoso (Kasir Demo)',
+        role: isDemoAdmin ? 'admin' : 'user',
+        loginAt: new Date().toISOString(),
+      };
+      activateSession(demoSession);
+      return { success: true };
+    }
+
+    // 4. Offline fallback ONLY when offline or for offline-created local accounts
+    const storedMatch = getStoredAccounts().find(
+      (a) => a.email.toLowerCase() === cleanEmail
+    );
+    if (storedMatch && (await verifyPasswordHash(pass, storedMatch.password))) {
+      if (storedMatch.isActive === false) {
+        return {
+          success: false,
+          message: 'Akun kasir sedang dinonaktifkan oleh Administrator.',
+        };
+      }
+      const session: UserSession = {
+        id: storedMatch.id,
+        ownerId: storedMatch.ownerId,
+        email: storedMatch.email.toLowerCase(),
+        name: storedMatch.name,
+        role: storedMatch.role,
+        loginAt: new Date().toISOString(),
+      };
+      activateSession(session);
+      return { success: true };
     }
 
     const nextAttempts = failedAttempts + 1;
@@ -414,12 +460,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         : `adm-${Date.now().toString(36)}`;
     const nowIso = new Date().toISOString();
 
+    const hashedPassword = await hashPasswordSha256(pass);
+
     saveStoredAccount({
       id: newId,
       ownerId: newId,
       email: cleanEmail,
       name: cleanName,
-      password: pass,
+      password: hashedPassword,
       role: 'admin',
       isActive: true,
       createdAt: nowIso,
@@ -515,12 +563,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       createdAt: nowIso,
     };
 
+    const hashedPassword = await hashPasswordSha256(password);
+
     saveStoredAccount({
       id,
       ownerId: user.ownerId,
       email: cleanEmail,
       name: cleanName,
-      password,
+      password: hashedPassword,
       role: 'user',
       isActive: true,
       createdAt: nowIso,
@@ -587,10 +637,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const localAcc = getStoredAccounts().find((a) => a.id === cashierId);
     if (localAcc) {
+      const nextHashedPass = cleanPass
+        ? await hashPasswordSha256(cleanPass)
+        : localAcc.password;
       saveStoredAccount({
         ...localAcc,
         name: cleanName || localAcc.name,
-        password: cleanPass || localAcc.password,
+        password: nextHashedPass,
       });
     }
     return { success: true };

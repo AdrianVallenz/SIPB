@@ -23,6 +23,8 @@ import {
   Boxes,
   Sparkles,
   Tag,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function AdminProducts() {
@@ -103,6 +105,26 @@ export default function AdminProducts() {
       return matchesSearch && matchesCategory && matchesStatus;
     });
   }, [products, searchQuery, categoryFilter, stockStatusFilter]);
+
+  // Pagination state (Catalog & Logs)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [logPage, setLogPage] = useState<number>(1);
+  const [logPageSize, setLogPageSize] = useState<number>(8);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedProducts = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, safePage, pageSize]);
+
+  const totalLogPages = Math.max(1, Math.ceil(stockLogs.length / logPageSize));
+  const safeLogPage = Math.min(logPage, totalLogPages);
+  const paginatedLogs = useMemo(() => {
+    const start = (safeLogPage - 1) * logPageSize;
+    return stockLogs.slice(start, start + logPageSize);
+  }, [stockLogs, safeLogPage, logPageSize]);
 
   const handleOpenAdd = () => {
     const randomSku = 'PRD-' + Math.floor(100 + Math.random() * 900);
@@ -350,14 +372,20 @@ export default function AdminProducts() {
                   type="text"
                   placeholder="Cari kode SKU atau nama barang..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="sip-input"
                   style={{ paddingLeft: '36px', paddingRight: searchQuery ? '36px' : '13px' }}
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => {
+                      setSearchQuery('');
+                      setCurrentPage(1);
+                    }}
                     aria-label="Hapus pencarian"
                     style={{
                       position: 'absolute',
@@ -384,7 +412,10 @@ export default function AdminProducts() {
               <div>
                 <select
                   value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="sip-select"
                 >
                   <option value="Semua">Semua Kategori</option>
@@ -399,7 +430,10 @@ export default function AdminProducts() {
               <div>
                 <select
                   value={stockStatusFilter}
-                  onChange={(e) => setStockStatusFilter(e.target.value as 'Semua' | 'Aman' | 'Menipis' | 'Habis')}
+                  onChange={(e) => {
+                    setStockStatusFilter(e.target.value as 'Semua' | 'Aman' | 'Menipis' | 'Habis');
+                    setCurrentPage(1);
+                  }}
                   className="sip-select"
                 >
                   <option value="Semua">Semua Status Stok</option>
@@ -429,7 +463,7 @@ export default function AdminProducts() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((p) => {
+                  {paginatedProducts.map((p) => {
                     const margin = calcMarginPct(p.sellPrice, p.buyPrice);
                     const isOutOfStock = p.stock === 0;
                     const isLowStock = p.stock > 0 && p.stock <= p.minStock;
@@ -575,7 +609,7 @@ export default function AdminProducts() {
 
           {/* Mobile Products Card List */}
           <div className="mobile-card-list">
-            {filteredProducts.map((p) => {
+            {paginatedProducts.map((p) => {
               const margin = calcMarginPct(p.sellPrice, p.buyPrice);
               const isOutOfStock = p.stock === 0;
               const isLowStock = p.stock > 0 && p.stock <= p.minStock;
@@ -708,6 +742,91 @@ export default function AdminProducts() {
               </div>
             )}
           </div>
+
+          {/* Catalog Pagination Bar */}
+          {filteredProducts.length > 0 && (
+            <div
+              className="sip-card"
+              style={{
+                padding: '12px 18px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                  Menampilkan{' '}
+                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
+                    {(safePage - 1) * pageSize + 1}&ndash;
+                    {Math.min(safePage * pageSize, filteredProducts.length)}
+                  </strong>{' '}
+                  dari{' '}
+                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
+                    {filteredProducts.length}
+                  </strong>{' '}
+                  produk
+                </span>
+
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="sip-select font-mono"
+                  style={{ width: 'auto', padding: '4px 28px 4px 10px', fontSize: '12px', minHeight: '32px' }}
+                  aria-label="Jumlah baris per halaman"
+                >
+                  {[5, 10, 20, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size} / halaman
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 10px', minHeight: '32px' }}
+                >
+                  <ChevronLeft size={14} />
+                  <span>Sebelumnya</span>
+                </button>
+
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`btn btn-sm font-mono ${
+                      pageNum === safePage ? 'btn-primary' : 'btn-secondary'
+                    }`}
+                    style={{ minWidth: '32px', minHeight: '32px', padding: '0 8px' }}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 10px', minHeight: '32px' }}
+                >
+                  <span>Berikutnya</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         /* Stock Mutation Logs View */
@@ -732,7 +851,7 @@ export default function AdminProducts() {
                 </tr>
               </thead>
               <tbody>
-                {stockLogs.map((log) => (
+                {paginatedLogs.map((log) => (
                   <tr key={log.id}>
                     <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                       {formatDateTime(log.createdAt)}
@@ -781,7 +900,7 @@ export default function AdminProducts() {
           </div>
 
           <div className="mobile-card-list" style={{ padding: '14px' }}>
-            {stockLogs.map((log) => (
+            {paginatedLogs.map((log) => (
               <div key={log.id} className="mobile-data-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontWeight: 700, fontSize: '13.5px' }}>{log.productName}</span>
@@ -812,6 +931,89 @@ export default function AdminProducts() {
               </div>
             )}
           </div>
+
+          {stockLogs.length > 0 && (
+            <div
+              style={{
+                padding: '12px 18px',
+                borderTop: '1px solid var(--border-color)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                  Menampilkan{' '}
+                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
+                    {(safeLogPage - 1) * logPageSize + 1}&ndash;
+                    {Math.min(safeLogPage * logPageSize, stockLogs.length)}
+                  </strong>{' '}
+                  dari{' '}
+                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
+                    {stockLogs.length}
+                  </strong>{' '}
+                  log mutasi
+                </span>
+                <select
+                  value={logPageSize}
+                  onChange={(e) => {
+                    setLogPageSize(Number(e.target.value));
+                    setLogPage(1);
+                  }}
+                  className="sip-select font-mono"
+                  style={{ width: 'auto', padding: '4px 28px 4px 10px', fontSize: '12px', minHeight: '32px' }}
+                  aria-label="Jumlah log per halaman"
+                >
+                  {[5, 8, 20, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size} / halaman
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  disabled={safeLogPage <= 1}
+                  onClick={() => setLogPage((p) => Math.max(1, p - 1))}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 10px', minHeight: '32px' }}
+                >
+                  <ChevronLeft size={14} />
+                  <span>Sebelumnya</span>
+                </button>
+                {Array.from({ length: totalLogPages }, (_, idx) => idx + 1)
+                  .slice(0, 7)
+                  .map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setLogPage(pageNum)}
+                      className={`btn btn-sm font-mono ${
+                        pageNum === safeLogPage ? 'btn-primary' : 'btn-secondary'
+                      }`}
+                      style={{ minWidth: '32px', minHeight: '32px', padding: '0 8px' }}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                <button
+                  type="button"
+                  disabled={safeLogPage >= totalLogPages}
+                  onClick={() => setLogPage((p) => Math.min(totalLogPages, p + 1))}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 10px', minHeight: '32px' }}
+                >
+                  <span>Berikutnya</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
