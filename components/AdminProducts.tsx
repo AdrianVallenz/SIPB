@@ -16,10 +16,22 @@ import {
   ClipboardList,
   Boxes,
   Sparkles,
+  Tag,
 } from 'lucide-react';
 
 export default function AdminProducts() {
-  const { products, stockLogs, addProduct, updateProduct, deleteProduct, adjustStock, loadSampleCatalog } = useApp();
+  const {
+    products,
+    categories,
+    addCategory,
+    deleteCategory,
+    stockLogs,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    adjustStock,
+    loadSampleCatalog,
+  } = useApp();
   const [isImportingSample, setIsImportingSample] = useState(false);
 
   const [viewMode, setViewMode] = useState<'catalog' | 'logs'>('catalog');
@@ -36,6 +48,13 @@ export default function AdminProducts() {
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [modalError, setModalError] = useState<string>('');
+
+  // Category Management state
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryError, setCategoryError] = useState('');
+  const [isInlineAddingCategory, setIsInlineAddingCategory] = useState(false);
+  const [inlineCategoryName, setInlineCategoryName] = useState('');
 
   // Form state for Add/Edit
   const [formData, setFormData] = useState({
@@ -82,10 +101,12 @@ export default function AdminProducts() {
   const handleOpenAdd = () => {
     const randomSku = 'PRD-' + Math.floor(100 + Math.random() * 900);
     setModalError('');
+    setIsInlineAddingCategory(false);
+    setInlineCategoryName('');
     setFormData({
       sku: randomSku,
       name: '',
-      category: 'Elektronik',
+      category: categories[0] || 'Elektronik',
       buyPrice: 10000,
       sellPrice: 15000,
       stock: 10,
@@ -98,6 +119,8 @@ export default function AdminProducts() {
 
   const handleOpenEdit = (p: Product) => {
     setModalError('');
+    setIsInlineAddingCategory(false);
+    setInlineCategoryName('');
     setEditingProduct(p);
     setFormData({
       sku: p.sku,
@@ -110,6 +133,32 @@ export default function AdminProducts() {
       unit: p.unit,
       description: p.description || '',
     });
+  };
+
+  const handleAddCategoryModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCategoryError('');
+    const createdName = newCategoryName.trim();
+    const res = addCategory(createdName);
+    if (!res.success) {
+      setCategoryError(res.error || 'Gagal menambahkan kategori.');
+      return;
+    }
+    setNewCategoryName('');
+    showFeedback(`Kategori "${createdName}" berhasil ditambahkan.`);
+  };
+
+  const handleSaveInlineCategory = () => {
+    setModalError('');
+    const created = inlineCategoryName.trim();
+    const res = addCategory(created);
+    if (!res.success) {
+      setModalError(res.error || 'Gagal menambahkan kategori baru.');
+      return;
+    }
+    setFormData((prev) => ({ ...prev, category: created }));
+    setInlineCategoryName('');
+    setIsInlineAddingCategory(false);
   };
 
   const handleSaveAdd = (e: React.FormEvent) => {
@@ -228,6 +277,20 @@ export default function AdminProducts() {
             </button>
           </div>
 
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryError('');
+              setNewCategoryName('');
+              setIsCategoryModalOpen(true);
+            }}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '8px 14px' }}
+          >
+            <Tag size={14} />
+            <span>Kelola Kategori ({categories.length})</span>
+          </button>
+
           <button onClick={handleOpenAdd} className="btn btn-primary btn-sm" style={{ padding: '8px 14px' }}>
             <Plus size={15} />
             <span>Tambah Produk</span>
@@ -319,7 +382,7 @@ export default function AdminProducts() {
                   className="sip-select"
                 >
                   <option value="Semua">Semua Kategori</option>
-                  {PRODUCT_CATEGORIES.map((c) => (
+                  {categories.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
@@ -804,18 +867,80 @@ export default function AdminProducts() {
 
               <div className="form-grid-2">
                 <div>
-                  <label className="form-label">Kategori</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory })}
-                    className="sip-select"
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '6px',
+                    }}
                   >
-                    {PRODUCT_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    <label className="form-label" style={{ marginBottom: 0 }}>
+                      Kategori
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsInlineAddingCategory((prev) => !prev);
+                        setInlineCategoryName('');
+                        setModalError('');
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--accent-cyan)',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>{isInlineAddingCategory ? 'Pilih yang ada' : 'Kategori Baru'}</span>
+                    </button>
+                  </div>
+
+                  {isInlineAddingCategory ? (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input
+                        type="text"
+                        value={inlineCategoryName}
+                        onChange={(e) => setInlineCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveInlineCategory();
+                          }
+                        }}
+                        className="sip-input"
+                        placeholder="Ketik nama kategori..."
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveInlineCategory}
+                        className="btn btn-primary btn-sm"
+                        style={{ flexShrink: 0, padding: '0 12px' }}
+                      >
+                        Tambah
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory })}
+                      className="sip-select"
+                    >
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -1099,6 +1224,184 @@ export default function AdminProducts() {
                 style={{ flex: 1 }}
               >
                 Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CATEGORY MANAGEMENT MODAL */}
+      {isCategoryModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content modal-sheet" style={{ maxWidth: '480px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '14px',
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: '17px', fontWeight: 700 }}>Kelola Kategori Barang</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Tambahkan kategori baru untuk mengelompokkan katalog &amp; filter di Kasir POS.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="btn btn-secondary btn-icon"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {categoryError && (
+              <div className="alert-box" style={{ marginBottom: '14px' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{categoryError}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={handleAddCategoryModal}
+              style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}
+            >
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="sip-input"
+                placeholder="Nama kategori baru (contoh: Kosmetik, Pakaian, Obat)..."
+                maxLength={40}
+              />
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ flexShrink: 0, padding: '0 16px' }}
+              >
+                <Plus size={15} />
+                <span>Tambah</span>
+              </button>
+            </form>
+
+            <div
+              style={{
+                maxHeight: '300px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                paddingRight: '2px',
+              }}
+            >
+              {categories.map((cat) => {
+                const count = products.filter(
+                  (p) => p.category.toLowerCase() === cat.toLowerCase()
+                ).length;
+                const isBuiltIn = PRODUCT_CATEGORIES.some(
+                  (base) => base.toLowerCase() === cat.toLowerCase()
+                );
+
+                return (
+                  <div
+                    key={cat}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <Tag size={14} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          fontSize: '13.5px',
+                          color: 'var(--text-primary)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {cat}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '10.5px',
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          backgroundColor: isBuiltIn ? 'var(--bg-card)' : 'var(--accent-green-bg)',
+                          color: isBuiltIn ? 'var(--text-muted)' : 'var(--accent-green-text)',
+                          border: '1px solid var(--border-color)',
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isBuiltIn ? 'Bawaan' : 'Kustom'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <span
+                        className="font-mono"
+                        style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
+                      >
+                        {count} produk
+                      </span>
+
+                      {!isBuiltIn && (
+                        <button
+                          type="button"
+                          disabled={count > 0}
+                          title={
+                            count > 0
+                              ? 'Pindahkan atau hapus produk di kategori ini terlebih dahulu'
+                              : `Hapus kategori ${cat}`
+                          }
+                          onClick={() => {
+                            setCategoryError('');
+                            const res = deleteCategory(cat);
+                            if (!res.success) {
+                              setCategoryError(res.error || 'Gagal menghapus kategori.');
+                              return;
+                            }
+                            if (categoryFilter === cat) {
+                              setCategoryFilter('Semua');
+                            }
+                            showFeedback(`Kategori "${cat}" telah dihapus.`);
+                          }}
+                          className="btn btn-secondary btn-icon"
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            opacity: count > 0 ? 0.4 : 1,
+                            cursor: count > 0 ? 'not-allowed' : 'pointer',
+                            color: count > 0 ? 'var(--text-muted)' : 'var(--accent-red)',
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="btn btn-secondary"
+              >
+                Selesai
               </button>
             </div>
           </div>

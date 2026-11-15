@@ -14,6 +14,7 @@ import {
   CashierAccount,
   PaymentMethod,
   Product,
+  PRODUCT_CATEGORIES,
   StockLog,
   StorePaymentSettings,
   Transaction,
@@ -23,6 +24,7 @@ import {
   getDefaultStorePaymentSettings,
   getStoredAccounts,
   getStoredCashiers,
+  getStoredCustomCategories,
   getStoredPaymentSettings,
   getStoredProducts,
   getStoredSession,
@@ -32,6 +34,7 @@ import {
   removeStoredAccount,
   saveStoredAccount,
   saveStoredCashiers,
+  saveStoredCustomCategories,
   saveStoredPaymentSettings,
   saveStoredProducts,
   saveStoredSession,
@@ -78,6 +81,10 @@ interface AppContextType {
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   products: Product[];
+  categories: string[];
+  customCategories: string[];
+  addCategory: (name: string) => ActionResult;
+  deleteCategory: (name: string) => ActionResult;
   transactions: Transaction[];
   stockLogs: StockLog[];
   cashiers: CashierAccount[];
@@ -123,6 +130,7 @@ const ADMIN_TABS = new Set(['dashboard', 'products', 'reports', 'pos', 'settings
 const USER_TABS = new Set(['pos', 'my-transactions']);
 const emptySubscribe = () => () => {};
 const SSR_EMPTY_PRODUCTS: Product[] = [];
+const SSR_EMPTY_CUSTOM_CATEGORIES: string[] = [];
 const SSR_EMPTY_TRANSACTIONS: Transaction[] = [];
 const SSR_EMPTY_STOCK_LOGS: StockLog[] = [];
 const SSR_EMPTY_CASHIERS: CashierAccount[] = [];
@@ -189,6 +197,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [paymentSettings, setPaymentSettings] = useState<StorePaymentSettings>(() =>
     getStoredPaymentSettings(user?.ownerId || '')
   );
+  const [customCategories, setCustomCategories] = useState<string[]>(() =>
+    getStoredCustomCategories(user?.ownerId || '')
+  );
   const [activeTab, setActiveTabState] = useState<string>(() =>
     readStoredActiveTab(user)
   );
@@ -206,6 +217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStockLogs(getStoredStockLogs(ownerId));
     setCashiers(getStoredCashiers(ownerId));
     setPaymentSettings(getStoredPaymentSettings(ownerId));
+    setCustomCategories(getStoredCustomCategories(ownerId));
   };
 
   useEffect(() => {
@@ -1111,6 +1123,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
+  const categories = useMemo<string[]>(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    const pushUnique = (cat: string) => {
+      const trimmed = cat.trim();
+      if (!trimmed) return;
+      const lower = trimmed.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        result.push(trimmed);
+      }
+    };
+    for (const c of PRODUCT_CATEGORIES) pushUnique(c);
+    for (const c of customCategories) pushUnique(c);
+    for (const p of products) {
+      if (p.category) pushUnique(p.category);
+    }
+    return result;
+  }, [customCategories, products]);
+
+  const addCategory = (rawName: string): ActionResult => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const cleanName = rawName.trim().replace(/\s+/g, ' ');
+    if (cleanName.length < 2) {
+      return { success: false, error: 'Nama kategori minimal 2 karakter.' };
+    }
+    if (cleanName.length > 40) {
+      return { success: false, error: 'Nama kategori maksimal 40 karakter.' };
+    }
+    if (categories.some((c) => c.toLowerCase() === cleanName.toLowerCase())) {
+      return { success: false, error: `Kategori "${cleanName}" sudah ada.` };
+    }
+
+    const updated = [...customCategories, cleanName];
+    setCustomCategories(updated);
+    saveStoredCustomCategories(updated, user.ownerId);
+    return { success: true };
+  };
+
+  const deleteCategory = (targetName: string): ActionResult => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const lower = targetName.trim().toLowerCase();
+    if (PRODUCT_CATEGORIES.some((c) => c.toLowerCase() === lower)) {
+      return { success: false, error: 'Kategori bawaan toko tidak dapat dihapus.' };
+    }
+
+    const usedCount = products.filter((p) => p.category.toLowerCase() === lower).length;
+    if (usedCount > 0) {
+      return {
+        success: false,
+        error: `Kategori ini masih dipakai oleh ${usedCount} produk. Ubah kategori produk tersebut terlebih dahulu.`,
+      };
+    }
+
+    const updated = customCategories.filter((c) => c.toLowerCase() !== lower);
+    setCustomCategories(updated);
+    saveStoredCustomCategories(updated, user.ownerId);
+    return { success: true };
+  };
+
   // Sinkronkan ref aksi setelah commit agar value Provider stabil di memo tanpa stale closure
   const actionsRef = useRef({
     toggleTheme,
@@ -1123,6 +1199,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateCashier,
     deleteCashier,
     loadSampleCatalog,
+    addCategory,
+    deleteCategory,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -1144,6 +1222,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateCashier,
       deleteCashier,
       loadSampleCatalog,
+      addCategory,
+      deleteCategory,
       addProduct,
       updateProduct,
       deleteProduct,
@@ -1185,6 +1265,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     []
   );
   const stableLoadSampleCatalog = useCallback(() => actionsRef.current.loadSampleCatalog(), []);
+  const stableAddCategory = useCallback(
+    (name: string) => actionsRef.current.addCategory(name),
+    []
+  );
+  const stableDeleteCategory = useCallback(
+    (name: string) => actionsRef.current.deleteCategory(name),
+    []
+  );
   const stableAddProduct = useCallback(
     (product: Omit<Product, 'id' | 'updatedAt'>) => actionsRef.current.addProduct(product),
     []
@@ -1236,6 +1324,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       theme: isInitialized ? theme : 'dark',
       toggleTheme: stableToggleTheme,
       products: isInitialized ? products : SSR_EMPTY_PRODUCTS,
+      categories: isInitialized ? categories : PRODUCT_CATEGORIES,
+      customCategories: isInitialized ? customCategories : SSR_EMPTY_CUSTOM_CATEGORIES,
+      addCategory: stableAddCategory,
+      deleteCategory: stableDeleteCategory,
       transactions: isInitialized ? transactions : SSR_EMPTY_TRANSACTIONS,
       stockLogs: isInitialized ? stockLogs : SSR_EMPTY_STOCK_LOGS,
       cashiers: isInitialized ? cashiers : SSR_EMPTY_CASHIERS,
@@ -1264,12 +1356,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isCloudConnected,
       theme,
       products,
+      categories,
+      customCategories,
       transactions,
       stockLogs,
       cashiers,
       paymentSettings,
       activeTab,
       stableToggleTheme,
+      stableAddCategory,
+      stableDeleteCategory,
       stableUpdatePaymentSettings,
       stableSetActiveTab,
       stableLogin,

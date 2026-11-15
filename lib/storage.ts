@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   STOCK_LOGS: 'sip_stock_logs_v2',
   CASHIERS: 'sip_cashiers_v2',
   PAYMENT_SETTINGS: 'sip_payment_settings_v1',
+  CUSTOM_CATEGORIES: 'sip_custom_categories_v1',
   SESSION: 'sip_session_v2',
   THEME: 'sip_theme_v1',
   ACCOUNTS: 'sip_registered_accounts_v2',
@@ -392,5 +393,35 @@ export const saveStoredPaymentSettings = (
     );
   } catch (err) {
     console.error('Failed to save store payment settings to storage', err);
+  }
+};
+
+export const getStoredCustomCategories = (ownerId: string = ''): string[] => {
+  if (!ownerId || typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(tenantKey(STORAGE_KEYS.CUSTOM_CATEGORIES, ownerId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
+      .map((c) => c.trim());
+  } catch {
+    return [];
+  }
+};
+
+export const saveStoredCustomCategories = (
+  categories: string[],
+  ownerId: string = ''
+): void => {
+  if (!ownerId || typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(
+      tenantKey(STORAGE_KEYS.CUSTOM_CATEGORIES, ownerId),
+      JSON.stringify(categories)
+    );
+  } catch (err) {
+    console.error('Failed to save custom categories to storage', err);
   }
 };

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
-import { Transaction, PaymentMethod, PRODUCT_CATEGORIES, ProductCategory } from '@/lib/types';
+import { Transaction, PaymentMethod, ProductCategory } from '@/lib/types';
 import { formatRupiah, getLocalDateKey, formatDateTime } from '@/lib/format';
 import ReceiptModal from './ReceiptModal';
 import {
@@ -47,8 +47,16 @@ function formatShortAmount(val: number): string {
 }
 
 export default function AdminDashboard() {
-  const { user, isCloudConnected, products, transactions, stockLogs, cashiers, setActiveTab } =
-    useApp();
+  const {
+    user,
+    isCloudConnected,
+    products,
+    categories,
+    transactions,
+    stockLogs,
+    cashiers,
+    setActiveTab,
+  } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<Transaction | null>(null);
   const [chartRange, setChartRange] = useState<7 | 14>(7);
   const [chartMetric, setChartMetric] = useState<'both' | 'revenue' | 'profit'>('both');
@@ -101,7 +109,7 @@ export default function AdminDashboard() {
     const critical: typeof products = [];
     const outOfStock: typeof products = [];
     const stockByCat = new Map<ProductCategory, { skuCount: number; stockUnits: number }>(
-      PRODUCT_CATEGORIES.map((c) => [c, { skuCount: 0, stockUnits: 0 }])
+      categories.map((c) => [c, { skuCount: 0, stockUnits: 0 }])
     );
 
     // Single O(P) pass: build lookup map + compute inventory valuation & category stock
@@ -135,7 +143,7 @@ export default function AdminDashboard() {
       ['Kartu Debit', { count: 0, total: 0 }],
     ]);
     const revByCategory = new Map<ProductCategory, { revenue: number; unitsSold: number }>(
-      PRODUCT_CATEGORIES.map((c) => [c, { revenue: 0, unitsSold: 0 }])
+      categories.map((c) => [c, { revenue: 0, unitsSold: 0 }])
     );
 
     let revToday = 0;
@@ -251,7 +259,7 @@ export default function AdminDashboard() {
       .filter((p) => p.method !== 'Tunai')
       .reduce((s, p) => s + p.total, 0);
 
-    const catList = PRODUCT_CATEGORIES.map((category) => {
+    const catList = categories.map((category) => {
       const sales = revByCategory.get(category) || { revenue: 0, unitsSold: 0 };
       const inv = stockByCat.get(category) || { skuCount: 0, stockUnits: 0 };
       return {
@@ -300,7 +308,7 @@ export default function AdminDashboard() {
       digitalSharePct: revTotal > 0 ? Math.round((digitalTotal / revTotal) * 100) : 0,
       activeCashiersCount: cashiers.reduce((acc, c) => acc + (c.isActive ? 1 : 0), 0),
     };
-  }, [products, transactions, cashiers, chartRange]);
+  }, [products, categories, transactions, cashiers, chartRange]);
 
   const maxChartVal = useMemo(
     () =>

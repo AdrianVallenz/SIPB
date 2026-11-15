@@ -18,12 +18,7 @@ export interface CashierAccount {
   createdAt: string;
 }
 
-export type ProductCategory =
-  | 'Elektronik'
-  | 'Sembako & Pangan'
-  | 'Minuman & Snack'
-  | 'Alat Tulis Kantor'
-  | 'Kebutuhan Rumah';
+export type ProductCategory = string;
 
 export const PRODUCT_CATEGORIES: ProductCategory[] = [
   'Elektronik',

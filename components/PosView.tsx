@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
-import { Product, PRODUCT_CATEGORIES, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
+import { Product, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
 import { formatRupiah, generateInvoiceNo } from '@/lib/format';
 import { buildDynamicQrisPayload, parseAndValidateQris } from '@/lib/qris';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
@@ -36,7 +36,7 @@ interface CartItemState {
 }
 
 export default function PosView() {
-  const { user, products, paymentSettings, processSale } = useApp();
+  const { user, products, categories: storeCategories, paymentSettings, processSale } = useApp();
   const { runtime, settings, isConnected, printTransaction } = useBluetoothPrinter();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,7 +64,7 @@ export default function PosView() {
     text: string;
   } | null>(null);
 
-  const categories = ['Semua', ...PRODUCT_CATEGORIES];
+  const categories = useMemo(() => ['Semua', ...storeCategories], [storeCategories]);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
