@@ -176,70 +176,56 @@ export function parseAndValidateQris(rawInput: string): ParsedQrisInfo {
 
 /**
  * Converts a static merchant QRIS payload into a dynamic EMVCo QRIS payload
- * with exact transaction amount injected into Tag 54, optional invoice/bill number
- * injected into Tag 62 Subtag 01, and recomputed CRC-16 Tag 63.
+ * with exact transaction amount injected into Tag 54 and recomputed CRC-16 Tag 63.
+ * Preserves Tag 62 (merchant terminal ID, e.g., 0703A01) untouched so all Indonesian
+ * banking & e-wallet issuers (GoPay, BCA, Mandiri, BRI, DANA, OVO, ShopeePay) accept it.
  */
 export function buildDynamicQrisPayload(
   basePayload: string,
   amount: number,
   includeAmount: boolean = true,
-  billNumber?: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _billNumber?: string
 ): string {
   const cleaned = basePayload.trim().replace(/[\r\n]+/g, '');
   const fields = parseTlv(cleaned);
   if (!fields) return cleaned;
 
   const withoutCrc = fields.filter((f) => f.tag !== '63');
-  const cleanBill = (billNumber || '')
-    .trim()
-    .replace(/[^A-Za-z0-9\-]/g, '')
-    .slice(0, 25);
 
-  if (!includeAmount && !cleanBill) {
-    const rawNoCrc = encodeTlv(withoutCrc) + '6304';
+  if (!includeAmount || !(amount > 0)) {
+    const staticFields = withoutCrc
+      .filter((f) => f.tag !== '54')
+      .map((f) => (f.tag === '01' ? { tag: '01', value: '11' } : f));
+    const rawNoCrc = encodeTlv(staticFields) + '6304';
     return `${rawNoCrc}${computeCrc16Ccitt(rawNoCrc)}`;
   }
 
-  const normalizedAmount =
-    includeAmount && amount > 0 ? String(Math.max(1, Math.round(amount))) : '';
+  const normalizedAmount = String(Math.max(1, Math.round(amount)));
   const updated: TlvField[] = [];
-  let insertedAmount = !normalizedAmount;
-  let updatedTag62 = !cleanBill;
+  let insertedAmount = false;
 
   for (const field of withoutCrc) {
     if (field.tag === '01') {
-      updated.push({ tag: '01', value: normalizedAmount ? '12' : field.value });
+      updated.push({ tag: '01', value: '12' });
       continue;
     }
     if (field.tag === '54') {
-      if (normalizedAmount && !insertedAmount) {
+      if (!insertedAmount) {
         updated.push({ tag: '54', value: normalizedAmount });
         insertedAmount = true;
       }
       continue;
     }
-    if (normalizedAmount && !insertedAmount && parseInt(field.tag, 10) > 54) {
+    if (!insertedAmount && parseInt(field.tag, 10) > 54) {
       updated.push({ tag: '54', value: normalizedAmount });
       insertedAmount = true;
-    }
-    if (field.tag === '62' && cleanBill) {
-      const existingSub = parseTlv(field.value) || [];
-      const mergedSub = [
-        { tag: '01', value: cleanBill },
-        ...existingSub.filter((s) => s.tag !== '01'),
-      ];
-      updated.push({ tag: '62', value: encodeTlv(mergedSub) });
-      updatedTag62 = true;
-      continue;
     }
     updated.push(field);
   }
 
-  if (normalizedAmount && !insertedAmount) {
+  if (!insertedAmount) {
     updated.push({ tag: '54', value: normalizedAmount });
-  }
-  if (cleanBill && !updatedTag62) {
-    updated.push({ tag: '62', value: encodeTlv([{ tag: '01', value: cleanBill }]) });
   }
 
   const bodyWithCrcPrefix = encodeTlv(updated) + '6304';

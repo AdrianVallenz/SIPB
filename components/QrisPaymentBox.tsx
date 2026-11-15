@@ -203,12 +203,12 @@ export default function QrisPaymentBox({
     <>
       <div
         style={{
-          padding: '14px',
+          padding: '10px 12px',
           borderRadius: 'var(--radius-md)',
           backgroundColor: 'var(--bg-subtle)',
           border: '1px solid var(--border-color)',
           textAlign: 'center',
-          marginBottom: '16px',
+          marginBottom: '8px',
         }}
       >
         {hasDynamicQr && (
@@ -217,7 +217,7 @@ export default function QrisPaymentBox({
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               gap: '6px',
-              marginBottom: '12px',
+              marginBottom: '8px',
               padding: '3px',
               borderRadius: 'var(--radius-md)',
               backgroundColor: 'var(--bg-card)',
@@ -228,26 +228,26 @@ export default function QrisPaymentBox({
               type="button"
               onClick={() => setUseDynamicAmount(true)}
               style={{
-                padding: '6px 8px',
+                padding: '5px 8px',
                 borderRadius: '6px',
                 border: 'none',
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 700,
                 cursor: 'pointer',
                 backgroundColor: useDynamicAmount ? 'var(--accent-cyan)' : 'transparent',
                 color: useDynamicAmount ? '#FFFFFF' : 'var(--text-secondary)',
               }}
             >
-              Dinamis + Nota
+              Dinamis (Nominal Otomatis)
             </button>
             <button
               type="button"
               onClick={() => setUseDynamicAmount(false)}
               style={{
-                padding: '6px 8px',
+                padding: '5px 8px',
                 borderRadius: '6px',
                 border: 'none',
-                fontSize: '11.5px',
+                fontSize: '11px',
                 fontWeight: 700,
                 cursor: 'pointer',
                 backgroundColor: !useDynamicAmount ? 'var(--accent-cyan)' : 'transparent',
@@ -263,11 +263,11 @@ export default function QrisPaymentBox({
           style={{
             backgroundColor: palette.cardBg,
             color: palette.text,
-            borderRadius: '14px',
+            borderRadius: '12px',
             border: `1px solid ${palette.cardBorder}`,
-            padding: '14px 12px',
-            margin: '0 auto 10px',
-            maxWidth: '280px',
+            padding: '10px 12px',
+            margin: '0 auto 8px',
+            maxWidth: '256px',
             boxShadow: '0 6px 18px rgba(15, 23, 42, 0.14)',
           }}
         >
@@ -277,26 +277,26 @@ export default function QrisPaymentBox({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '5px',
-              fontSize: '10px',
+              fontSize: '9.5px',
               fontWeight: 800,
               color: palette.accent,
               letterSpacing: '0.07em',
             }}
           >
-            <Receipt size={12} />
+            <Receipt size={11} />
             <span>QRIS PEMBAYARAN NOTA</span>
           </div>
 
-          <div style={{ fontSize: '13.5px', fontWeight: 800, marginTop: '3px', wordBreak: 'break-word' }}>
+          <div style={{ fontSize: '13px', fontWeight: 800, marginTop: '2px', wordBreak: 'break-word' }}>
             {merchantTitle}
           </div>
           {storeTagline && storeName && merchantTitle !== storeName && (
-            <div style={{ fontSize: '10px', color: palette.muted, marginTop: '1px' }}>
+            <div style={{ fontSize: '9.5px', color: palette.muted, marginTop: '1px' }}>
               {storeName}
             </div>
           )}
           {merchantNmid && (
-            <div className="font-mono" style={{ fontSize: '9.5px', color: palette.muted, marginTop: '2px' }}>
+            <div className="font-mono" style={{ fontSize: '9px', color: palette.muted, marginTop: '1px' }}>
               NMID: {merchantNmid}
             </div>
           )}
@@ -304,14 +304,14 @@ export default function QrisPaymentBox({
           {/* Nota Binding Strip */}
           <div
             style={{
-              marginTop: '8px',
-              padding: '6px 8px',
-              borderRadius: '8px',
+              marginTop: '6px',
+              padding: '5px 8px',
+              borderRadius: '7px',
               backgroundColor: palette.pillBg,
-              fontSize: '10.5px',
+              fontSize: '10px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '2px',
+              gap: '1px',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
@@ -341,11 +341,11 @@ export default function QrisPaymentBox({
           {/* White High-Contrast Quiet Zone for reliable scanning */}
           <div
             style={{
-              margin: '10px auto 8px',
-              width: '198px',
-              minHeight: '198px',
-              padding: '8px',
-              borderRadius: '10px',
+              margin: '7px auto 6px',
+              width: '168px',
+              minHeight: '168px',
+              padding: '6px',
+              borderRadius: '8px',
               backgroundColor: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
@@ -358,24 +358,24 @@ export default function QrisPaymentBox({
                 alt={`QRIS ${invoiceNo}`}
                 style={{
                   width: '100%',
-                  maxHeight: '215px',
+                  maxHeight: '168px',
                   objectFit: 'contain',
                   display: 'block',
                   borderRadius: '4px',
                 }}
               />
             ) : (
-              <span style={{ fontSize: '11.5px', color: '#64748B' }}>Membuat QRIS Nota...</span>
+              <span style={{ fontSize: '11px', color: '#64748B' }}>Membuat QRIS Nota...</span>
             )}
           </div>
 
           <div
             className="font-mono"
             style={{
-              padding: '7px 10px',
-              borderRadius: '8px',
+              padding: '5px 10px',
+              borderRadius: '7px',
               backgroundColor: palette.pillBg,
-              fontSize: '15px',
+              fontSize: '14px',
               fontWeight: 800,
               color: palette.accent,
             }}
@@ -386,10 +386,10 @@ export default function QrisPaymentBox({
           {paymentSettings.qrisCustomNote && (
             <div
               style={{
-                fontSize: '10.5px',
+                fontSize: '10px',
                 color: palette.muted,
-                marginTop: '7px',
-                lineHeight: 1.4,
+                marginTop: '5px',
+                lineHeight: 1.35,
               }}
             >
               {paymentSettings.qrisCustomNote}
@@ -397,11 +397,10 @@ export default function QrisPaymentBox({
           )}
         </div>
 
-        <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
           {hasDynamicQr && useDynamicAmount ? (
             <span>
-              Nominal tagihan &amp; No. Nota (<span className="font-mono">{invoiceNo}</span>) otomatis
-              terisi saat pelanggan scan.
+              Nominal <strong>{formatRupiah(grandTotal)}</strong> otomatis terisi saat pelanggan scan di m-Banking / e-Wallet. Setelah pelanggan bayar, klik <strong>Selesaikan &amp; Cetak Struk</strong> di bawah.
             </span>
           ) : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -416,10 +415,10 @@ export default function QrisPaymentBox({
             type="button"
             onClick={() => setIsFullscreenQr(true)}
             className="btn btn-secondary btn-sm"
-            style={{ minHeight: '36px' }}
+            style={{ minHeight: '32px', padding: '4px 10px', fontSize: '11px' }}
           >
-            <Maximize2 size={14} />
-            <span>Perbesar Layar Penuh</span>
+            <Maximize2 size={13} />
+            <span>Perbesar QR</span>
           </button>
 
           {isAdmin && (
@@ -427,9 +426,9 @@ export default function QrisPaymentBox({
               type="button"
               onClick={onOpenQrisSetup}
               className="btn btn-secondary btn-sm"
-              style={{ minHeight: '36px' }}
+              style={{ minHeight: '32px', padding: '4px 10px', fontSize: '11px' }}
             >
-              <Settings size={14} />
+              <Settings size={13} />
               <span>Ubah QRIS</span>
             </button>
           )}

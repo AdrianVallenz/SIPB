@@ -978,11 +978,11 @@ export default function PosView() {
             className="modal-content modal-sheet"
             style={{
               maxWidth: '500px',
-              maxHeight: '88dvh',
+              maxHeight: '92dvh',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              padding: '20px 18px 16px',
+              padding: '16px 18px 14px',
             }}
           >
             {/* Fixed Modal Header */}
@@ -992,10 +992,17 @@ export default function PosView() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginBottom: '4px',
+                  marginBottom: '8px',
                 }}
               >
-                <h3 style={{ fontSize: '17px', fontWeight: 700 }}>Penyelesaian Pembayaran</h3>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, lineHeight: 1.2 }}>
+                    Penyelesaian Pembayaran
+                  </h3>
+                  <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    Pilih metode bayar &amp; klik tombol konfirmasi di bawah.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsPaymentModalOpen(false)}
@@ -1005,14 +1012,11 @@ export default function PosView() {
                   <X size={16} />
                 </button>
               </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                Pilih metode pembayaran pelanggan dan verifikasi nominal yang diterima.
-              </p>
 
               {/* Total Highlight */}
               <div
                 style={{
-                  padding: '11px 14px',
+                  padding: '8px 12px',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: 'var(--bg-subtle)',
                   border: '1px solid var(--border-color)',
@@ -1020,15 +1024,15 @@ export default function PosView() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '10px',
-                  marginBottom: '12px',
+                  marginBottom: '10px',
                 }}
               >
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
-                  TOTAL TAGIHAN
+                <div style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
+                  TOTAL TAGIHAN ({totalPcsInCart} PCS)
                 </div>
                 <div
                   className="font-mono"
-                  style={{ fontSize: '21px', fontWeight: 800, color: 'var(--accent-cyan)' }}
+                  style={{ fontSize: '19px', fontWeight: 800, color: 'var(--accent-cyan)' }}
                 >
                   {formatRupiah(grandTotal)}
                 </div>
@@ -1046,15 +1050,14 @@ export default function PosView() {
               }}
             >
               {paymentError && (
-                <div className="alert-box" style={{ marginBottom: '12px' }}>
+                <div className="alert-box" style={{ marginBottom: '10px' }}>
                   <AlertTriangle size={16} />
                   <span>{paymentError}</span>
                 </div>
               )}
 
             {/* Payment Method Selector */}
-            <div style={{ marginBottom: '14px' }}>
-              <label className="form-label">Metode Pembayaran</label>
+            <div style={{ marginBottom: '10px' }}>
               <div className="pos-payment-grid">
                 {PAYMENT_METHODS.map((method) => {
                   const isSelected = paymentMethod === method;
@@ -1064,7 +1067,7 @@ export default function PosView() {
                       type="button"
                       onClick={() => setPaymentMethod(method)}
                       style={{
-                        padding: '11px 8px',
+                        padding: '8px 6px',
                         borderRadius: 'var(--radius-md)',
                         border: '1px solid',
                         borderColor: isSelected ? 'var(--accent-cyan)' : 'var(--border-color)',
@@ -1072,20 +1075,21 @@ export default function PosView() {
                           ? 'rgba(var(--accent-cyan-rgb), 0.14)'
                           : 'var(--bg-card)',
                         color: isSelected ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                        fontSize: '11.5px',
+                        fontSize: '11px',
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
-                        flexDirection: 'column',
+                        flexDirection: 'row',
                         alignItems: 'center',
-                        gap: '6px',
+                        justifyContent: 'center',
+                        gap: '5px',
                         transition: 'all 0.15s ease',
                       }}
                     >
-                      {method === 'Tunai' && <Banknote size={17} />}
-                      {method === 'QRIS' && <QrCode size={17} />}
-                      {method === 'Transfer Bank' && <Building size={17} />}
-                      {method === 'Kartu Debit' && <CreditCard size={17} />}
+                      {method === 'Tunai' && <Banknote size={14} />}
+                      {method === 'QRIS' && <QrCode size={14} />}
+                      {method === 'Transfer Bank' && <Building size={14} />}
+                      {method === 'Kartu Debit' && <CreditCard size={14} />}
                       <span>{method}</span>
                     </button>
                   );
