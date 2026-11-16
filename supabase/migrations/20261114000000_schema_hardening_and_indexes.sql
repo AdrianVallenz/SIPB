@@ -22,10 +22,12 @@ CREATE INDEX IF NOT EXISTS idx_stock_logs_owner_created_at
 CREATE INDEX IF NOT EXISTS idx_store_cashiers_owner_email
   ON public.store_cashiers (owner_id, email);
 
--- 3. Drop single-column owner_id indexes superseded by leftmost composite prefixes
+-- 3. Drop single-column indexes superseded by leftmost composite prefixes
 -- (Preserve idx_stock_logs_product_id for FK cascade performance)
 DROP INDEX IF EXISTS public.idx_products_owner_id;
+DROP INDEX IF EXISTS public.idx_products_category;
 DROP INDEX IF EXISTS public.idx_transactions_owner_id;
+DROP INDEX IF EXISTS public.idx_transactions_created_at;
 DROP INDEX IF EXISTS public.idx_stock_logs_owner_id;
 DROP INDEX IF EXISTS public.idx_transactions_cashier_email;
 

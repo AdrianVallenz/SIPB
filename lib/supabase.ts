@@ -61,6 +61,20 @@ export function setSupabaseAccessToken(
 
 let inflightRefresh: Promise<string | null> | null = null;
 
+function isJwtExpiringSoon(token: string, bufferSeconds = 30): boolean {
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 <= Date.now() + bufferSeconds * 1000;
+  } catch {
+    return false;
+  }
+}
+
 export async function refreshSupabaseToken(): Promise<string | null> {
   if (inflightRefresh) return inflightRefresh;
   const refreshToken = getSupabaseRefreshToken();
@@ -76,7 +90,12 @@ export async function refreshSupabaseToken(): Promise<string | null> {
         },
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        if (res.status === 400 || res.status === 401 || res.status === 403) {
+          setSupabaseAccessToken(null);
+        }
+        return null;
+      }
       const data = (await res.json()) as {
         access_token?: string;
         refresh_token?: string;
@@ -101,7 +120,16 @@ async function fetchWithSupabaseAuth(
   init: RequestInit,
   customToken?: string | null
 ): Promise<Response> {
-  const token = customToken ?? getSupabaseAccessToken();
+  let token = customToken !== undefined ? customToken : getSupabaseAccessToken();
+  if (token && isJwtExpiringSoon(token)) {
+    const refreshedBeforeSend = await refreshSupabaseToken();
+    if (refreshedBeforeSend) {
+      token = refreshedBeforeSend;
+    } else if (!getSupabaseAccessToken()) {
+      token = null;
+    }
+  }
+
   const buildHeaders = (tok: string | null): Record<string, string> => ({
     apikey: SUPABASE_KEY,
     Authorization: `Bearer ${tok || SUPABASE_KEY}`,
@@ -241,12 +269,15 @@ export async function registerAdminCloud(
 }> {
   const res = await callTenantAuth<{
     user?: { id: string; email: string; name: string; role: 'admin'; ownerId: string };
-  }>({
-    action: 'register_admin',
-    name,
-    email,
-    password,
-  });
+  }>(
+    {
+      action: 'register_admin',
+      name,
+      email,
+      password,
+    },
+    ''
+  );
   return {
     ok: res.ok,
     user: res.data?.user,
@@ -514,6 +545,16 @@ export interface CloudSyncResult {
   code?: string;
 }
 
+async function parsePostgrestError(
+  res: Response
+): Promise<{ error: string; code?: string }> {
+  const err = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
+  return {
+    error: err.message || `HTTP ${res.status}`,
+    code: err.code,
+  };
+}
+
 export async function syncUpsertProduct(
   p: Product,
   ownerId: string
@@ -549,8 +590,7 @@ export async function syncUpsertProducts(
       body: JSON.stringify(items.length === 1 ? payload[0] : payload),
     });
     if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
-      return { ok: false, error: err.message, code: err.code };
+      return { ok: false, ...(await parsePostgrestError(res)) };
     }
     return { ok: true };
   } catch {
@@ -572,7 +612,7 @@ export async function syncUpdateProductStock(
       }),
     });
     if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}` };
+      return { ok: false, ...(await parsePostgrestError(res)) };
     }
     return { ok: true };
   } catch {
@@ -586,7 +626,7 @@ export async function syncDeleteProduct(productId: string): Promise<CloudSyncRes
       method: 'DELETE',
     });
     if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}` };
+      return { ok: false, ...(await parsePostgrestError(res)) };
     }
     return { ok: true };
   } catch {
@@ -600,7 +640,7 @@ export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Pr
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/stock_logs`, {
       method: 'POST',
       headers: {
-        Prefer: 'resolution=merge-duplicates',
+        Prefer: 'resolution=ignore-duplicates',
       },
       body: JSON.stringify(
         logs.map((l) => ({
@@ -619,7 +659,7 @@ export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Pr
       ),
     });
     if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}` };
+      return { ok: false, ...(await parsePostgrestError(res)) };
     }
     return { ok: true };
   } catch {
@@ -632,7 +672,7 @@ export async function syncInsertTransaction(t: Transaction, ownerId: string): Pr
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions`, {
       method: 'POST',
       headers: {
-        Prefer: 'resolution=merge-duplicates',
+        Prefer: 'resolution=ignore-duplicates',
       },
       body: JSON.stringify({
         id: t.id,
@@ -655,7 +695,7 @@ export async function syncInsertTransaction(t: Transaction, ownerId: string): Pr
       }),
     });
     if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}` };
+      return { ok: false, ...(await parsePostgrestError(res)) };
     }
     return { ok: true };
   } catch {
@@ -678,7 +718,7 @@ export async function syncVoidTransaction(
       }),
     });
     if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}` };
+      return { ok: false, ...(await parsePostgrestError(res)) };
     }
     return { ok: true };
   } catch {

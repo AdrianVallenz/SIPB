@@ -314,6 +314,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const snapshot = await fetchCloudSnapshot();
       if (!snapshot.connected || getStoredSession()?.ownerId !== targetOwnerId) {
+        setIsCloudConnected(false);
         return false;
       }
       setIsCloudConnected(true);
@@ -976,11 +977,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = products.map((p) => (p.id === sanitized.id ? sanitized : p));
     setProducts(updated);
     saveStoredProducts(updated, user.ownerId);
-    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: sanitized }, user.ownerId);
 
+    let editLog: StockLog | null = null;
     if (existing.stock !== sanitized.stock) {
       const diff = Math.abs(sanitized.stock - existing.stock);
-      const log: StockLog = {
+      editLog = {
         id: makeId('log'),
         ownerId: user.ownerId,
         productId: sanitized.id,
@@ -993,11 +994,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
         operator: user.email,
       };
-      const updatedLogs = [log, ...stockLogs];
+      const updatedLogs = [editLog, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs, user.ownerId);
-      void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [log] }, user.ownerId);
     }
+
+    const ownerId = user.ownerId;
+    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: sanitized }, ownerId).then((res) => {
+      if (editLog && (res.ok || res.offline)) {
+        void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [editLog] }, ownerId);
+      }
+    });
 
     return { success: true };
   };
@@ -1068,7 +1075,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = products.map((p) => (p.id === productId ? updatedProd : p));
     setProducts(updated);
     saveStoredProducts(updated, user.ownerId);
-    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: updatedProd }, user.ownerId);
 
     const log: StockLog = {
       id: makeId('log'),
@@ -1092,7 +1098,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updatedLogs = [log, ...stockLogs];
     setStockLogs(updatedLogs);
     saveStoredStockLogs(updatedLogs, user.ownerId);
-    void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [log] }, user.ownerId);
+
+    const ownerId = user.ownerId;
+    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: updatedProd }, ownerId).then((res) => {
+      if (res.ok || res.offline) {
+        void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [log] }, ownerId);
+      }
+    });
 
     return { success: true };
   };

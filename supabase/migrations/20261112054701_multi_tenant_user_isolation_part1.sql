@@ -1,16 +1,4 @@
--- Multi-tenant user isolation & admin-managed cashier accounts
-
--- 1. Backfill existing demo auth.users metadata with explicit owner_id
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object(
-  'owner_id', '00000000-0000-0000-0000-000000000001'
-)
-where id in (
-  '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000002'
-);
-
--- 2. Create store_cashiers table to track cashiers owned by each admin
+-- 1. Create store_cashiers table
 create table if not exists public.store_cashiers (
   id uuid primary key references auth.users(id) on delete cascade,
   owner_id uuid not null references auth.users(id) on delete cascade,
@@ -37,7 +25,7 @@ create policy "store_cashiers_select_scoped"
     or id = (select auth.uid())
   );
 
--- Seed demo cashier row
+-- Seed demo cashier profile
 insert into public.store_cashiers (id, owner_id, email, name, is_active)
 select
   u.id,
@@ -49,7 +37,7 @@ from auth.users u
 where u.id = '00000000-0000-0000-0000-000000000002'
 on conflict (id) do nothing;
 
--- 3. Add owner_id to products, transactions, stock_logs
+-- 2. Add owner_id to products, transactions, stock_logs
 alter table public.products
   add column if not exists owner_id uuid not null default '00000000-0000-0000-0000-000000000001'
   references auth.users(id) on delete cascade;
@@ -70,7 +58,7 @@ alter table public.stock_logs
 alter table public.stock_logs alter column owner_id set default auth.uid();
 create index if not exists idx_stock_logs_owner_id on public.stock_logs (owner_id);
 
--- 4. Update existing RLS policies with tenant isolation
+-- 3. Update existing RLS policies in-place via ALTER POLICY
 alter policy "products_select_authenticated"
   on public.products
   using (

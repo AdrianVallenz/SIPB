@@ -50,4 +50,3 @@ create policy "store_payment_settings_update_admin"
     (((select auth.jwt()) -> 'app_metadata' ->> 'role') = 'admin')
     and owner_id = (select auth.uid())
   );
-

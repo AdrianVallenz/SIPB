@@ -1,6 +1,4 @@
--- Migration: Initial SIP Barang Schema & RLS Policies
--- Project: SIP Barang (wzyetnpufudiklffmtcx)
-
+-- 1. Products Table
 create table if not exists public.products (
   id text primary key,
   sku text not null unique,
@@ -15,6 +13,7 @@ create table if not exists public.products (
   updated_at timestamptz not null default now()
 );
 
+-- 2. Transactions Table
 create table if not exists public.transactions (
   id text primary key,
   invoice_no text not null unique,
@@ -34,6 +33,7 @@ create table if not exists public.transactions (
   voided_at timestamptz
 );
 
+-- 3. Stock Logs Table
 create table if not exists public.stock_logs (
   id text primary key,
   product_id text not null references public.products(id) on delete cascade,
@@ -47,20 +47,24 @@ create table if not exists public.stock_logs (
   operator text not null
 );
 
+-- Indexes for performance
 create index if not exists idx_products_category on public.products(category);
 create index if not exists idx_transactions_created_at on public.transactions(created_at desc);
 create index if not exists idx_transactions_cashier_email on public.transactions(cashier_email);
 create index if not exists idx_stock_logs_product_id on public.stock_logs(product_id);
 create index if not exists idx_stock_logs_created_at on public.stock_logs(created_at desc);
 
+-- Enable Row Level Security
 alter table public.products enable row level security;
 alter table public.transactions enable row level security;
 alter table public.stock_logs enable row level security;
 
+-- Grants for Data API access
 grant select, insert, update, delete on public.products to authenticated;
 grant select, insert, update on public.transactions to authenticated;
 grant select, insert on public.stock_logs to authenticated;
 
+-- RLS Policies using app_metadata (never user_metadata) and cached (select auth.*)
 create policy "products_select_authenticated"
   on public.products for select
   to authenticated
@@ -69,7 +73,7 @@ create policy "products_select_authenticated"
 create policy "products_insert_admin"
   on public.products for insert
   to authenticated
-  with check ( ((select auth.jwt()) -> 'app_metadata' ->> 'role') = 'admin' );
+  with check ( (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' );
 
 create policy "products_update_authenticated"
   on public.products for update
@@ -80,14 +84,14 @@ create policy "products_update_authenticated"
 create policy "products_delete_admin"
   on public.products for delete
   to authenticated
-  using ( ((select auth.jwt()) -> 'app_metadata' ->> 'role') = 'admin' );
+  using ( (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' );
 
 create policy "transactions_select_role_scoped"
   on public.transactions for select
   to authenticated
   using (
-    ((select auth.jwt()) -> 'app_metadata' ->> 'role') = 'admin'
-    or cashier_email = ((select auth.jwt()) ->> 'email')
+    (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    or cashier_email = (select auth.jwt() ->> 'email')
   );
 
 create policy "transactions_insert_authenticated"
@@ -95,14 +99,14 @@ create policy "transactions_insert_authenticated"
   to authenticated
   with check (
     (select auth.uid()) is not null
-    and cashier_email = ((select auth.jwt()) ->> 'email')
+    and cashier_email = (select auth.jwt() ->> 'email')
   );
 
 create policy "transactions_update_admin_void"
   on public.transactions for update
   to authenticated
-  using ( ((select auth.jwt()) -> 'app_metadata' ->> 'role') = 'admin' )
-  with check ( ((select auth.jwt()) -> 'app_metadata' ->> 'role') = 'admin' );
+  using ( (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' )
+  with check ( (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin' );
 
 create policy "stock_logs_select_authenticated"
   on public.stock_logs for select
@@ -113,4 +117,3 @@ create policy "stock_logs_insert_authenticated"
   on public.stock_logs for insert
   to authenticated
   with check ( (select auth.uid()) is not null );
-
