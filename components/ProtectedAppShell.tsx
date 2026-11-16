@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { WifiOff, RefreshCw } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -14,9 +15,20 @@ interface ProtectedAppShellProps {
 
 /** Role-enforced application shell wrapping Header, Sidebar, and authenticated route content. */
 export default function ProtectedAppShell({ requiredRole, children }: ProtectedAppShellProps) {
-  const { user, isHydrated } = useApp();
+  const { user, isHydrated, connectionStatus, reconnectCloud } = useApp();
   const router = useRouter();
   const pathname = usePathname() || '/';
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  const handleReconnect = async () => {
+    if (isReconnecting) return;
+    setIsReconnecting(true);
+    try {
+      await reconnectCloud();
+    } finally {
+      setIsReconnecting(false);
+    }
+  };
 
   const isAuthorized =
     isHydrated &&
@@ -53,7 +65,37 @@ export default function ProtectedAppShell({ requiredRole, children }: ProtectedA
       />
       <div className="app-body">
         <Sidebar />
-        <main className="app-main">{children}</main>
+        <main className="app-main">
+          {connectionStatus === 'disconnected' && (
+            <div
+              className="alert-box"
+              style={{
+                margin: '12px 16px 0',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <WifiOff size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  Koneksi server cloud terputus. Mode Full Online aktif — sambungkan internet untuk
+                  mencatat transaksi dan menyimpan perubahan.
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={isReconnecting}
+                onClick={() => void handleReconnect()}
+                className="btn btn-secondary btn-sm"
+                style={{ minHeight: '30px' }}
+              >
+                <RefreshCw size={13} className={isReconnecting ? 'animate-spin' : undefined} />
+                <span>{isReconnecting ? 'Menghubungkan...' : 'Hubungkan Ulang'}</span>
+              </button>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

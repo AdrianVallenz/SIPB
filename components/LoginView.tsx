@@ -22,7 +22,7 @@ import {
 
 interface LoginViewProps {
   initialMode?: 'login' | 'register';
-  onOpenDemoDashboard?: () => void;
+  onOpenDemoDashboard?: () => Promise<{ success: boolean; message?: string } | void> | void;
   onLoginSuccess?: (role?: 'admin' | 'user') => void;
 }
 
@@ -39,6 +39,21 @@ export default function LoginView({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOpeningDemo, setIsOpeningDemo] = useState(false);
+
+  const handleOpenDemo = async () => {
+    if (!onOpenDemoDashboard || isOpeningDemo || isSubmitting) return;
+    setError('');
+    setIsOpeningDemo(true);
+    try {
+      const res = await onOpenDemoDashboard();
+      if (res && !res.success) {
+        setError(res.message || 'Tidak dapat terhubung ke server cloud Demo.');
+      }
+    } finally {
+      setIsOpeningDemo(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +118,8 @@ export default function LoginView({
           {onOpenDemoDashboard ? (
             <button
               type="button"
-              onClick={onOpenDemoDashboard}
+              disabled={isOpeningDemo || isSubmitting}
+              onClick={() => void handleOpenDemo()}
               className="header-tool-btn"
               style={{
                 border: '1px solid var(--border-color)',
@@ -112,9 +128,17 @@ export default function LoginView({
                 padding: '0 12px',
               }}
             >
-              <LayoutDashboard size={14} style={{ color: 'var(--accent-cyan)' }} />
-              <span className="hide-mobile">Masuk Demo Dashboard</span>
-              <span className="show-mobile-only" style={{ fontSize: '12px' }}>Dashboard</span>
+              {isOpeningDemo ? (
+                <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent-cyan)' }} />
+              ) : (
+                <LayoutDashboard size={14} style={{ color: 'var(--accent-cyan)' }} />
+              )}
+              <span className="hide-mobile">
+                {isOpeningDemo ? 'Menghubungkan...' : 'Masuk Demo Dashboard'}
+              </span>
+              <span className="show-mobile-only" style={{ fontSize: '12px' }}>
+                {isOpeningDemo ? 'Loading...' : 'Dashboard'}
+              </span>
             </button>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

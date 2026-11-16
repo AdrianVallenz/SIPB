@@ -227,17 +227,37 @@ export async function signInSupabase(
     }
     return { accessToken: null };
   } catch {
-    return { accessToken: null, offline: true, error: 'Offline mode' };
+    return {
+      accessToken: null,
+      offline: true,
+      error: 'Tidak dapat terhubung ke server cloud. Periksa koneksi internet Anda.',
+    };
   }
+}
+
+async function resolveCloudToken(): Promise<string | null> {
+  const existing = getSupabaseAccessToken();
+  if (existing && !isJwtExpiringSoon(existing)) return existing;
+  if (getSupabaseRefreshToken()) {
+    const refreshed = await refreshSupabaseToken();
+    if (refreshed) return refreshed;
+  }
+  return getSupabaseAccessToken();
 }
 
 async function callTenantAuth<T>(
   body: Record<string, unknown>,
   token?: string | null
 ): Promise<{ ok: boolean; data?: T; error?: string; offline?: boolean }> {
-  // Demo and offline admin sessions carry no JWT; fall back immediately instead of 401
-  if (token === undefined && !getSupabaseAccessToken()) {
-    return { ok: false, offline: true, error: 'Offline mode' };
+  if (token === undefined) {
+    const activeToken = await resolveCloudToken();
+    if (!activeToken) {
+      return {
+        ok: false,
+        offline: true,
+        error: 'Sesi cloud tidak aktif atau telah berakhir. Silakan masuk ulang.',
+      };
+    }
   }
   try {
     const res = await fetchWithSupabaseAuth(
@@ -423,9 +443,10 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
   cashiers?: CashierAccount[];
   paymentSettings?: StorePaymentSettings | null;
   connected: boolean;
+  authExpired?: boolean;
 }> {
-  const activeToken = token ?? getSupabaseAccessToken();
-  if (!activeToken) return { connected: false };
+  const activeToken = token ?? (await resolveCloudToken());
+  if (!activeToken) return { connected: false, authExpired: true };
 
   try {
     const [prodRes, trxRes, logRes, cashRes, payRes] = await Promise.all([
@@ -437,7 +458,13 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
     ]);
 
     if (!prodRes.ok || !trxRes.ok || !logRes.ok) {
-      return { connected: false };
+      const authStatus = [prodRes.status, trxRes.status, logRes.status].some(
+        (s) => s === 401 || s === 403
+      );
+      return {
+        connected: false,
+        authExpired: authStatus && !getSupabaseAccessToken(),
+      };
     }
 
     const [prodRows, trxRows, logRows, cashRows, payRows] = (await Promise.all([
@@ -571,6 +598,10 @@ export async function syncUpsertProducts(
   ownerId: string
 ): Promise<CloudSyncResult> {
   if (items.length === 0) return { ok: true };
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
   try {
     const payload = items.map((p) => ({
       id: p.id,
@@ -598,7 +629,7 @@ export async function syncUpsertProducts(
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }
 
@@ -607,6 +638,10 @@ export async function syncUpdateProductStock(
   stock: number,
   updatedAt: string
 ): Promise<CloudSyncResult> {
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
   try {
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
       method: 'PATCH',
@@ -620,11 +655,15 @@ export async function syncUpdateProductStock(
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }
 
 export async function syncDeleteProduct(productId: string): Promise<CloudSyncResult> {
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
   try {
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
       method: 'DELETE',
@@ -634,12 +673,16 @@ export async function syncDeleteProduct(productId: string): Promise<CloudSyncRes
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }
 
 export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Promise<CloudSyncResult> {
   if (!logs.length) return { ok: true };
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
   try {
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/stock_logs`, {
       method: 'POST',
@@ -667,11 +710,15 @@ export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Pr
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }
 
 export async function syncInsertTransaction(t: Transaction, ownerId: string): Promise<CloudSyncResult> {
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
   try {
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions`, {
       method: 'POST',
@@ -703,7 +750,7 @@ export async function syncInsertTransaction(t: Transaction, ownerId: string): Pr
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }
 
@@ -712,6 +759,10 @@ export async function syncVoidTransaction(
   voidReason: string,
   voidedAt: string
 ): Promise<CloudSyncResult> {
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
   try {
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
@@ -726,14 +777,14 @@ export async function syncVoidTransaction(
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }
 
 export async function updateOwnSupabaseAccount(
   patch: { name?: string; password?: string }
 ): Promise<{ ok: boolean; error?: string; offline?: boolean }> {
-  const token = getSupabaseAccessToken();
+  const token = await resolveCloudToken();
   if (!token) return { ok: false, offline: true, error: 'Tidak ada sesi cloud aktif.' };
   try {
     const body: Record<string, unknown> = {};
@@ -749,7 +800,7 @@ export async function updateOwnSupabaseAccount(
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }
 
@@ -757,6 +808,10 @@ export async function syncUpsertPaymentSettings(
   settings: StorePaymentSettings,
   ownerId: string
 ): Promise<{ ok: boolean; offline?: boolean; error?: string }> {
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
   try {
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/store_payment_settings`, {
       method: 'POST',
@@ -784,6 +839,6 @@ export async function syncUpsertPaymentSettings(
     }
     return { ok: true };
   } catch {
-    return { ok: false, offline: true, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
 }

@@ -33,6 +33,7 @@ import {
   BluetoothConnected,
   ChevronRight,
   X,
+  Loader2,
 } from 'lucide-react';
 
 interface CartItemState {
@@ -120,6 +121,7 @@ export default function PosView() {
   const [cashGiven, setCashGiven] = useState<number>(0);
   const [draftInvoiceNo, setDraftInvoiceNo] = useState<string>('');
   const [paymentError, setPaymentError] = useState<string>('');
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
   // Finished Transaction Receipt & Auto-print Notice
   const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
@@ -300,9 +302,10 @@ export default function PosView() {
   const handleConfirmPayment = async () => {
     if (isConfirmingPaymentRef.current) return;
     isConfirmingPaymentRef.current = true;
+    setIsSubmittingPayment(true);
     setPaymentError('');
     try {
-      const res = processSale(
+      const res = await processSale(
         validCart,
         paymentMethod,
         finalDiscount,
@@ -365,6 +368,7 @@ export default function PosView() {
         setPaymentError(res.error || 'Terjadi kesalahan saat memproses penjualan.');
       }
     } finally {
+      setIsSubmittingPayment(false);
       isConfirmingPaymentRef.current = false;
     }
   };
@@ -1499,6 +1503,7 @@ export default function PosView() {
             >
               <button
                 type="button"
+                disabled={isSubmittingPayment}
                 onClick={() => setIsPaymentModalOpen(false)}
                 className="btn btn-secondary"
                 style={{ flex: 1, minHeight: '44px' }}
@@ -1508,12 +1513,21 @@ export default function PosView() {
               <button
                 type="button"
                 onClick={() => void handleConfirmPayment()}
-                disabled={paymentMethod === 'Tunai' && cashGiven < grandTotal}
+                disabled={isSubmittingPayment || (paymentMethod === 'Tunai' && cashGiven < grandTotal)}
                 className="btn btn-primary"
                 style={{ flex: 2, minHeight: '44px' }}
               >
-                <Check size={16} />
-                <span>Selesaikan &amp; Cetak Struk</span>
+                {isSubmittingPayment ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Menyimpan Transaksi...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    <span>Selesaikan &amp; Cetak Struk</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

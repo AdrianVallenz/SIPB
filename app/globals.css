@@ -234,6 +234,10 @@ body {
   background-color: var(--accent-amber);
 }
 
+.header-status-dot.offline {
+  background-color: var(--accent-red);
+}
+
 .header-account-btn {
   display: inline-flex;
   align-items: center;

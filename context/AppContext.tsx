@@ -23,8 +23,6 @@ import {
 } from '@/lib/types';
 import {
   getDefaultStorePaymentSettings,
-  getOfflineSyncQueue,
-  getStoredAccounts,
   getStoredCashiers,
   getStoredCustomCategories,
   getStoredPaymentSettings,
@@ -33,11 +31,6 @@ import {
   getStoredStockLogs,
   getStoredTheme,
   getStoredTransactions,
-  hashPasswordSha256,
-  OfflineSyncTask,
-  removeStoredAccount,
-  saveOfflineSyncQueue,
-  saveStoredAccount,
   saveStoredCashiers,
   saveStoredCustomCategories,
   saveStoredPaymentSettings,
@@ -46,14 +39,13 @@ import {
   saveStoredStockLogs,
   saveStoredTheme,
   saveStoredTransactions,
-  verifyPasswordHash,
 } from '@/lib/storage';
 import {
-  CloudSyncResult,
   createCashierCloud,
   deleteCashierCloud,
   fetchCloudSnapshot,
   getSupabaseAccessToken,
+  getSupabaseRefreshToken,
   registerAdminCloud,
   setSupabaseAccessToken,
   signInSupabase,
@@ -69,10 +61,12 @@ import {
   updateCashierCloud,
   updateOwnSupabaseAccount,
 } from '@/lib/supabase';
-import { INITIAL_PRODUCTS, INITIAL_STOCK_LOGS, INITIAL_TRANSACTIONS } from '@/lib/dummyData';
+import { INITIAL_PRODUCTS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
 import { generateInvoiceNo } from '@/lib/format';
 import { getRouteForTab, getTabFromPathname } from '@/lib/routes';
+
+export type ConnectionStatus = 'connecting' | 'online' | 'disconnected';
 
 interface ActionResult {
   success: boolean;
@@ -89,7 +83,8 @@ interface AppContextType {
   user: UserSession | null;
   isHydrated: boolean;
   isCloudConnected: boolean;
-  pendingSyncCount: number;
+  connectionStatus: ConnectionStatus;
+  reconnectCloud: () => Promise<boolean>;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   products: Product[];
@@ -107,7 +102,7 @@ interface AppContextType {
   updateOwnProfile: (patch: { name?: string; password?: string }) => Promise<ActionResult>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  enterDemo: (role?: 'admin' | 'user') => void;
+  enterDemo: (role?: 'admin' | 'user') => Promise<AuthResult>;
   login: (email: string, pass: string) => Promise<AuthResult>;
   register: (name: string, email: string, pass: string) => Promise<AuthResult>;
   logout: () => void;
@@ -119,23 +114,23 @@ interface AppContextType {
   ) => Promise<ActionResult>;
   deleteCashier: (cashierId: string) => Promise<ActionResult>;
   loadSampleCatalog: () => Promise<ActionResult>;
-  addProduct: (product: Omit<Product, 'id' | 'updatedAt'>) => ActionResult;
-  updateProduct: (product: Product) => ActionResult;
-  deleteProduct: (productId: string) => ActionResult;
+  addProduct: (product: Omit<Product, 'id' | 'updatedAt'>) => Promise<ActionResult>;
+  updateProduct: (product: Product) => Promise<ActionResult>;
+  deleteProduct: (productId: string) => Promise<ActionResult>;
   adjustStock: (
     productId: string,
     quantity: number,
     type: 'IN' | 'OUT' | 'ADJUSTMENT',
     reason: string
-  ) => ActionResult;
+  ) => Promise<ActionResult>;
   processSale: (
     items: { productId: string; quantity: number }[],
     paymentMethod: PaymentMethod,
     discount: number,
     amountPaid: number,
     customInvoiceNo?: string
-  ) => { success: boolean; transaction?: Transaction; error?: string };
-  voidTransaction: (transactionId: string, reason: string) => ActionResult;
+  ) => Promise<{ success: boolean; transaction?: Transaction; error?: string }>;
+  voidTransaction: (transactionId: string, reason: string) => Promise<ActionResult>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -221,103 +216,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
-  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
-  const [pendingSyncCount, setPendingSyncCount] = useState<number>(() =>
-    getOfflineSyncQueue(user?.ownerId || '').length
-  );
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const demoAuthPromiseRef = useRef<Promise<AuthResult> | null>(null);
+  const isCloudConnected = connectionStatus === 'online';
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  const executeCloudTask = useCallback(
-    async (task: OfflineSyncTask, ownerId: string): Promise<CloudSyncResult> => {
-      switch (task.type) {
-        case 'upsert_product':
-          return syncUpsertProduct(task.product, ownerId);
-        case 'upsert_products':
-          return syncUpsertProducts(task.products, ownerId);
-        case 'update_stock':
-          return syncUpdateProductStock(task.productId, task.stock, task.updatedAt);
-        case 'delete_product':
-          return syncDeleteProduct(task.productId);
-        case 'insert_logs':
-          return syncInsertStockLogs(task.logs, ownerId);
-        case 'insert_transaction':
-          return syncInsertTransaction(task.transaction, ownerId);
-        case 'void_transaction':
-          return syncVoidTransaction(task.transactionId, task.voidReason, task.voidedAt);
-        case 'upsert_payment':
-          return syncUpsertPaymentSettings(task.settings, ownerId);
-      }
-    },
-    []
-  );
+  const hydrateTenantCache = useCallback((ownerId: string) => {
+    setProducts(getStoredProducts(ownerId));
+    setTransactions(getStoredTransactions(ownerId));
+    setStockLogs(getStoredStockLogs(ownerId));
+    setCashiers(getStoredCashiers(ownerId));
+    setPaymentSettings(getStoredPaymentSettings(ownerId));
+    setCustomCategories(getStoredCustomCategories(ownerId));
+  }, []);
 
-  const dispatchCloudTask = useCallback(
-    async (task: OfflineSyncTask, ownerId: string): Promise<CloudSyncResult> => {
-      if (!ownerId || !getSupabaseAccessToken()) {
-        return { ok: false, offline: true, error: 'Offline' };
-      }
+  const clearExpiredSession = useCallback(() => {
+    setUser(null);
+    setConnectionStatus('connecting');
+    setSupabaseAccessToken(null);
+    saveStoredSession(null);
+    writeStoredActiveTab(null);
+    hydrateTenantCache('');
+    router.replace('/login');
+  }, [hydrateTenantCache, router]);
 
-      const enqueue = () => {
-        const existing = getOfflineSyncQueue(ownerId);
-        const next = [...existing, task];
-        saveOfflineSyncQueue(next, ownerId);
-        setPendingSyncCount(next.length);
-      };
-
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        enqueue();
-        setIsCloudConnected(false);
-        return { ok: false, offline: true, error: 'Offline' };
-      }
-
-      const res = await executeCloudTask(task, ownerId);
-      if (!res.ok && res.offline) {
-        enqueue();
-        setIsCloudConnected(false);
-      }
-      return res;
-    },
-    [executeCloudTask]
-  );
-
-  const flushAndHydrateFromCloud = useCallback(
+  const syncFromCloud = useCallback(
     async (targetOwnerId: string): Promise<boolean> => {
-      if (!targetOwnerId || !getSupabaseAccessToken()) return false;
-      const queued = getOfflineSyncQueue(targetOwnerId);
-      const remaining: OfflineSyncTask[] = [];
-      let hitOffline = false;
-
-      for (let i = 0; i < queued.length; i++) {
-        const task = queued[i];
-        if (hitOffline) {
-          remaining.push(task);
-          continue;
-        }
-        const res = await executeCloudTask(task, targetOwnerId);
-        if (!res.ok && res.offline) {
-          hitOffline = true;
-          remaining.push(task);
-        }
-      }
-
-      saveOfflineSyncQueue(remaining, targetOwnerId);
-      if (getStoredSession()?.ownerId === targetOwnerId) {
-        setPendingSyncCount(remaining.length);
-      }
-      if (remaining.length > 0) {
-        setIsCloudConnected(false);
+      if (!targetOwnerId) return false;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        setConnectionStatus('disconnected');
         return false;
       }
 
       const snapshot = await fetchCloudSnapshot();
-      if (!snapshot.connected || getStoredSession()?.ownerId !== targetOwnerId) {
-        setIsCloudConnected(false);
+      if (snapshot.authExpired) {
+        if (getStoredSession()?.ownerId === targetOwnerId) {
+          clearExpiredSession();
+        }
         return false;
       }
-      setIsCloudConnected(true);
+
+      if (!snapshot.connected || getStoredSession()?.ownerId !== targetOwnerId) {
+        setConnectionStatus('disconnected');
+        return false;
+      }
+
+      setConnectionStatus('online');
       if (snapshot.products) {
         setProducts(snapshot.products);
         saveStoredProducts(snapshot.products, targetOwnerId);
@@ -342,18 +289,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return true;
     },
-    [executeCloudTask]
+    [clearExpiredSession]
   );
 
-  const hydrateTenantCache = (ownerId: string) => {
-    setProducts(getStoredProducts(ownerId));
-    setTransactions(getStoredTransactions(ownerId));
-    setStockLogs(getStoredStockLogs(ownerId));
-    setCashiers(getStoredCashiers(ownerId));
-    setPaymentSettings(getStoredPaymentSettings(ownerId));
-    setCustomCategories(getStoredCustomCategories(ownerId));
-    setPendingSyncCount(getOfflineSyncQueue(ownerId).length);
-  };
+  const reconnectCloud = useCallback(async (): Promise<boolean> => {
+    const targetOwnerId = getStoredSession()?.ownerId || user?.ownerId || '';
+    if (!targetOwnerId) return false;
+    setConnectionStatus('connecting');
+    return syncFromCloud(targetOwnerId);
+  }, [syncFromCloud, user?.ownerId]);
 
   useEffect(() => {
     if (!user) return;
@@ -361,16 +305,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const targetOwnerId = user.ownerId;
     (async () => {
       if (!active) return;
-      await flushAndHydrateFromCloud(targetOwnerId);
+      await syncFromCloud(targetOwnerId);
     })();
 
     const handleOnline = () => {
       if (active) {
-        void flushAndHydrateFromCloud(targetOwnerId);
+        setConnectionStatus('connecting');
+        void syncFromCloud(targetOwnerId);
       }
     };
     const handleOffline = () => {
-      if (active) setIsCloudConnected(false);
+      if (active) setConnectionStatus('disconnected');
     };
 
     window.addEventListener('online', handleOnline);
@@ -380,7 +325,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [user, flushAndHydrateFromCloud]);
+  }, [user, syncFromCloud]);
 
   const setActiveTab = (tab: string) => {
     const activeUser = user || getStoredSession();
@@ -409,7 +354,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const defaultTab = session.role === 'admin' ? 'dashboard' : 'pos';
     setFailedAttempts(0);
     setLockoutUntil(0);
-    setIsCloudConnected(false);
+    setConnectionStatus('connecting');
     hydrateTenantCache(session.ownerId);
     saveStoredSession(session);
     writeStoredActiveTab(defaultTab);
@@ -417,85 +362,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveTabState(defaultTab);
   };
 
-  const activateBuiltInDemo = (role: 'admin' | 'user' = 'admin'): 'admin' | 'user' => {
-    const DEMO_OWNER_ID = 'demo-store-sip-barang';
-    const nowIso = new Date().toISOString();
-    const isDemoAdmin = role === 'admin';
-
-    if (getStoredProducts(DEMO_OWNER_ID).length === 0) {
-      const seededProducts: Product[] = INITIAL_PRODUCTS.map((p, idx) => ({
-        ...p,
-        id: `demo-prd-${idx + 1}`,
-        ownerId: DEMO_OWNER_ID,
-        updatedAt: nowIso,
-      }));
-      saveStoredProducts(seededProducts, DEMO_OWNER_ID);
+  const enterDemo = async (role: 'admin' | 'user' = 'admin'): Promise<AuthResult> => {
+    if (demoAuthPromiseRef.current) {
+      return demoAuthPromiseRef.current;
     }
 
-    if (getStoredTransactions(DEMO_OWNER_ID).length === 0) {
-      const buyPriceById = new Map(INITIAL_PRODUCTS.map((p) => [p.id, p.buyPrice]));
-      const productIndexById = new Map(INITIAL_PRODUCTS.map((p, idx) => [p.id, idx + 1]));
-      const seededTransactions: Transaction[] = INITIAL_TRANSACTIONS.map((trx, idx) => ({
-        ...trx,
-        id: `demo-trx-${idx + 1}`,
-        ownerId: DEMO_OWNER_ID,
-        items: trx.items.map((item) => {
-          const matchedIndex = productIndexById.get(item.productId);
-          return {
-            ...item,
-            productId: matchedIndex ? `demo-prd-${matchedIndex}` : item.productId,
-            buyPrice: item.buyPrice ?? buyPriceById.get(item.productId),
-          };
-        }),
-      }));
-      saveStoredTransactions(seededTransactions, DEMO_OWNER_ID);
-    }
-
-    if (getStoredStockLogs(DEMO_OWNER_ID).length === 0) {
-      const productIndexById = new Map(INITIAL_PRODUCTS.map((p, idx) => [p.id, idx + 1]));
-      const seededLogs: StockLog[] = INITIAL_STOCK_LOGS.map((log, idx) => {
-        const matchedIndex = productIndexById.get(log.productId);
+    const run = (async (): Promise<AuthResult> => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         return {
-          ...log,
-          id: `demo-log-${idx + 1}`,
-          ownerId: DEMO_OWNER_ID,
-          productId: matchedIndex ? `demo-prd-${matchedIndex}` : log.productId,
+          success: false,
+          message: 'Koneksi internet terputus. Demo hanya tersedia dalam mode Full Online.',
         };
-      });
-      saveStoredStockLogs(seededLogs, DEMO_OWNER_ID);
+      }
+      const demoEmail = role === 'user' ? 'kasir@sipb.web.id' : 'admin@sipb.web.id';
+      const demoPass = role === 'user' ? 'kasir123' : 'admin123';
+      setSupabaseAccessToken(null);
+      const authRes = await signInSupabase(demoEmail, demoPass);
+      if (authRes.accessToken && authRes.user) {
+        const session: UserSession = {
+          id: authRes.user.id,
+          ownerId: authRes.user.ownerId || authRes.user.id,
+          email: authRes.user.email,
+          name: authRes.user.name,
+          role: authRes.user.role,
+          loginAt: new Date().toISOString(),
+        };
+        activateSession(session);
+        return { success: true, role: session.role };
+      }
+      return {
+        success: false,
+        message:
+          authRes.error ||
+          'Tidak dapat terhubung ke server cloud Demo. Periksa koneksi internet Anda.',
+      };
+    })();
+
+    demoAuthPromiseRef.current = run;
+    try {
+      return await run;
+    } finally {
+      demoAuthPromiseRef.current = null;
     }
-
-    if (getStoredCashiers(DEMO_OWNER_ID).length === 0) {
-      saveStoredCashiers(
-        [
-          {
-            id: 'demo-cashier-01',
-            ownerId: DEMO_OWNER_ID,
-            email: 'kasir@sipb.web.id',
-            name: 'Budi Santoso (Kasir Demo)',
-            isActive: true,
-            createdAt: nowIso,
-          },
-        ],
-        DEMO_OWNER_ID
-      );
-    }
-
-    const demoSession: UserSession = {
-      id: isDemoAdmin ? DEMO_OWNER_ID : 'demo-cashier-01',
-      ownerId: DEMO_OWNER_ID,
-      email: isDemoAdmin ? 'admin@sipb.web.id' : 'kasir@sipb.web.id',
-      name: isDemoAdmin ? 'Administrator Toko Demo' : 'Budi Santoso (Kasir Demo)',
-      role: isDemoAdmin ? 'admin' : 'user',
-      loginAt: nowIso,
-    };
-    activateSession(demoSession);
-    return demoSession.role;
-  };
-
-  const enterDemo = (role: 'admin' | 'user' = 'admin') => {
-    setSupabaseAccessToken(null);
-    activateBuiltInDemo(role);
   };
 
   const login = async (email: string, pass: string): Promise<AuthResult> => {
@@ -512,8 +420,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!cleanEmail || !pass) {
       return { success: false, message: 'Email dan kata sandi wajib diisi.' };
     }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return {
+        success: false,
+        message: 'Koneksi internet terputus. Masuk ke aplikasi memerlukan koneksi online ke server cloud.',
+      };
+    }
 
-    // Authenticate against Supabase Cloud Auth
+    // Authenticate exclusively against Supabase Cloud Auth
     const authRes = await signInSupabase(cleanEmail, pass);
     if (authRes.banned) {
       return {
@@ -535,38 +449,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: true, role: session.role };
     }
 
-    // 3. Built-in Demo Accounts (for evaluation / testing as documented in README.md)
-    if (
-      (cleanEmail === 'admin@sipb.web.id' && pass === 'admin123') ||
-      (cleanEmail === 'kasir@sipb.web.id' && pass === 'kasir123')
-    ) {
-      const demoRole = activateBuiltInDemo(
-        cleanEmail === 'admin@sipb.web.id' ? 'admin' : 'user'
-      );
-      return { success: true, role: demoRole };
-    }
-
-    // 4. Offline fallback ONLY when offline or for offline-created local accounts
-    const storedMatch = getStoredAccounts().find(
-      (a) => a.email.toLowerCase() === cleanEmail
-    );
-    if (storedMatch && (await verifyPasswordHash(pass, storedMatch.password))) {
-      if (storedMatch.isActive === false) {
-        return {
-          success: false,
-          message: 'Akun kasir sedang dinonaktifkan oleh Administrator.',
-        };
-      }
-      const session: UserSession = {
-        id: storedMatch.id,
-        ownerId: storedMatch.ownerId,
-        email: storedMatch.email.toLowerCase(),
-        name: storedMatch.name,
-        role: storedMatch.role,
-        loginAt: new Date().toISOString(),
+    if (authRes.offline) {
+      return {
+        success: false,
+        message:
+          authRes.error || 'Tidak dapat terhubung ke server cloud. Periksa koneksi internet Anda.',
       };
-      activateSession(session);
-      return { success: true, role: session.role };
     }
 
     const nextAttempts = failedAttempts + 1;
@@ -599,12 +487,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!pass || pass.length < 6) {
       return { success: false, message: 'Kata sandi minimal terdiri dari 6 karakter.' };
     }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return {
+        success: false,
+        message: 'Koneksi internet terputus. Pendaftaran akun memerlukan koneksi online ke server cloud.',
+      };
+    }
 
-    // Always register self-signup users as Administrator of their own isolated store
+    // Always register self-signup users as Administrator of their own isolated cloud store
     const cloudReg = await registerAdminCloud(cleanName, cleanEmail, pass);
     if (cloudReg.ok && cloudReg.user) {
       setSupabaseAccessToken(null);
-      await signInSupabase(cleanEmail, pass);
+      const signInRes = await signInSupabase(cleanEmail, pass);
+      if (!signInRes.accessToken) {
+        return {
+          success: false,
+          message:
+            signInRes.error ||
+            'Akun cloud berhasil dibuat, tetapi gagal masuk otomatis. Silakan login secara manual.',
+        };
+      }
       const session: UserSession = {
         id: cloudReg.user.id,
         ownerId: cloudReg.user.ownerId,
@@ -617,51 +519,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: true, role: 'admin' };
     }
 
-    if (!cloudReg.offline) {
-      return {
-        success: false,
-        message: cloudReg.error || 'Pendaftaran gagal. Gunakan email lain atau silakan masuk.',
-      };
-    }
-
-    // Offline fallback
-    if (getStoredAccounts().some((a) => a.email.toLowerCase() === cleanEmail)) {
-      return { success: false, message: 'Alamat email ini sudah terdaftar. Silakan masuk.' };
-    }
-
-    const newId =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `adm-${Date.now().toString(36)}`;
-    const nowIso = new Date().toISOString();
-
-    const hashedPassword = await hashPasswordSha256(pass);
-
-    saveStoredAccount({
-      id: newId,
-      ownerId: newId,
-      email: cleanEmail,
-      name: cleanName,
-      password: hashedPassword,
-      role: 'admin',
-      isActive: true,
-      createdAt: nowIso,
-    });
-
-    activateSession({
-      id: newId,
-      ownerId: newId,
-      email: cleanEmail,
-      name: cleanName,
-      role: 'admin',
-      loginAt: nowIso,
-    });
-    return { success: true, role: 'admin' };
+    return {
+      success: false,
+      message:
+        cloudReg.error || 'Pendaftaran gagal. Gunakan email lain atau periksa koneksi internet Anda.',
+    };
   };
 
   const logout = () => {
     setUser(null);
-    setIsCloudConnected(false);
+    setConnectionStatus('connecting');
     setSupabaseAccessToken(null);
     saveStoredSession(null);
     writeStoredActiveTab(null);
@@ -674,6 +541,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     hydrateTenantCache('');
     router.replace('/login');
+  };
+
+  const requireOnlineCloudSession = (): string | null => {
+    if (!user) {
+      return 'Sesi pengguna tidak ditemukan. Silakan masuk kembali.';
+    }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setConnectionStatus('disconnected');
+      return 'Koneksi internet terputus. Aplikasi berjalan Full Online — sambungkan internet untuk melanjutkan.';
+    }
+    if (!getSupabaseAccessToken() && !getSupabaseRefreshToken()) {
+      setConnectionStatus('disconnected');
+      return 'Sesi cloud tidak aktif. Silakan masuk ulang ke sistem.';
+    }
+    return null;
+  };
+
+  const markCloudSyncResult = (res: { ok: boolean; offline?: boolean }) => {
+    if (res.ok) {
+      setConnectionStatus('online');
+    } else if (res.offline) {
+      setConnectionStatus('disconnected');
+    }
   };
 
   const requireAdmin = (): ActionResult | null => {
@@ -693,6 +583,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const cleanName = name.trim();
     const cleanEmail = email.trim().toLowerCase();
@@ -707,51 +599,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const cloudRes = await createCashierCloud(cleanName, cleanEmail, password);
-    if (cloudRes.ok && cloudRes.cashier) {
-      const updated = [cloudRes.cashier, ...cashiers.filter((c) => c.id !== cloudRes.cashier!.id)];
-      setCashiers(updated);
-      saveStoredCashiers(updated, user.ownerId);
-      return { success: true };
+    markCloudSyncResult(cloudRes);
+    if (!cloudRes.ok || !cloudRes.cashier) {
+      return {
+        success: false,
+        error: cloudRes.error || 'Gagal membuat akun kasir di server cloud.',
+      };
     }
 
-    if (!cloudRes.offline) {
-      return { success: false, error: cloudRes.error || 'Gagal membuat akun kasir.' };
-    }
-
-    if (
-      cashiers.some((c) => c.email.toLowerCase() === cleanEmail) ||
-      getStoredAccounts().some((a) => a.email.toLowerCase() === cleanEmail)
-    ) {
-      return { success: false, error: 'Email kasir sudah digunakan.' };
-    }
-
-    const id =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `kasir-${Date.now().toString(36)}`;
-    const nowIso = new Date().toISOString();
-    const newCashier: CashierAccount = {
-      id,
-      ownerId: user.ownerId,
-      email: cleanEmail,
-      name: cleanName,
-      isActive: true,
-      createdAt: nowIso,
-    };
-
-    const hashedPassword = await hashPasswordSha256(password);
-
-    saveStoredAccount({
-      id,
-      ownerId: user.ownerId,
-      email: cleanEmail,
-      name: cleanName,
-      password: hashedPassword,
-      role: 'user',
-      isActive: true,
-      createdAt: nowIso,
-    });
-    const updated = [newCashier, ...cashiers];
+    const updated = [cloudRes.cashier, ...cashiers.filter((c) => c.id !== cloudRes.cashier!.id)];
     setCashiers(updated);
     saveStoredCashiers(updated, user.ownerId);
     return { success: true };
@@ -763,20 +619,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const cloudRes = await toggleCashierCloud(cashierId, isActive);
-    if (!cloudRes.ok && !cloudRes.offline) {
-      return { success: false, error: cloudRes.error || 'Gagal mengubah status kasir.' };
+    markCloudSyncResult(cloudRes);
+    if (!cloudRes.ok) {
+      return { success: false, error: cloudRes.error || 'Gagal mengubah status kasir di cloud.' };
     }
 
     const updated = cashiers.map((c) => (c.id === cashierId ? { ...c, isActive } : c));
     setCashiers(updated);
     saveStoredCashiers(updated, user.ownerId);
-
-    const localAcc = getStoredAccounts().find((a) => a.id === cashierId);
-    if (localAcc) {
-      saveStoredAccount({ ...localAcc, isActive });
-    }
     return { success: true };
   };
 
@@ -786,6 +640,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const cleanName = patch.name?.trim();
     const cleanPass = patch.password;
@@ -800,8 +656,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...(cleanName ? { name: cleanName } : {}),
       ...(cleanPass ? { password: cleanPass } : {}),
     });
-    if (!cloudRes.ok && !cloudRes.offline) {
-      return { success: false, error: cloudRes.error || 'Gagal memperbarui akun kasir.' };
+    markCloudSyncResult(cloudRes);
+    if (!cloudRes.ok) {
+      return { success: false, error: cloudRes.error || 'Gagal memperbarui akun kasir di cloud.' };
     }
 
     if (cleanName) {
@@ -811,39 +668,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCashiers(updated);
       saveStoredCashiers(updated, user.ownerId);
     }
-    const localAcc = getStoredAccounts().find((a) => a.id === cashierId);
-    if (localAcc) {
-      const nextHashedPass = cleanPass
-        ? await hashPasswordSha256(cleanPass)
-        : localAcc.password;
-      saveStoredAccount({
-        ...localAcc,
-        name: cleanName || localAcc.name,
-        password: nextHashedPass,
-      });
-    }
     return { success: true };
   };
 
   const deleteCashier = async (cashierId: string): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const cloudRes = await deleteCashierCloud(cashierId);
-    if (!cloudRes.ok && !cloudRes.offline) {
-      return { success: false, error: cloudRes.error || 'Gagal menghapus akun kasir.' };
+    markCloudSyncResult(cloudRes);
+    if (!cloudRes.ok) {
+      return { success: false, error: cloudRes.error || 'Gagal menghapus akun kasir di cloud.' };
     }
 
     const updated = cashiers.filter((c) => c.id !== cashierId);
     setCashiers(updated);
     saveStoredCashiers(updated, user.ownerId);
-    removeStoredAccount(cashierId);
     return { success: true };
   };
 
   const loadSampleCatalog = async (): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     if (products.length > 0) {
       return {
@@ -862,17 +712,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: nowIso,
     }));
 
+    const cloudRes = await syncUpsertProducts(sampleProducts, user.ownerId);
+    markCloudSyncResult(cloudRes);
+    if (!cloudRes.ok) {
+      return {
+        success: false,
+        error: cloudRes.error || 'Gagal mengunggah produk contoh ke server cloud.',
+      };
+    }
+
     setProducts(sampleProducts);
     saveStoredProducts(sampleProducts, user.ownerId);
-
-    await dispatchCloudTask({ id: makeId('sync'), type: 'upsert_products', products: sampleProducts }, user.ownerId);
-
     return { success: true };
   };
 
-  const addProduct = (newProdData: Omit<Product, 'id' | 'updatedAt'>): ActionResult => {
+  const addProduct = async (
+    newProdData: Omit<Product, 'id' | 'updatedAt'>
+  ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const cleanSku = newProdData.sku.trim().toUpperCase();
     const cleanName = newProdData.name.trim();
@@ -888,10 +748,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const sellPrice = Math.max(0, Math.round(Number(newProdData.sellPrice) || 0));
     const stock = Math.max(0, Math.floor(Number(newProdData.stock) || 0));
     const minStock = Math.max(1, Math.floor(Number(newProdData.minStock) || 1));
+    const ownerId = user.ownerId;
 
     const newProduct: Product = {
       ...newProdData,
-      ownerId: user.ownerId,
+      ownerId,
       sku: cleanSku,
       name: cleanName,
       buyPrice,
@@ -904,15 +765,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date().toISOString(),
     };
 
+    const prodRes = await syncUpsertProduct(newProduct, ownerId);
+    markCloudSyncResult(prodRes);
+    if (!prodRes.ok) {
+      return {
+        success: false,
+        error: prodRes.error || 'Gagal menyimpan produk ke server cloud.',
+      };
+    }
+
     const updated = [newProduct, ...products];
     setProducts(updated);
-    saveStoredProducts(updated, user.ownerId);
+    saveStoredProducts(updated, ownerId);
 
     const initialLog: StockLog | null =
       newProduct.stock > 0
         ? {
             id: makeId('log'),
-            ownerId: user.ownerId,
+            ownerId,
             productId: newProduct.id,
             productName: newProduct.name,
             type: 'IN',
@@ -926,25 +796,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         : null;
 
     if (initialLog) {
-      const updatedLogs = [initialLog, ...stockLogs];
-      setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs, user.ownerId);
-    }
-
-    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: newProduct }, user.ownerId).then((res) => {
-      if (initialLog) {
-        if (res.ok || res.offline) {
-          void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [initialLog] }, user.ownerId);
-        }
+      const logRes = await syncInsertStockLogs([initialLog], ownerId);
+      markCloudSyncResult(logRes);
+      if (logRes.ok) {
+        const updatedLogs = [initialLog, ...stockLogs];
+        setStockLogs(updatedLogs);
+        saveStoredStockLogs(updatedLogs, ownerId);
       }
-    });
+    }
 
     return { success: true };
   };
 
-  const updateProduct = (updatedProd: Product): ActionResult => {
+  const updateProduct = async (updatedProd: Product): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const existing = products.find((p) => p.id === updatedProd.id);
     if (!existing) {
@@ -961,9 +829,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: `Kode SKU "${cleanSku}" sudah digunakan oleh produk lain.` };
     }
 
+    const ownerId = user.ownerId;
     const sanitized: Product = {
       ...updatedProd,
-      ownerId: user.ownerId,
+      ownerId,
       sku: cleanSku,
       name: cleanName,
       buyPrice: Math.max(0, Math.round(Number(updatedProd.buyPrice) || 0)),
@@ -975,16 +844,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date().toISOString(),
     };
 
+    const prodRes = await syncUpsertProduct(sanitized, ownerId);
+    markCloudSyncResult(prodRes);
+    if (!prodRes.ok) {
+      return {
+        success: false,
+        error: prodRes.error || 'Gagal memperbarui produk di server cloud.',
+      };
+    }
+
     const updated = products.map((p) => (p.id === sanitized.id ? sanitized : p));
     setProducts(updated);
-    saveStoredProducts(updated, user.ownerId);
+    saveStoredProducts(updated, ownerId);
 
-    let editLog: StockLog | null = null;
     if (existing.stock !== sanitized.stock) {
       const diff = Math.abs(sanitized.stock - existing.stock);
-      editLog = {
+      const editLog: StockLog = {
         id: makeId('log'),
-        ownerId: user.ownerId,
+        ownerId,
         productId: sanitized.id,
         productName: sanitized.name,
         type: 'ADJUSTMENT',
@@ -995,40 +872,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
         operator: user.email,
       };
-      const updatedLogs = [editLog, ...stockLogs];
-      setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs, user.ownerId);
-    }
-
-    const ownerId = user.ownerId;
-    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: sanitized }, ownerId).then((res) => {
-      if (editLog && (res.ok || res.offline)) {
-        void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [editLog] }, ownerId);
+      const logRes = await syncInsertStockLogs([editLog], ownerId);
+      markCloudSyncResult(logRes);
+      if (logRes.ok) {
+        const updatedLogs = [editLog, ...stockLogs];
+        setStockLogs(updatedLogs);
+        saveStoredStockLogs(updatedLogs, ownerId);
       }
-    });
+    }
 
     return { success: true };
   };
 
-  const deleteProduct = (productId: string): ActionResult => {
+  const deleteProduct = async (productId: string): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
+
+    const delRes = await syncDeleteProduct(productId);
+    markCloudSyncResult(delRes);
+    if (!delRes.ok) {
+      return {
+        success: false,
+        error: delRes.error || 'Gagal menghapus produk dari server cloud.',
+      };
+    }
 
     const updated = products.filter((p) => p.id !== productId);
     setProducts(updated);
     saveStoredProducts(updated, user.ownerId);
-    void dispatchCloudTask({ id: makeId('sync'), type: 'delete_product', productId }, user.ownerId);
     return { success: true };
   };
 
-  const adjustStock = (
+  const adjustStock = async (
     productId: string,
     quantity: number,
     type: 'IN' | 'OUT' | 'ADJUSTMENT',
     reason: string
-  ): ActionResult => {
+  ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const prod = products.find((p) => p.id === productId);
     if (!prod) return { success: false, error: 'Produk tidak ditemukan.' };
@@ -1067,19 +953,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       newStock = Math.max(0, cleanQty);
     }
 
+    const ownerId = user.ownerId;
     const updatedProd: Product = {
       ...prod,
-      ownerId: user.ownerId,
+      ownerId,
       stock: newStock,
       updatedAt: new Date().toISOString(),
     };
+
+    const stockRes = await syncUpsertProduct(updatedProd, ownerId);
+    markCloudSyncResult(stockRes);
+    if (!stockRes.ok) {
+      return {
+        success: false,
+        error: stockRes.error || 'Gagal memperbarui stok produk di server cloud.',
+      };
+    }
+
     const updated = products.map((p) => (p.id === productId ? updatedProd : p));
     setProducts(updated);
-    saveStoredProducts(updated, user.ownerId);
+    saveStoredProducts(updated, ownerId);
 
     const log: StockLog = {
       id: makeId('log'),
-      ownerId: user.ownerId,
+      ownerId,
       productId: prod.id,
       productName: prod.name,
       type,
@@ -1096,29 +993,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date().toISOString(),
       operator: user.email,
     };
-    const updatedLogs = [log, ...stockLogs];
-    setStockLogs(updatedLogs);
-    saveStoredStockLogs(updatedLogs, user.ownerId);
-
-    const ownerId = user.ownerId;
-    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: updatedProd }, ownerId).then((res) => {
-      if (res.ok || res.offline) {
-        void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [log] }, ownerId);
-      }
-    });
+    const logRes = await syncInsertStockLogs([log], ownerId);
+    markCloudSyncResult(logRes);
+    if (logRes.ok) {
+      const updatedLogs = [log, ...stockLogs];
+      setStockLogs(updatedLogs);
+      saveStoredStockLogs(updatedLogs, ownerId);
+    }
 
     return { success: true };
   };
 
-  const processSale = (
+  const processSale = async (
     cartItems: { productId: string; quantity: number }[],
     paymentMethod: PaymentMethod,
     discount: number,
     amountPaid: number,
     customInvoiceNo?: string
-  ) => {
-    if (!user) {
-      return { success: false, error: 'Sesi pengguna tidak ditemukan. Silakan masuk kembali.' };
+  ): Promise<{ success: boolean; transaction?: Transaction; error?: string }> => {
+    const netErr = requireOnlineCloudSession();
+    if (netErr || !user) {
+      return { success: false, error: netErr || 'Sesi pengguna tidak ditemukan. Silakan masuk kembali.' };
     }
     if (!cartItems.length) {
       return { success: false, error: 'Keranjang belanja masih kosong.' };
@@ -1188,15 +1083,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const finalAmountPaid = paymentMethod === 'Tunai' ? safeAmountPaid : grandTotal;
 
     const now = new Date();
+    const ownerId = user.ownerId;
     const cleanInvoiceNo = customInvoiceNo?.trim();
     const invoiceNo =
       cleanInvoiceNo && /^TRX-[A-Z0-9\-]{6,30}$/.test(cleanInvoiceNo)
         ? cleanInvoiceNo
-        : generateInvoiceNo(user.ownerId);
+        : generateInvoiceNo(ownerId);
 
     const newTransaction: Transaction = {
       id: makeId('trx'),
-      ownerId: user.ownerId,
+      ownerId,
       invoiceNo,
       createdAt: now.toISOString(),
       cashierEmail: user.email,
@@ -1222,7 +1118,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const updatedAt = now.toISOString();
         saleLogs.push({
           id: makeId('log'),
-          ownerId: user.ownerId,
+          ownerId,
           productId: p.id,
           productName: p.name,
           type: 'OUT',
@@ -1243,41 +1139,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return p;
     });
 
-    setProducts(updatedProducts);
-    saveStoredProducts(updatedProducts, user.ownerId);
-
-    // Concurrently dispatch stock updates with offline queue fallback
-    if (stockSyncQueue.length > 0) {
-      void Promise.allSettled(
-        stockSyncQueue.map((item) =>
-          dispatchCloudTask(
-            { id: makeId('sync'), type: 'update_stock', productId: item.id, stock: item.stock, updatedAt: item.updatedAt },
-            user.ownerId
-          )
-        )
-      );
+    // Save transaction on Supabase Cloud first before mutating state/cache
+    const trxRes = await syncInsertTransaction(newTransaction, ownerId);
+    markCloudSyncResult(trxRes);
+    if (!trxRes.ok) {
+      return {
+        success: false,
+        error: trxRes.error || 'Gagal menyimpan transaksi ke server cloud. Periksa koneksi internet Anda.',
+      };
     }
+
+    await Promise.all([
+      ...stockSyncQueue.map((item) =>
+        syncUpdateProductStock(item.id, item.stock, item.updatedAt).then((r) => {
+          markCloudSyncResult(r);
+          return r;
+        })
+      ),
+      saleLogs.length > 0
+        ? syncInsertStockLogs(saleLogs, ownerId).then((r) => {
+            markCloudSyncResult(r);
+            return r;
+          })
+        : Promise.resolve({ ok: true }),
+    ]);
+
+    setProducts(updatedProducts);
+    saveStoredProducts(updatedProducts, ownerId);
 
     if (saleLogs.length > 0) {
       const updatedLogs = [...saleLogs, ...stockLogs];
       setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs, user.ownerId);
-      void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: saleLogs }, user.ownerId);
+      saveStoredStockLogs(updatedLogs, ownerId);
     }
 
     const updatedTransactions = [newTransaction, ...transactions];
     setTransactions(updatedTransactions);
-    saveStoredTransactions(updatedTransactions, user.ownerId);
-    void dispatchCloudTask({ id: makeId('sync'), type: 'insert_transaction', transaction: newTransaction }, user.ownerId);
+    saveStoredTransactions(updatedTransactions, ownerId);
 
     playCashierChime();
 
     return { success: true, transaction: newTransaction };
   };
 
-  const voidTransaction = (transactionId: string, reason: string): ActionResult => {
+  const voidTransaction = async (
+    transactionId: string,
+    reason: string
+  ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const targetTrx = transactions.find((t) => t.id === transactionId);
     if (!targetTrx) {
@@ -1289,6 +1201,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const cleanReason = reason.trim() || 'Pembatalan nota / retur barang oleh Administrator';
     const nowIso = new Date().toISOString();
+    const ownerId = user.ownerId;
     const voidLogs: StockLog[] = [];
     const voidStockSyncQueue: Array<{ id: string; stock: number; updatedAt: string }> = [];
 
@@ -1306,7 +1219,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const newStock = p.stock + returnQty;
         voidLogs.push({
           id: makeId('log-void'),
-          ownerId: user.ownerId,
+          ownerId,
           productId: p.id,
           productName: p.name,
           type: 'IN',
@@ -1327,6 +1240,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return p;
     });
 
+    const voidRes = await syncVoidTransaction(transactionId, cleanReason, nowIso);
+    markCloudSyncResult(voidRes);
+    if (!voidRes.ok) {
+      return {
+        success: false,
+        error: voidRes.error || 'Gagal membatalkan nota di server cloud.',
+      };
+    }
+
+    await Promise.all([
+      ...voidStockSyncQueue.map((item) =>
+        syncUpdateProductStock(item.id, item.stock, item.updatedAt).then((r) => {
+          markCloudSyncResult(r);
+          return r;
+        })
+      ),
+      voidLogs.length > 0
+        ? syncInsertStockLogs(voidLogs, ownerId).then((r) => {
+            markCloudSyncResult(r);
+            return r;
+          })
+        : Promise.resolve({ ok: true }),
+    ]);
+
     const updatedTransactions = transactions.map((t) =>
       t.id === transactionId
         ? {
@@ -1339,31 +1276,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
 
     setProducts(updatedProducts);
-    saveStoredProducts(updatedProducts, user.ownerId);
-    if (voidStockSyncQueue.length > 0) {
-      void Promise.allSettled(
-        voidStockSyncQueue.map((item) =>
-          dispatchCloudTask(
-            { id: makeId('sync'), type: 'update_stock', productId: item.id, stock: item.stock, updatedAt: item.updatedAt },
-            user.ownerId
-          )
-        )
-      );
-    }
+    saveStoredProducts(updatedProducts, ownerId);
 
     if (voidLogs.length > 0) {
       const updatedLogs = [...voidLogs, ...stockLogs];
       setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs, user.ownerId);
-      void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: voidLogs }, user.ownerId);
+      saveStoredStockLogs(updatedLogs, ownerId);
     }
 
     setTransactions(updatedTransactions);
-    saveStoredTransactions(updatedTransactions, user.ownerId);
-    void dispatchCloudTask(
-      { id: makeId('sync'), type: 'void_transaction', transactionId, voidReason: cleanReason, voidedAt: nowIso },
-      user.ownerId
-    );
+    saveStoredTransactions(updatedTransactions, ownerId);
 
     return { success: true };
   };
@@ -1373,28 +1295,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
-    const base = paymentSettings.ownerId === user.ownerId
+    const ownerId = user.ownerId;
+    const base = paymentSettings.ownerId === ownerId
       ? paymentSettings
-      : getDefaultStorePaymentSettings(user.ownerId);
+      : getDefaultStorePaymentSettings(ownerId);
 
     const nextSettings: StorePaymentSettings = {
       ...base,
       ...patch,
-      ownerId: user.ownerId,
+      ownerId,
       updatedAt: new Date().toISOString(),
     };
 
-    setPaymentSettings(nextSettings);
-    saveStoredPaymentSettings(nextSettings, user.ownerId);
-
-    const syncRes = await dispatchCloudTask(
-      { id: makeId('sync'), type: 'upsert_payment', settings: nextSettings },
-      user.ownerId
-    );
-    if (!syncRes.ok && !syncRes.offline) {
-      return { success: false, error: syncRes.error || 'Gagal menyinkronkan pengaturan ke cloud.' };
+    const syncRes = await syncUpsertPaymentSettings(nextSettings, ownerId);
+    markCloudSyncResult(syncRes);
+    if (!syncRes.ok) {
+      return {
+        success: false,
+        error: syncRes.error || 'Gagal menyinkronkan pengaturan ke server cloud.',
+      };
     }
+
+    setPaymentSettings(nextSettings);
+    saveStoredPaymentSettings(nextSettings, ownerId);
 
     return { success: true };
   };
@@ -1405,6 +1331,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const cleanName = patch.name?.trim();
     const nextPassword = patch.password;
@@ -1426,28 +1354,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    if (getSupabaseAccessToken()) {
-      const cloudRes = await updateOwnSupabaseAccount({
-        ...(cleanName ? { name: cleanName } : {}),
-        ...(nextPassword ? { password: nextPassword } : {}),
-      });
-      if (!cloudRes.ok && !cloudRes.offline) {
-        return { success: false, error: cloudRes.error || 'Gagal memperbarui profil akun.' };
-      }
-    }
-
-    const localAcc = getStoredAccounts().find(
-      (a) => a.email.toLowerCase() === user.email.toLowerCase()
-    );
-    if (localAcc) {
-      const nextPass = nextPassword
-        ? await hashPasswordSha256(nextPassword)
-        : localAcc.password;
-      saveStoredAccount({
-        ...localAcc,
-        name: cleanName || localAcc.name,
-        password: nextPass,
-      });
+    const cloudRes = await updateOwnSupabaseAccount({
+      ...(cleanName ? { name: cleanName } : {}),
+      ...(nextPassword ? { password: nextPassword } : {}),
+    });
+    markCloudSyncResult(cloudRes);
+    if (!cloudRes.ok) {
+      return { success: false, error: cloudRes.error || 'Gagal memperbarui profil akun di cloud.' };
     }
 
     if (cleanName) {
@@ -1482,6 +1395,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addCategory = (rawName: string): ActionResult => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const cleanName = rawName.trim().replace(/\s+/g, ' ');
     if (cleanName.length < 2) {
@@ -1503,6 +1418,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteCategory = (targetName: string): ActionResult => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    const netErr = requireOnlineCloudSession();
+    if (netErr) return { success: false, error: netErr };
 
     const lower = targetName.trim().toLowerCase();
     if (PRODUCT_CATEGORIES.some((c) => c.toLowerCase() === lower)) {
@@ -1673,7 +1590,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user: isInitialized ? user : null,
       isHydrated: isInitialized,
       isCloudConnected: isInitialized ? isCloudConnected : false,
-      pendingSyncCount: isInitialized ? pendingSyncCount : 0,
+      connectionStatus: isInitialized ? connectionStatus : 'connecting',
+      reconnectCloud,
       theme: isInitialized ? theme : 'dark',
       toggleTheme: stableToggleTheme,
       products: isInitialized ? products : SSR_EMPTY_PRODUCTS,
@@ -1709,7 +1627,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isInitialized,
       user,
       isCloudConnected,
-      pendingSyncCount,
+      connectionStatus,
+      reconnectCloud,
       theme,
       products,
       categories,

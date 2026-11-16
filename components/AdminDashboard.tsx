@@ -49,7 +49,7 @@ function formatShortAmount(val: number): string {
 export default function AdminDashboard() {
   const {
     user,
-    isCloudConnected,
+    connectionStatus,
     products,
     categories,
     transactions,
@@ -394,7 +394,11 @@ export default function AdminDashboard() {
               </span>
               <span className="sb-status sb-mono">
                 <Database size={11} style={{ color: 'var(--accent-cyan)' }} />
-                {isCloudConnected ? 'Cloud Aktif (Data Aman)' : 'Mode Offline (Penyimpanan Perangkat)'}
+                {connectionStatus === 'online'
+                  ? 'Cloud Aktif (Full Online)'
+                  : connectionStatus === 'connecting'
+                    ? 'Menghubungkan Cloud...'
+                    : 'Koneksi Cloud Terputus'}
               </span>
               <span className="sb-status">
                 <Calendar size={11} />

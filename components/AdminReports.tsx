@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  Loader2,
 } from 'lucide-react';
 
 export default function AdminReports() {
@@ -34,6 +35,7 @@ export default function AdminReports() {
   const [voidingTrx, setVoidingTrx] = useState<Transaction | null>(null);
   const [voidReason, setVoidReason] = useState<string>('');
   const [voidError, setVoidError] = useState<string>('');
+  const [isVoiding, setIsVoiding] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -258,28 +260,32 @@ export default function AdminReports() {
             ? `${customStartDate || '-'} s/d ${customEndDate || '-'}`
             : 'Semua Periode Waktu';
 
-  const handleConfirmVoid = (e: React.FormEvent) => {
+  const handleConfirmVoid = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!voidingTrx) return;
+    if (!voidingTrx || isVoiding) return;
     setVoidError('');
+    setIsVoiding(true);
+    try {
+      const res = await voidTransaction(
+        voidingTrx.id,
+        voidReason || 'Pembatalan nota / retur barang oleh Administrator'
+      );
+      if (!res.success) {
+        setVoidError(res.error || 'Gagal membatalkan transaksi.');
+        return;
+      }
 
-    const res = voidTransaction(
-      voidingTrx.id,
-      voidReason || 'Pembatalan nota / retur barang oleh Administrator'
-    );
-    if (!res.success) {
-      setVoidError(res.error || 'Gagal membatalkan transaksi.');
-      return;
+      const inv = voidingTrx.invoiceNo;
+      setVoidingTrx(null);
+      setVoidReason('');
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      setFeedbackMsg(
+        `Nota ${inv} berhasil dibatalkan (Void). Seluruh stok item terkait telah dikembalikan otomatis ke gudang.`
+      );
+      feedbackTimerRef.current = setTimeout(() => setFeedbackMsg(''), 4000);
+    } finally {
+      setIsVoiding(false);
     }
-
-    const inv = voidingTrx.invoiceNo;
-    setVoidingTrx(null);
-    setVoidReason('');
-    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
-    setFeedbackMsg(
-      `Nota ${inv} berhasil dibatalkan (Void). Seluruh stok item terkait telah dikembalikan otomatis ke gudang.`
-    );
-    feedbackTimerRef.current = setTimeout(() => setFeedbackMsg(''), 4000);
   };
 
   return (
@@ -986,15 +992,25 @@ export default function AdminReports() {
               <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
                 <button
                   type="button"
+                  disabled={isVoiding}
                   onClick={() => setVoidingTrx(null)}
                   className="btn btn-secondary"
                   style={{ flex: 1 }}
                 >
                   Kembali
                 </button>
-                <button type="submit" className="btn btn-danger" style={{ flex: 1 }}>
-                  <Ban size={14} />
-                  <span>Konfirmasi Void Nota</span>
+                <button type="submit" disabled={isVoiding} className="btn btn-danger" style={{ flex: 1 }}>
+                  {isVoiding ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Memproses...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Ban size={14} />
+                      <span>Konfirmasi Void Nota</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

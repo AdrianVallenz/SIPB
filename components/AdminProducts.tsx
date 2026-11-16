@@ -27,6 +27,7 @@ import {
   Sparkles,
   Tag,
   Download,
+  Loader2,
 } from 'lucide-react';
 
 export default function AdminProducts() {
@@ -62,6 +63,8 @@ export default function AdminProducts() {
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [modalError, setModalError] = useState<string>('');
+  const [isSavingModal, setIsSavingModal] = useState(false);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
   // Category Management state
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -292,78 +295,94 @@ export default function AdminProducts() {
     setIsInlineAddingCategory(false);
   };
 
-  const handleSaveAdd = (e: React.FormEvent) => {
+  const handleSaveAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingModal) return;
     setModalError('');
-    const res = addProduct({
-      sku: formData.sku,
-      name: formData.name,
-      category: formData.category,
-      buyPrice: Number(formData.buyPrice),
-      sellPrice: Number(formData.sellPrice),
-      stock: Number(formData.stock),
-      minStock: Number(formData.minStock),
-      unit: formData.unit,
-      description: formData.description,
-    });
-    if (!res.success) {
-      setModalError(res.error || 'Gagal menambahkan produk.');
-      return;
+    setIsSavingModal(true);
+    try {
+      const res = await addProduct({
+        sku: formData.sku,
+        name: formData.name,
+        category: formData.category,
+        buyPrice: Number(formData.buyPrice),
+        sellPrice: Number(formData.sellPrice),
+        stock: Number(formData.stock),
+        minStock: Number(formData.minStock),
+        unit: formData.unit,
+        description: formData.description,
+      });
+      if (!res.success) {
+        setModalError(res.error || 'Gagal menambahkan produk.');
+        return;
+      }
+      setIsAddModalOpen(false);
+      showFeedback(`Produk "${formData.name}" berhasil ditambahkan ke katalog.`);
+    } finally {
+      setIsSavingModal(false);
     }
-    setIsAddModalOpen(false);
-    showFeedback(`Produk "${formData.name}" berhasil ditambahkan ke katalog.`);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProduct) return;
+    if (!editingProduct || isSavingModal) return;
     setModalError('');
-    const res = updateProduct({
-      ...editingProduct,
-      sku: formData.sku,
-      name: formData.name,
-      category: formData.category,
-      buyPrice: Number(formData.buyPrice),
-      sellPrice: Number(formData.sellPrice),
-      stock: Number(formData.stock),
-      minStock: Number(formData.minStock),
-      unit: formData.unit,
-      description: formData.description,
-    });
-    if (!res.success) {
-      setModalError(res.error || 'Gagal memperbarui produk.');
-      return;
+    setIsSavingModal(true);
+    try {
+      const res = await updateProduct({
+        ...editingProduct,
+        sku: formData.sku,
+        name: formData.name,
+        category: formData.category,
+        buyPrice: Number(formData.buyPrice),
+        sellPrice: Number(formData.sellPrice),
+        stock: Number(formData.stock),
+        minStock: Number(formData.minStock),
+        unit: formData.unit,
+        description: formData.description,
+      });
+      if (!res.success) {
+        setModalError(res.error || 'Gagal memperbarui produk.');
+        return;
+      }
+      setEditingProduct(null);
+      showFeedback(`Perubahan pada "${formData.name}" berhasil disimpan.`);
+    } finally {
+      setIsSavingModal(false);
     }
-    setEditingProduct(null);
-    showFeedback(`Perubahan pada "${formData.name}" berhasil disimpan.`);
   };
 
-  const handleConfirmRestock = (e: React.FormEvent) => {
+  const handleConfirmRestock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restockProduct) return;
+    if (!restockProduct || isSavingModal) return;
     setModalError('');
-    const defaultReason =
-      restockType === 'IN'
-        ? 'Restock pasokan supplier'
-        : restockType === 'OUT'
-          ? 'Pengurangan stok rusak/hilang'
-          : 'Stok opname fisik gudang';
-    const res = adjustStock(
-      restockProduct.id,
-      restockQty,
-      restockType,
-      restockReason || defaultReason
-    );
-    if (!res.success) {
-      setModalError(res.error || 'Gagal menyesuaikan stok.');
-      return;
+    setIsSavingModal(true);
+    try {
+      const defaultReason =
+        restockType === 'IN'
+          ? 'Restock pasokan supplier'
+          : restockType === 'OUT'
+            ? 'Pengurangan stok rusak/hilang'
+            : 'Stok opname fisik gudang';
+      const res = await adjustStock(
+        restockProduct.id,
+        restockQty,
+        restockType,
+        restockReason || defaultReason
+      );
+      if (!res.success) {
+        setModalError(res.error || 'Gagal menyesuaikan stok.');
+        return;
+      }
+      const prodName = restockProduct.name;
+      setRestockProduct(null);
+      setRestockQty(10);
+      setRestockQtyInput('10');
+      setRestockReason('');
+      showFeedback(`Stok "${prodName}" berhasil diperbarui.`);
+    } finally {
+      setIsSavingModal(false);
     }
-    const prodName = restockProduct.name;
-    setRestockProduct(null);
-    setRestockQty(10);
-    setRestockQtyInput('10');
-    setRestockReason('');
-    showFeedback(`Stok "${prodName}" berhasil diperbarui.`);
   };
 
   return (
@@ -1325,6 +1344,7 @@ export default function AdminProducts() {
               <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
                 <button
                   type="button"
+                  disabled={isSavingModal}
                   onClick={() => {
                     setIsAddModalOpen(false);
                     setEditingProduct(null);
@@ -1334,8 +1354,15 @@ export default function AdminProducts() {
                 >
                   Batal
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                  Simpan Produk
+                <button type="submit" disabled={isSavingModal} className="btn btn-primary" style={{ flex: 1 }}>
+                  {isSavingModal ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Produk</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1514,14 +1541,22 @@ export default function AdminProducts() {
               <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
                 <button
                   type="button"
+                  disabled={isSavingModal}
                   onClick={() => setRestockProduct(null)}
                   className="btn btn-secondary"
                   style={{ flex: 1 }}
                 >
                   Batal
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                  Simpan Mutasi Stok
+                <button type="submit" disabled={isSavingModal} className="btn btn-primary" style={{ flex: 1 }}>
+                  {isSavingModal ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Mutasi Stok</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1556,24 +1591,45 @@ export default function AdminProducts() {
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setDeletingProduct(null)} className="btn btn-secondary" style={{ flex: 1 }}>
+              <button
+                type="button"
+                disabled={isDeletingProduct}
+                onClick={() => setDeletingProduct(null)}
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+              >
                 Batal
               </button>
               <button
-                onClick={() => {
-                  const name = deletingProduct.name;
-                  const res = deleteProduct(deletingProduct.id);
-                  setDeletingProduct(null);
-                  if (res.success) {
-                    showFeedback(`Produk "${name}" telah dihapus.`);
-                  } else {
-                    showFeedback(res.error || 'Gagal menghapus produk.', true);
+                type="button"
+                disabled={isDeletingProduct}
+                onClick={async () => {
+                  if (isDeletingProduct || !deletingProduct) return;
+                  const target = deletingProduct;
+                  setIsDeletingProduct(true);
+                  try {
+                    const res = await deleteProduct(target.id);
+                    setDeletingProduct(null);
+                    if (res.success) {
+                      showFeedback(`Produk "${target.name}" telah dihapus.`);
+                    } else {
+                      showFeedback(res.error || 'Gagal menghapus produk.', true);
+                    }
+                  } finally {
+                    setIsDeletingProduct(false);
                   }
                 }}
                 className="btn btn-danger"
                 style={{ flex: 1 }}
               >
-                Ya, Hapus
+                {isDeletingProduct ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  <span>Ya, Hapus</span>
+                )}
               </button>
             </div>
           </div>

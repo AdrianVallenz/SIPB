@@ -72,9 +72,9 @@ export const TECH_STACK_ITEMS = [
     detail: 'Seluruh riwayat transaksi, katalog produk, dan laporan keuangan tersimpan aman dengan cadangan cloud otomatis.',
   },
   {
-    title: 'Tetap Lancar Walau Internet Mati',
-    sub: 'Mode Kasir Offline Cerdas',
-    detail: 'Kasir tetap bisa melayani pembeli saat kuota habis atau jaringan terputus, dan otomatis tersinkron saat internet online kembali.',
+    title: 'Operasional Full Online Real-Time',
+    sub: 'Sinkronisasi Langsung ke Server Cloud',
+    detail: 'Setiap transaksi kasir, pembaruan stok, dan laporan keuangan langsung tersimpan real-time ke database cloud terpusat.',
   },
   {
     title: 'QRIS Dinamis & Struk Bluetooth',

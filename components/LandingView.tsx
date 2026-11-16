@@ -543,7 +543,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                 <span>Penyimpanan Cloud Terlindungi</span>
               </div>
               <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {isCloudConnected ? 'Data Tersimpan & Cadangan Aktif' : 'Penyimpanan Aman di Perangkat Anda'}
+                {isCloudConnected ? 'Data Tersimpan & Sinkron Cloud Aktif' : 'Menghubungkan Server Cloud'}
               </div>
             </div>
           </div>

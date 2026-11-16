@@ -19,9 +19,13 @@ function LoginPageContent() {
     <LoginView
       key={initialMode}
       initialMode={initialMode}
-      onOpenDemoDashboard={() => {
-        enterDemo('admin');
-        router.replace('/admin/dashboard');
+      onOpenDemoDashboard={async () => {
+        const res = await enterDemo('admin');
+        if (res.success) {
+          router.replace('/admin/dashboard');
+          return { success: true };
+        }
+        return { success: false, message: res.message };
       }}
       onLoginSuccess={(role = 'admin') => {
         router.replace(resolvePostLoginRedirect(nextPath, role));
