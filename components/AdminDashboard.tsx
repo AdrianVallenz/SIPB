@@ -19,7 +19,6 @@ import {
   CreditCard,
   Activity,
   FileSpreadsheet,
-  Database,
   Users,
   Layers,
   Calendar,
@@ -49,7 +48,6 @@ function formatShortAmount(val: number): string {
 export default function AdminDashboard() {
   const {
     user,
-    connectionStatus,
     products,
     categories,
     transactions,
@@ -391,14 +389,6 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span className="sb-status sb-status-solid">
                 <Activity size={11} /> Panel Kendali Toko
-              </span>
-              <span className="sb-status sb-mono">
-                <Database size={11} style={{ color: 'var(--accent-cyan)' }} />
-                {connectionStatus === 'online'
-                  ? 'Cloud Aktif (Full Online)'
-                  : connectionStatus === 'connecting'
-                    ? 'Menghubungkan Cloud...'
-                    : 'Koneksi Cloud Terputus'}
               </span>
               <span className="sb-status">
                 <Calendar size={11} />

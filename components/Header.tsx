@@ -40,28 +40,8 @@ function getUserInitials(name: string): string {
 }
 
 export default function Header({ onOpenAuth }: HeaderProps) {
-  const { user, theme, toggleTheme, logout, activeTab, connectionStatus, paymentSettings } =
-    useApp();
+  const { user, theme, toggleTheme, logout, activeTab, paymentSettings } = useApp();
   const { settings } = useBluetoothPrinter();
-
-  const statusDotClass =
-    connectionStatus === 'online'
-      ? 'online'
-      : connectionStatus === 'connecting'
-        ? 'local'
-        : 'offline';
-  const statusLabel =
-    connectionStatus === 'online'
-      ? 'Cloud Aktif'
-      : connectionStatus === 'connecting'
-        ? 'Menghubungkan...'
-        : 'Koneksi Terputus';
-  const compactStatusLabel =
-    connectionStatus === 'online'
-      ? 'Cloud'
-      : connectionStatus === 'connecting'
-        ? 'Memuat'
-        : 'Terputus';
 
   const [timeString, setTimeString] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -156,7 +136,6 @@ export default function Header({ onOpenAuth }: HeaderProps) {
                   minWidth: 0,
                 }}
               >
-                <span className={`header-status-dot ${statusDotClass}`} />
                 <span
                   style={{
                     fontWeight: 500,
@@ -226,18 +205,13 @@ export default function Header({ onOpenAuth }: HeaderProps) {
 
         {/* Right: Clean Architectural Controls (Desktop) */}
         <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div className="header-status-pill hide-tablet-header">
-            <span className={`header-status-dot ${statusDotClass}`} />
-            <span>{statusLabel}</span>
-            {timeString && (
-              <>
-                <span style={{ color: 'var(--border-color)' }}>|</span>
-                <span className="font-mono" style={{ fontSize: '11px', color: 'var(--text-primary)' }}>
-                  {timeString} WIB
-                </span>
-              </>
-            )}
-          </div>
+          {timeString && (
+            <div className="header-status-pill hide-tablet-header">
+              <span className="font-mono" style={{ fontSize: '11px', color: 'var(--text-primary)' }}>
+                {timeString} WIB
+              </span>
+            </div>
+          )}
 
           <button
             type="button"
@@ -349,9 +323,6 @@ export default function Header({ onOpenAuth }: HeaderProps) {
                     }}
                   >
                     <span>Toko: {activeStoreName}</span>
-                    <span className="sb-status sb-mono" style={{ height: '19px', padding: '0 6px' }}>
-                      {compactStatusLabel}
-                    </span>
                   </div>
                 </div>
 
@@ -484,9 +455,6 @@ export default function Header({ onOpenAuth }: HeaderProps) {
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
                 <Store size={14} style={{ color: 'var(--accent-cyan)' }} />
                 {activeStoreName}
-              </span>
-              <span className="sb-status sb-mono">
-                {statusLabel}
               </span>
             </div>
 

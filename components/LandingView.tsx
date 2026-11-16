@@ -51,7 +51,7 @@ interface LandingViewProps {
 }
 
 export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps) {
-  const { user, theme, toggleTheme, products, transactions, stockLogs, isCloudConnected } = useApp();
+  const { user, theme, toggleTheme, products, transactions, stockLogs } = useApp();
   const [activeShowcase, setActiveShowcase] = useState<ShowcaseTab>('dashboard');
   const [selectedSimPayment, setSelectedSimPayment] = useState<'Tunai' | 'QRIS' | 'Transfer Bank' | 'Kartu Debit'>('QRIS');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -543,7 +543,7 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
                 <span>Penyimpanan Cloud Terlindungi</span>
               </div>
               <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {isCloudConnected ? 'Data Tersimpan & Sinkron Cloud Aktif' : 'Menghubungkan Server Cloud'}
+                Sinkronisasi &amp; Isolasi Data Multi-Tenant
               </div>
             </div>
           </div>
