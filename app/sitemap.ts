@@ -10,6 +10,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 1,
     },
+    {
+      url: 'https://sipb.web.id/login',
+      lastModified: SCHEMA_UPDATED_AT,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
   ];
 }
 

@@ -12,7 +12,7 @@ import {
   Package,
   Eye,
   EyeOff,
-  ArrowLeft,
+  LayoutDashboard,
   UserPlus,
   LogIn,
   User,
@@ -22,13 +22,13 @@ import {
 
 interface LoginViewProps {
   initialMode?: 'login' | 'register';
-  onBackToShowcase?: () => void;
-  onLoginSuccess?: () => void;
+  onOpenDemoDashboard?: () => void;
+  onLoginSuccess?: (role?: 'admin' | 'user') => void;
 }
 
 export default function LoginView({
   initialMode = 'login',
-  onBackToShowcase,
+  onOpenDemoDashboard,
   onLoginSuccess,
 }: LoginViewProps) {
   const { login, register, theme, toggleTheme } = useApp();
@@ -52,14 +52,14 @@ export default function LoginView({
         if (!res.success) {
           setError(res.message || 'Autentikasi gagal.');
         } else {
-          onLoginSuccess?.();
+          onLoginSuccess?.(res.role);
         }
       } else {
         const res = await register(name, email, password);
         if (!res.success) {
           setError(res.message || 'Pendaftaran gagal.');
         } else {
-          onLoginSuccess?.();
+          onLoginSuccess?.(res.role ?? 'admin');
         }
       }
     } finally {
@@ -88,7 +88,7 @@ export default function LoginView({
         position: 'relative',
       }}
     >
-      {/* Top Bar: Back to Showcase & Unified Action Capsule */}
+      {/* Top Bar: Demo Dashboard & Unified Action Capsule */}
       <header
         className="app-header"
         style={{
@@ -100,10 +100,10 @@ export default function LoginView({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-          {onBackToShowcase ? (
+          {onOpenDemoDashboard ? (
             <button
               type="button"
-              onClick={onBackToShowcase}
+              onClick={onOpenDemoDashboard}
               className="header-tool-btn"
               style={{
                 border: '1px solid var(--border-color)',
@@ -112,9 +112,9 @@ export default function LoginView({
                 padding: '0 12px',
               }}
             >
-              <ArrowLeft size={14} />
-              <span className="hide-mobile">Kembali ke Showcase</span>
-              <span className="show-mobile-only" style={{ fontSize: '12px' }}>Beranda</span>
+              <LayoutDashboard size={14} style={{ color: 'var(--accent-cyan)' }} />
+              <span className="hide-mobile">Masuk Demo Dashboard</span>
+              <span className="show-mobile-only" style={{ fontSize: '12px' }}>Dashboard</span>
             </button>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

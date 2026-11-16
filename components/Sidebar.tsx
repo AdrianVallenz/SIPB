@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
+import { ADMIN_TAB_ROUTES, USER_TAB_ROUTES } from '@/lib/routes';
 import {
   LayoutDashboard,
   Package,
@@ -14,7 +17,8 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar() {
-  const { user, activeTab, setActiveTab, products, cashiers } = useApp();
+  const { user, activeTab, products, cashiers } = useApp();
+  const pathname = usePathname() || '/';
 
   const lowStockCount = useMemo(
     () => products.reduce((count, p) => count + (p.stock <= p.minStock ? 1 : 0), 0),
@@ -28,6 +32,7 @@ export default function Sidebar() {
   const adminNav = [
     {
       id: 'dashboard',
+      href: ADMIN_TAB_ROUTES.dashboard,
       label: 'Ringkasan Utama',
       mobileLabel: 'Beranda',
       icon: <LayoutDashboard size={16} />,
@@ -37,6 +42,7 @@ export default function Sidebar() {
     },
     {
       id: 'products',
+      href: ADMIN_TAB_ROUTES.products,
       label: 'Inventaris & Stok',
       mobileLabel: 'Produk',
       icon: <Package size={16} />,
@@ -46,6 +52,7 @@ export default function Sidebar() {
     },
     {
       id: 'pos',
+      href: ADMIN_TAB_ROUTES.pos,
       label: 'Terminal Kasir (POS)',
       mobileLabel: 'Kasir',
       icon: <ShoppingCart size={16} />,
@@ -55,6 +62,7 @@ export default function Sidebar() {
     },
     {
       id: 'reports',
+      href: ADMIN_TAB_ROUTES.reports,
       label: 'Laporan Transaksi',
       mobileLabel: 'Laporan',
       icon: <FileText size={16} />,
@@ -64,6 +72,7 @@ export default function Sidebar() {
     },
     {
       id: 'settings',
+      href: ADMIN_TAB_ROUTES.settings,
       label: 'Pengaturan & Kasir',
       mobileLabel: 'Atur',
       icon: <Settings size={16} />,
@@ -76,6 +85,7 @@ export default function Sidebar() {
   const userNav = [
     {
       id: 'pos',
+      href: USER_TAB_ROUTES.pos,
       label: 'Terminal Kasir (POS)',
       mobileLabel: 'Kasir POS',
       icon: <ShoppingCart size={16} />,
@@ -85,6 +95,7 @@ export default function Sidebar() {
     },
     {
       id: 'my-transactions',
+      href: USER_TAB_ROUTES['my-transactions'],
       label: 'Riwayat Shift Saya',
       mobileLabel: 'Riwayat Shift',
       icon: <History size={16} />,
@@ -109,12 +120,11 @@ export default function Sidebar() {
 
           <nav className="app-sidebar-nav" style={{ gap: '2px' }}>
             {currentNav.map((item) => {
-              const isActive = activeTab === item.id;
+              const isActive = pathname === item.href || activeTab === item.id;
               return (
-                <button
+                <Link
                   key={item.id}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
+                  href={item.href}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -130,6 +140,7 @@ export default function Sidebar() {
                     color: isActive ? 'var(--accent-cyan)' : 'var(--text-primary)',
                     fontWeight: isActive ? 600 : 500,
                     fontSize: '13px',
+                    textDecoration: 'none',
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'background-color 140ms ease, color 140ms ease, border-color 140ms ease',
@@ -155,7 +166,7 @@ export default function Sidebar() {
                       {item.badge}
                     </span>
                   )}
-                </button>
+                </Link>
               );
             })}
           </nav>
@@ -221,13 +232,13 @@ export default function Sidebar() {
         }}
       >
         {currentNav.map((item) => {
-          const isActive = activeTab === item.id;
+          const isActive = pathname === item.href || activeTab === item.id;
           return (
-            <button
+            <Link
               key={item.id}
-              type="button"
-              onClick={() => setActiveTab(item.id)}
+              href={item.href}
               className={`mobile-bottom-nav-btn ${isActive ? 'is-active' : ''}`}
+              style={{ textDecoration: 'none' }}
             >
               <span className="mobile-bottom-nav-icon">
                 {item.mobileIcon}
@@ -236,7 +247,7 @@ export default function Sidebar() {
                 )}
               </span>
               <span className="mobile-bottom-nav-label">{item.mobileLabel}</span>
-            </button>
+            </Link>
           );
         })}
       </nav>

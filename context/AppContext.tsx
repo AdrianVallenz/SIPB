@@ -10,6 +10,7 @@ import React, {
   useState,
   useSyncExternalStore,
 } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   CashierAccount,
   PaymentMethod,
@@ -68,9 +69,10 @@ import {
   updateCashierCloud,
   updateOwnSupabaseAccount,
 } from '@/lib/supabase';
-import { INITIAL_PRODUCTS } from '@/lib/dummyData';
+import { INITIAL_PRODUCTS, INITIAL_STOCK_LOGS, INITIAL_TRANSACTIONS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
 import { generateInvoiceNo } from '@/lib/format';
+import { getRouteForTab, getTabFromPathname } from '@/lib/routes';
 
 interface ActionResult {
   success: boolean;
@@ -80,6 +82,7 @@ interface ActionResult {
 interface AuthResult {
   success: boolean;
   message?: string;
+  role?: 'admin' | 'user';
 }
 
 interface AppContextType {
@@ -104,6 +107,7 @@ interface AppContextType {
   updateOwnProfile: (patch: { name?: string; password?: string }) => Promise<ActionResult>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  enterDemo: (role?: 'admin' | 'user') => void;
   login: (email: string, pass: string) => Promise<AuthResult>;
   register: (name: string, email: string, pass: string) => Promise<AuthResult>;
   logout: () => void;
@@ -189,6 +193,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => true,
     () => false
   );
+  const pathname = usePathname() || '/';
+  const router = useRouter();
 
   const [user, setUser] = useState<UserSession | null>(() => getStoredSession());
   const [theme, setTheme] = useState<'dark' | 'light'>(() => getStoredTheme());
@@ -378,12 +384,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setActiveTab = (tab: string) => {
     const activeUser = user || getStoredSession();
     if (!activeUser) return;
-    if (activeUser.role === 'admin' && ADMIN_TABS.has(tab)) {
+    if (
+      (activeUser.role === 'admin' && ADMIN_TABS.has(tab)) ||
+      (activeUser.role === 'user' && USER_TABS.has(tab))
+    ) {
       setActiveTabState(tab);
       writeStoredActiveTab(tab);
-    } else if (activeUser.role === 'user' && USER_TABS.has(tab)) {
-      setActiveTabState(tab);
-      writeStoredActiveTab(tab);
+      const targetRoute = getRouteForTab(tab, activeUser.role);
+      if (pathname !== targetRoute) {
+        router.push(targetRoute);
+      }
     }
   };
 
@@ -404,6 +414,87 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     writeStoredActiveTab(defaultTab);
     setUser(session);
     setActiveTabState(defaultTab);
+  };
+
+  const activateBuiltInDemo = (role: 'admin' | 'user' = 'admin'): 'admin' | 'user' => {
+    const DEMO_OWNER_ID = 'demo-store-sip-barang';
+    const nowIso = new Date().toISOString();
+    const isDemoAdmin = role === 'admin';
+
+    if (getStoredProducts(DEMO_OWNER_ID).length === 0) {
+      const seededProducts: Product[] = INITIAL_PRODUCTS.map((p, idx) => ({
+        ...p,
+        id: `demo-prd-${idx + 1}`,
+        ownerId: DEMO_OWNER_ID,
+        updatedAt: nowIso,
+      }));
+      saveStoredProducts(seededProducts, DEMO_OWNER_ID);
+    }
+
+    if (getStoredTransactions(DEMO_OWNER_ID).length === 0) {
+      const buyPriceById = new Map(INITIAL_PRODUCTS.map((p) => [p.id, p.buyPrice]));
+      const productIndexById = new Map(INITIAL_PRODUCTS.map((p, idx) => [p.id, idx + 1]));
+      const seededTransactions: Transaction[] = INITIAL_TRANSACTIONS.map((trx, idx) => ({
+        ...trx,
+        id: `demo-trx-${idx + 1}`,
+        ownerId: DEMO_OWNER_ID,
+        items: trx.items.map((item) => {
+          const matchedIndex = productIndexById.get(item.productId);
+          return {
+            ...item,
+            productId: matchedIndex ? `demo-prd-${matchedIndex}` : item.productId,
+            buyPrice: item.buyPrice ?? buyPriceById.get(item.productId),
+          };
+        }),
+      }));
+      saveStoredTransactions(seededTransactions, DEMO_OWNER_ID);
+    }
+
+    if (getStoredStockLogs(DEMO_OWNER_ID).length === 0) {
+      const productIndexById = new Map(INITIAL_PRODUCTS.map((p, idx) => [p.id, idx + 1]));
+      const seededLogs: StockLog[] = INITIAL_STOCK_LOGS.map((log, idx) => {
+        const matchedIndex = productIndexById.get(log.productId);
+        return {
+          ...log,
+          id: `demo-log-${idx + 1}`,
+          ownerId: DEMO_OWNER_ID,
+          productId: matchedIndex ? `demo-prd-${matchedIndex}` : log.productId,
+        };
+      });
+      saveStoredStockLogs(seededLogs, DEMO_OWNER_ID);
+    }
+
+    if (getStoredCashiers(DEMO_OWNER_ID).length === 0) {
+      saveStoredCashiers(
+        [
+          {
+            id: 'demo-cashier-01',
+            ownerId: DEMO_OWNER_ID,
+            email: 'kasir@sipb.web.id',
+            name: 'Budi Santoso (Kasir Demo)',
+            isActive: true,
+            createdAt: nowIso,
+          },
+        ],
+        DEMO_OWNER_ID
+      );
+    }
+
+    const demoSession: UserSession = {
+      id: isDemoAdmin ? DEMO_OWNER_ID : 'demo-cashier-01',
+      ownerId: DEMO_OWNER_ID,
+      email: isDemoAdmin ? 'admin@sipb.web.id' : 'kasir@sipb.web.id',
+      name: isDemoAdmin ? 'Administrator Toko Demo' : 'Budi Santoso (Kasir Demo)',
+      role: isDemoAdmin ? 'admin' : 'user',
+      loginAt: nowIso,
+    };
+    activateSession(demoSession);
+    return demoSession.role;
+  };
+
+  const enterDemo = (role: 'admin' | 'user' = 'admin') => {
+    setSupabaseAccessToken(null);
+    activateBuiltInDemo(role);
   };
 
   const login = async (email: string, pass: string): Promise<AuthResult> => {
@@ -440,53 +531,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loginAt: new Date().toISOString(),
       };
       activateSession(session);
-      return { success: true };
+      return { success: true, role: session.role };
     }
 
     // 3. Built-in Demo Accounts (for evaluation / testing as documented in README.md)
-    const DEMO_OWNER_ID = 'demo-store-sip-barang';
     if (
       (cleanEmail === 'admin@sipb.web.id' && pass === 'admin123') ||
       (cleanEmail === 'kasir@sipb.web.id' && pass === 'kasir123')
     ) {
-      const isDemoAdmin = cleanEmail === 'admin@sipb.web.id';
-      const existingDemoProducts = getStoredProducts(DEMO_OWNER_ID);
-      if (existingDemoProducts.length === 0) {
-        const nowIso = new Date().toISOString();
-        const seeded: Product[] = INITIAL_PRODUCTS.map((p, idx) => ({
-          ...p,
-          id: `demo-prd-${idx + 1}`,
-          ownerId: DEMO_OWNER_ID,
-          updatedAt: nowIso,
-        }));
-        saveStoredProducts(seeded, DEMO_OWNER_ID);
-      }
-      const existingDemoCashiers = getStoredCashiers(DEMO_OWNER_ID);
-      if (existingDemoCashiers.length === 0) {
-        saveStoredCashiers(
-          [
-            {
-              id: 'demo-cashier-01',
-              ownerId: DEMO_OWNER_ID,
-              email: 'kasir@sipb.web.id',
-              name: 'Budi Santoso (Kasir Demo)',
-              isActive: true,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          DEMO_OWNER_ID
-        );
-      }
-      const demoSession: UserSession = {
-        id: isDemoAdmin ? DEMO_OWNER_ID : 'demo-cashier-01',
-        ownerId: DEMO_OWNER_ID,
-        email: cleanEmail,
-        name: isDemoAdmin ? 'Administrator Toko Demo' : 'Budi Santoso (Kasir Demo)',
-        role: isDemoAdmin ? 'admin' : 'user',
-        loginAt: new Date().toISOString(),
-      };
-      activateSession(demoSession);
-      return { success: true };
+      const demoRole = activateBuiltInDemo(
+        cleanEmail === 'admin@sipb.web.id' ? 'admin' : 'user'
+      );
+      return { success: true, role: demoRole };
     }
 
     // 4. Offline fallback ONLY when offline or for offline-created local accounts
@@ -509,7 +565,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loginAt: new Date().toISOString(),
       };
       activateSession(session);
-      return { success: true };
+      return { success: true, role: session.role };
     }
 
     const nextAttempts = failedAttempts + 1;
@@ -556,7 +612,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loginAt: new Date().toISOString(),
       };
       activateSession(session);
-      return { success: true };
+      return { success: true, role: 'admin' };
     }
 
     if (!cloudReg.offline) {
@@ -598,7 +654,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       role: 'admin',
       loginAt: nowIso,
     });
-    return { success: true };
+    return { success: true, role: 'admin' };
   };
 
   const logout = () => {
@@ -615,6 +671,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     hydrateTenantCache('');
+    router.replace('/login');
   };
 
   const requireAdmin = (): ActionResult | null => {
@@ -1457,6 +1514,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const actionsRef = useRef({
     toggleTheme,
     setActiveTab,
+    enterDemo,
     login,
     register,
     logout,
@@ -1481,6 +1539,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     actionsRef.current = {
       toggleTheme,
       setActiveTab,
+      enterDemo,
       login,
       register,
       logout,
@@ -1504,6 +1563,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const stableToggleTheme = useCallback(() => actionsRef.current.toggleTheme(), []);
   const stableSetActiveTab = useCallback((tab: string) => actionsRef.current.setActiveTab(tab), []);
+  const stableEnterDemo = useCallback(
+    (role?: 'admin' | 'user') => actionsRef.current.enterDemo(role),
+    []
+  );
   const stableLogin = useCallback(
     (email: string, pass: string) => actionsRef.current.login(email, pass),
     []
@@ -1588,7 +1651,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  // Gunakan nilai deterministik saat SSR agar Landing HTML utuh tanpa hydration mismatch
+  const routeTab = getTabFromPathname(pathname, user?.role);
+  const effectiveTab = routeTab ?? activeTab;
+
+  // Gunakan nilai deterministik saat SSR agar HTML utuh tanpa hydration mismatch
   const contextValue = useMemo<AppContextType>(
     () => ({
       user: isInitialized ? user : null,
@@ -1608,8 +1674,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       paymentSettings: isInitialized ? paymentSettings : SSR_DEFAULT_PAYMENT_SETTINGS,
       updatePaymentSettings: stableUpdatePaymentSettings,
       updateOwnProfile: stableUpdateOwnProfile,
-      activeTab: isInitialized ? activeTab : 'pos',
+      activeTab: isInitialized ? effectiveTab : 'pos',
       setActiveTab: stableSetActiveTab,
+      enterDemo: stableEnterDemo,
       login: stableLogin,
       register: stableRegister,
       logout: stableLogout,
@@ -1638,13 +1705,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stockLogs,
       cashiers,
       paymentSettings,
-      activeTab,
+      effectiveTab,
       stableToggleTheme,
       stableAddCategory,
       stableDeleteCategory,
       stableUpdatePaymentSettings,
       stableUpdateOwnProfile,
       stableSetActiveTab,
+      stableEnterDemo,
       stableLogin,
       stableRegister,
       stableLogout,

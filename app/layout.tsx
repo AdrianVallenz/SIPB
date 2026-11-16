@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import Providers from '@/components/Providers';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -113,7 +114,7 @@ export default function RootLayout({
             __html: JSON.stringify(websiteJsonLd).replace(/</g, '\\u003c'),
           }}
         />
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
