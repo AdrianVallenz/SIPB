@@ -235,6 +235,10 @@ async function callTenantAuth<T>(
   body: Record<string, unknown>,
   token?: string | null
 ): Promise<{ ok: boolean; data?: T; error?: string; offline?: boolean }> {
+  // Demo and offline admin sessions carry no JWT; fall back immediately instead of 401
+  if (token === undefined && !getSupabaseAccessToken()) {
+    return { ok: false, offline: true, error: 'Offline mode' };
+  }
   try {
     const res = await fetchWithSupabaseAuth(
       TENANT_AUTH_URL,

@@ -133,6 +133,7 @@ function ReceiptModalContent({
   const handleBluetoothPrint = async () => {
     setPrintNotice(null);
     const res = await printTransaction(transaction, true, {
+      storeName: resolvedStoreName,
       qrData: activeQrPayload || undefined,
       qrCaption: activeQrPayload ? qrCaptionText : undefined,
       customNote: paymentSettings.qrisCustomNote || undefined,

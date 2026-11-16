@@ -583,6 +583,7 @@ class EscPosBuilder {
 }
 
 export interface ThermalReceiptOptions {
+  storeName?: string;
   qrData?: string;
   qrCaption?: string;
   customNote?: string;
@@ -600,7 +601,9 @@ export function buildEscPosReceipt(
 
   // Header
   builder.align('center').bold(true).size('large');
-  wrapTextLines(settings.storeName || 'SIP BARANG', Math.floor(cols / 2)).forEach((l) => builder.line(l));
+  wrapTextLines(options?.storeName || settings.storeName || 'SIP BARANG', Math.floor(cols / 2)).forEach((l) =>
+    builder.line(l)
+  );
   builder.size('normal').bold(false);
   if (settings.storeTagline) {
     wrapTextLines(settings.storeTagline, cols).forEach((l) => builder.line(l));

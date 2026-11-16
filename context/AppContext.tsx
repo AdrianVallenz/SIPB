@@ -603,6 +603,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Always register self-signup users as Administrator of their own isolated store
     const cloudReg = await registerAdminCloud(cleanName, cleanEmail, pass);
     if (cloudReg.ok && cloudReg.user) {
+      setSupabaseAccessToken(null);
       await signInSupabase(cleanEmail, pass);
       const session: UserSession = {
         id: cloudReg.user.id,

@@ -24,6 +24,115 @@ import {
   QrCode,
 } from 'lucide-react';
 
+interface AdminProfileFormProps {
+  initialName: string;
+  email: string;
+  updateOwnProfile: (patch: {
+    name?: string;
+    password?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  onFeedback: (fb: { type: 'success' | 'error'; text: string } | null) => void;
+}
+
+function AdminProfileForm({
+  initialName,
+  email,
+  updateOwnProfile,
+  onFeedback,
+}: AdminProfileFormProps) {
+  const [adminName, setAdminName] = useState(initialName);
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const isDemoAdmin = email.toLowerCase() === 'admin@sipb.web.id';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSavingProfile) return;
+    onFeedback(null);
+    setIsSavingProfile(true);
+    try {
+      const patch: { name?: string; password?: string } = {};
+      if (adminName.trim() && adminName.trim() !== initialName) {
+        patch.name = adminName.trim();
+      }
+      if (adminNewPassword) {
+        patch.password = adminNewPassword;
+      }
+      const res = await updateOwnProfile(patch);
+      if (!res.success) {
+        onFeedback({ type: 'error', text: res.error || 'Gagal memperbarui profil administrator.' });
+        return;
+      }
+      setAdminNewPassword('');
+      onFeedback({
+        type: 'success',
+        text: 'Profil akun Administrator berhasil diperbarui.',
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        padding: '18px 20px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gap: '12px',
+        alignItems: 'end',
+      }}
+    >
+      <div>
+        <label className="form-label">Nama Administrator / Pemilik</label>
+        <input
+          type="text"
+          required
+          minLength={2}
+          value={adminName}
+          onChange={(e) => setAdminName(e.target.value)}
+          className="sip-input"
+          placeholder="Nama pemilik toko"
+        />
+      </div>
+
+      <div>
+        <label className="form-label">
+          Kata Sandi Baru <span style={{ fontWeight: 400 }}>(Kosongkan jika tetap)</span>
+        </label>
+        <input
+          type="password"
+          minLength={6}
+          disabled={isDemoAdmin}
+          value={adminNewPassword}
+          onChange={(e) => setAdminNewPassword(e.target.value)}
+          className="sip-input font-mono"
+          placeholder={isDemoAdmin ? 'Terkunci pada akun demo' : 'Min. 6 karakter baru'}
+        />
+      </div>
+
+      <div>
+        <button
+          type="submit"
+          disabled={isSavingProfile}
+          className="btn btn-primary"
+          style={{ width: '100%', height: '38px' }}
+        >
+          {isSavingProfile ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              <span>Menyimpan...</span>
+            </>
+          ) : (
+            <span>Simpan Profil Admin</span>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function AdminSettings() {
   const {
     user,
@@ -35,10 +144,6 @@ export default function AdminSettings() {
     deleteCashier,
     updateOwnProfile,
   } = useApp();
-
-  const [adminName, setAdminName] = useState(user?.name || '');
-  const [adminNewPassword, setAdminNewPassword] = useState('');
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const [cashierName, setCashierName] = useState('');
   const [cashierEmail, setCashierEmail] = useState('');
@@ -52,6 +157,7 @@ export default function AdminSettings() {
   const [editingCashier, setEditingCashier] = useState<CashierAccount | null>(null);
   const [editName, setEditName] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editModalError, setEditModalError] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -120,6 +226,7 @@ export default function AdminSettings() {
   };
 
   const openEditModal = (c: CashierAccount) => {
+    setEditModalError('');
     setEditingCashier(c);
     setEditName(c.name);
     setEditPassword('');
@@ -128,6 +235,7 @@ export default function AdminSettings() {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCashier || isSavingEdit) return;
+    setEditModalError('');
     setFeedback(null);
     setIsSavingEdit(true);
     try {
@@ -140,7 +248,7 @@ export default function AdminSettings() {
       }
       const res = await updateCashier(editingCashier.id, patch);
       if (!res.success) {
-        setFeedback({ type: 'error', text: res.error || 'Gagal memperbarui kasir.' });
+        setEditModalError(res.error || 'Gagal memperbarui kasir.');
         return;
       }
       setFeedback({
@@ -150,34 +258,6 @@ export default function AdminSettings() {
       setEditingCashier(null);
     } finally {
       setIsSavingEdit(false);
-    }
-  };
-
-  const handleSaveAdminProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSavingProfile || !user) return;
-    setFeedback(null);
-    setIsSavingProfile(true);
-    try {
-      const patch: { name?: string; password?: string } = {};
-      if (adminName.trim() && adminName.trim() !== user.name) {
-        patch.name = adminName.trim();
-      }
-      if (adminNewPassword) {
-        patch.password = adminNewPassword;
-      }
-      const res = await updateOwnProfile(patch);
-      if (!res.success) {
-        setFeedback({ type: 'error', text: res.error || 'Gagal memperbarui profil administrator.' });
-        return;
-      }
-      setAdminNewPassword('');
-      setFeedback({
-        type: 'success',
-        text: 'Profil akun Administrator berhasil diperbarui.',
-      });
-    } finally {
-      setIsSavingProfile(false);
     }
   };
 
@@ -270,66 +350,15 @@ export default function AdminSettings() {
           </span>
         </div>
 
-        <form
-          onSubmit={handleSaveAdminProfile}
-          style={{
-            padding: '18px 20px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-            gap: '12px',
-            alignItems: 'end',
-          }}
-        >
-          <div>
-            <label className="form-label">Nama Administrator / Pemilik</label>
-            <input
-              type="text"
-              required
-              minLength={2}
-              value={adminName}
-              onChange={(e) => setAdminName(e.target.value)}
-              className="sip-input"
-              placeholder="Nama pemilik toko"
-            />
-          </div>
-
-          <div>
-            <label className="form-label">
-              Kata Sandi Baru <span style={{ fontWeight: 400 }}>(Kosongkan jika tetap)</span>
-            </label>
-            <input
-              type="password"
-              minLength={6}
-              disabled={user?.email.toLowerCase() === 'admin@sipb.web.id'}
-              value={adminNewPassword}
-              onChange={(e) => setAdminNewPassword(e.target.value)}
-              className="sip-input font-mono"
-              placeholder={
-                user?.email.toLowerCase() === 'admin@sipb.web.id'
-                  ? 'Terkunci pada akun demo'
-                  : 'Min. 6 karakter baru'
-              }
-            />
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={isSavingProfile}
-              className="btn btn-primary"
-              style={{ width: '100%', height: '38px' }}
-            >
-              {isSavingProfile ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Menyimpan...</span>
-                </>
-              ) : (
-                <span>Simpan Profil Admin</span>
-              )}
-            </button>
-          </div>
-        </form>
+        {user && (
+          <AdminProfileForm
+            key={user.id}
+            initialName={user.name}
+            email={user.email}
+            updateOwnProfile={updateOwnProfile}
+            onFeedback={setFeedback}
+          />
+        )}
       </div>
 
       {/* Store Receipt Identity & Paper Width */}
@@ -938,6 +967,13 @@ export default function AdminSettings() {
               onSubmit={handleSaveEdit}
               style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
             >
+              {editModalError && (
+                <div className="alert-box">
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{editModalError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="form-label">Email Kasir</label>
                 <input

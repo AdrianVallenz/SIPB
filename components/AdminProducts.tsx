@@ -54,6 +54,7 @@ export default function AdminProducts() {
 
   // Feedback banner
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
+  const [feedbackIsError, setFeedbackIsError] = useState(false);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -85,14 +86,39 @@ export default function AdminProducts() {
   // Restock modal form
   const [restockType, setRestockType] = useState<'IN' | 'OUT' | 'ADJUSTMENT'>('IN');
   const [restockQty, setRestockQty] = useState<number>(10);
+  const [restockQtyInput, setRestockQtyInput] = useState<string>('10');
   const [restockReason, setRestockReason] = useState<string>('');
 
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showFeedback = (msg: string) => {
+  const showFeedback = (msg: string, isError = false) => {
     if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setFeedbackIsError(isError);
     setFeedbackMsg(msg);
     feedbackTimerRef.current = setTimeout(() => setFeedbackMsg(''), 3500);
+  };
+
+  const handleOpenRestock = (p: Product) => {
+    setModalError('');
+    setRestockProduct(p);
+    setRestockType('IN');
+    setRestockQty(10);
+    setRestockQtyInput('10');
+    setRestockReason('');
+  };
+
+  const handleLoadSampleCatalog = async () => {
+    setIsImportingSample(true);
+    try {
+      const res = await loadSampleCatalog();
+      if (res.success) {
+        showFeedback('8 produk contoh berhasil ditambahkan ke katalog toko Anda.');
+      } else {
+        showFeedback(res.error || 'Gagal memuat produk contoh.', true);
+      }
+    } finally {
+      setIsImportingSample(false);
+    }
   };
 
   // Memoized filtering & sorting
@@ -334,6 +360,8 @@ export default function AdminProducts() {
     }
     const prodName = restockProduct.name;
     setRestockProduct(null);
+    setRestockQty(10);
+    setRestockQtyInput('10');
     setRestockReason('');
     showFeedback(`Stok "${prodName}" berhasil diperbarui.`);
   };
@@ -421,9 +449,12 @@ export default function AdminProducts() {
       </div>
 
       {feedbackMsg && (
-        <div className="alert-box-info" style={{ justifyContent: 'space-between' }}>
+        <div
+          className={feedbackIsError ? 'alert-box' : 'alert-box-info'}
+          style={{ justifyContent: 'space-between' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle2 size={16} />
+            {feedbackIsError ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
             <span>{feedbackMsg}</span>
           </div>
           <button
@@ -651,12 +682,7 @@ export default function AdminProducts() {
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '6px' }}>
                             <button
-                              onClick={() => {
-                                setModalError('');
-                                setRestockProduct(p);
-                                setRestockQty(10);
-                                setRestockType('IN');
-                              }}
+                              onClick={() => handleOpenRestock(p)}
                               className="btn btn-secondary btn-icon"
                               title="Penyesuaian Stok"
                               style={{ color: 'var(--accent-cyan)' }}
@@ -709,17 +735,7 @@ export default function AdminProducts() {
                               <button
                                 type="button"
                                 disabled={isImportingSample}
-                                onClick={async () => {
-                                  setIsImportingSample(true);
-                                  try {
-                                    const res = await loadSampleCatalog();
-                                    if (res.success) {
-                                      showFeedback('8 produk contoh berhasil ditambahkan ke katalog toko Anda.');
-                                    }
-                                  } finally {
-                                    setIsImportingSample(false);
-                                  }
-                                }}
+                                onClick={() => void handleLoadSampleCatalog()}
                                 className="btn btn-secondary btn-sm"
                               >
                                 <Sparkles size={14} style={{ color: 'var(--accent-cyan)' }} />
@@ -799,12 +815,7 @@ export default function AdminProducts() {
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button
                       type="button"
-                      onClick={() => {
-                        setModalError('');
-                        setRestockProduct(p);
-                        setRestockQty(10);
-                        setRestockType('IN');
-                      }}
+                      onClick={() => handleOpenRestock(p)}
                       className="btn btn-secondary btn-sm"
                       style={{ flex: 1, minHeight: '36px', color: 'var(--accent-cyan)' }}
                     >
@@ -849,17 +860,7 @@ export default function AdminProducts() {
                       <button
                         type="button"
                         disabled={isImportingSample}
-                        onClick={async () => {
-                          setIsImportingSample(true);
-                          try {
-                            const res = await loadSampleCatalog();
-                            if (res.success) {
-                              showFeedback('8 produk contoh berhasil ditambahkan ke katalog toko Anda.');
-                            }
-                          } finally {
-                            setIsImportingSample(false);
-                          }
-                        }}
+                        onClick={() => void handleLoadSampleCatalog()}
                         className="btn btn-secondary btn-sm"
                       >
                         <Sparkles size={14} style={{ color: 'var(--accent-cyan)' }} />
@@ -1372,6 +1373,7 @@ export default function AdminProducts() {
                     onClick={() => {
                       setRestockType('IN');
                       setRestockQty(10);
+                      setRestockQtyInput('10');
                     }}
                     style={{
                       padding: '9px 6px',
@@ -1393,6 +1395,7 @@ export default function AdminProducts() {
                     onClick={() => {
                       setRestockType('OUT');
                       setRestockQty(1);
+                      setRestockQtyInput('1');
                     }}
                     style={{
                       padding: '9px 6px',
@@ -1414,6 +1417,7 @@ export default function AdminProducts() {
                     onClick={() => {
                       setRestockType('ADJUSTMENT');
                       setRestockQty(restockProduct.stock);
+                      setRestockQtyInput(String(restockProduct.stock));
                     }}
                     style={{
                       padding: '9px 6px',
@@ -1443,8 +1447,12 @@ export default function AdminProducts() {
                   min={restockType === 'ADJUSTMENT' ? 0 : 1}
                   required
                   placeholder={restockType === 'ADJUSTMENT' ? '0' : '1'}
-                  value={restockType === 'ADJUSTMENT' ? restockQty : restockQty === 0 ? '' : restockQty}
-                  onChange={(e) => setRestockQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  value={restockQtyInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setRestockQtyInput(raw);
+                    setRestockQty(Math.max(0, parseInt(raw, 10) || 0));
+                  }}
                   className="sip-input font-mono"
                   style={{ fontSize: '15px', fontWeight: 700 }}
                 />
@@ -1558,6 +1566,8 @@ export default function AdminProducts() {
                   setDeletingProduct(null);
                   if (res.success) {
                     showFeedback(`Produk "${name}" telah dihapus.`);
+                  } else {
+                    showFeedback(res.error || 'Gagal menghapus produk.', true);
                   }
                 }}
                 className="btn btn-danger"

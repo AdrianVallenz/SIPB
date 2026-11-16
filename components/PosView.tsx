@@ -40,6 +40,61 @@ interface CartItemState {
   quantity: number;
 }
 
+function CartQtyInput({
+  quantity,
+  label,
+  style,
+  onCommit,
+}: {
+  quantity: number;
+  label: string;
+  style: React.CSSProperties;
+  onCommit: (qty: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const commitDraft = (raw: string | null) => {
+    setDraft(null);
+    if (raw === null) return;
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) return;
+    const parsed = parseInt(digits, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      onCommit(parsed);
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={draft ?? String(quantity)}
+      onFocus={(e) => {
+        setDraft(String(quantity));
+        e.currentTarget.select();
+      }}
+      onChange={(e) => {
+        const cleaned = e.target.value.replace(/\D/g, '');
+        setDraft(cleaned);
+        const parsed = parseInt(cleaned, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          onCommit(parsed);
+        }
+      }}
+      onBlur={() => commitDraft(draft)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+      className="sip-input font-mono"
+      style={style}
+      aria-label={label}
+    />
+  );
+}
+
 export default function PosView() {
   const { user, products, categories: storeCategories, paymentSettings, processSale } = useApp();
   const { runtime, settings, isConnected, printTransaction } = useBluetoothPrinter();
@@ -76,6 +131,7 @@ export default function PosView() {
   const categories = useMemo(() => ['Semua', ...storeCategories], [storeCategories]);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isConfirmingPaymentRef = useRef(false);
 
   const notifyLimit = (msg: string) => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
@@ -242,62 +298,74 @@ export default function PosView() {
   };
 
   const handleConfirmPayment = async () => {
+    if (isConfirmingPaymentRef.current) return;
+    isConfirmingPaymentRef.current = true;
     setPaymentError('');
-    const res = processSale(
-      validCart,
-      paymentMethod,
-      finalDiscount,
-      cashGiven,
-      draftInvoiceNo
-    );
-    if (res.success && res.transaction) {
-      setIsPaymentModalOpen(false);
-      setIsMobileCartOpen(false);
-      setCart([]);
-      setDiscount(0);
+    try {
+      const res = processSale(
+        validCart,
+        paymentMethod,
+        finalDiscount,
+        cashGiven,
+        draftInvoiceNo
+      );
+      if (res.success && res.transaction) {
+        setIsPaymentModalOpen(false);
+        setIsMobileCartOpen(false);
+        setCart([]);
+        setDiscount(0);
 
-      let autoNotice: { type: 'success' | 'error'; text: string } | null = null;
-      if (settings.autoPrintOnSale && isConnected) {
-        let qrData: string | undefined;
-        let qrCaption: string | undefined;
-        if (paymentSettings.showQrisOnReceipt ?? true) {
-          const parsedMerchant = paymentSettings.qrisPayload.trim()
-            ? parseAndValidateQris(paymentSettings.qrisPayload)
-            : null;
-          if (res.transaction.paymentMethod === 'QRIS' && parsedMerchant?.valid) {
-            qrData = buildDynamicQrisPayload(
-              parsedMerchant.cleanedPayload,
-              res.transaction.total,
-              true,
-              res.transaction.invoiceNo
-            );
-            qrCaption = `QRIS NOTA • ${
-              paymentSettings.qrisMerchantName || parsedMerchant.merchantName || settings.storeName
-            }`;
-          } else {
-            qrData = `NOTA|${res.transaction.invoiceNo}|${res.transaction.total}|${res.transaction.paymentMethod}|${res.transaction.status || 'COMPLETED'}`;
-            qrCaption = 'QR VERIFIKASI NOTA';
-          }
-        }
-        const printRes = await printTransaction(res.transaction, false, {
-          qrData,
-          qrCaption,
-          customNote: paymentSettings.qrisCustomNote || undefined,
-        });
-        autoNotice = printRes.success
-          ? {
-              type: 'success',
-              text: `Struk otomatis dicetak ke ${runtime.deviceName || 'Printer Bluetooth'}.`,
+        const resolvedStoreName =
+          settings.storeName && settings.storeName !== 'SIP BARANG'
+            ? settings.storeName
+            : paymentSettings.qrisMerchantName?.trim() || settings.storeName || 'SIP BARANG';
+
+        let autoNotice: { type: 'success' | 'error'; text: string } | null = null;
+        if (settings.autoPrintOnSale && isConnected) {
+          let qrData: string | undefined;
+          let qrCaption: string | undefined;
+          if (paymentSettings.showQrisOnReceipt ?? true) {
+            const parsedMerchant = paymentSettings.qrisPayload.trim()
+              ? parseAndValidateQris(paymentSettings.qrisPayload)
+              : null;
+            if (res.transaction.paymentMethod === 'QRIS' && parsedMerchant?.valid) {
+              qrData = buildDynamicQrisPayload(
+                parsedMerchant.cleanedPayload,
+                res.transaction.total,
+                true,
+                res.transaction.invoiceNo
+              );
+              qrCaption = `QRIS NOTA • ${
+                paymentSettings.qrisMerchantName || parsedMerchant.merchantName || resolvedStoreName
+              }`;
+            } else {
+              qrData = `NOTA|${res.transaction.invoiceNo}|${res.transaction.total}|${res.transaction.paymentMethod}|${res.transaction.status || 'COMPLETED'}`;
+              qrCaption = 'QR VERIFIKASI NOTA';
             }
-          : {
-              type: 'error',
-              text: printRes.error || 'Gagal cetak otomatis Bluetooth.',
-            };
+          }
+          const printRes = await printTransaction(res.transaction, false, {
+            storeName: resolvedStoreName,
+            qrData,
+            qrCaption,
+            customNote: paymentSettings.qrisCustomNote || undefined,
+          });
+          autoNotice = printRes.success
+            ? {
+                type: 'success',
+                text: `Struk otomatis dicetak ke ${runtime.deviceName || 'Printer Bluetooth'}.`,
+              }
+            : {
+                type: 'error',
+                text: printRes.error || 'Gagal cetak otomatis Bluetooth.',
+              };
+        }
+        setReceiptPrintNotice(autoNotice);
+        setCompletedTransaction(res.transaction);
+      } else {
+        setPaymentError(res.error || 'Terjadi kesalahan saat memproses penjualan.');
       }
-      setReceiptPrintNotice(autoNotice);
-      setCompletedTransaction(res.transaction);
-    } else {
-      setPaymentError(res.error || 'Terjadi kesalahan saat memproses penjualan.');
+    } finally {
+      isConfirmingPaymentRef.current = false;
     }
   };
 
@@ -474,18 +542,9 @@ export default function PosView() {
                     <Minus size={13} />
                   </button>
 
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={item.quantity}
-                    onFocus={(e) => e.currentTarget.select()}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value.replace(/\D/g, ''), 10);
-                      if (Number.isFinite(val) && val > 0) {
-                        setExactQuantity(prod.id, val);
-                      }
-                    }}
-                    className="sip-input font-mono"
+                  <CartQtyInput
+                    quantity={item.quantity}
+                    label={`Jumlah ${prod.name}`}
                     style={{
                       width: '44px',
                       height: '30px',
@@ -494,7 +553,7 @@ export default function PosView() {
                       fontSize: '12.5px',
                       textAlign: 'center',
                     }}
-                    aria-label={`Jumlah ${prod.name}`}
+                    onCommit={(val) => setExactQuantity(prod.id, val)}
                   />
 
                   <button
@@ -1063,18 +1122,9 @@ export default function PosView() {
                     >
                       <Minus size={12} />
                     </button>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={item.quantity}
-                      onFocus={(e) => e.currentTarget.select()}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value.replace(/\D/g, ''), 10);
-                        if (Number.isFinite(val) && val > 0) {
-                          setExactQuantity(prod.id, val);
-                        }
-                      }}
-                      className="sip-input font-mono"
+                    <CartQtyInput
+                      quantity={item.quantity}
+                      label={`Jumlah ${prod.name}`}
                       style={{
                         width: '36px',
                         height: '26px',
@@ -1083,7 +1133,7 @@ export default function PosView() {
                         fontWeight: 700,
                         textAlign: 'center',
                       }}
-                      aria-label={`Jumlah ${prod.name}`}
+                      onCommit={(val) => setExactQuantity(prod.id, val)}
                     />
                     <button
                       type="button"
