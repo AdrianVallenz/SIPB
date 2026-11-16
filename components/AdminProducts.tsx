@@ -12,6 +12,7 @@ import {
   sanitizeCsvCell,
   getLocalDateKey,
 } from '@/lib/format';
+import PaginationBar from './PaginationBar';
 import {
   Plus,
   Search,
@@ -25,8 +26,6 @@ import {
   Boxes,
   Sparkles,
   Tag,
-  ChevronLeft,
-  ChevronRight,
   Download,
 } from 'lucide-react';
 
@@ -49,6 +48,9 @@ export default function AdminProducts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('Semua');
   const [stockStatusFilter, setStockStatusFilter] = useState<'Semua' | 'Aman' | 'Menipis' | 'Habis'>('Semua');
+  const [sortBy, setSortBy] = useState<
+    'default' | 'name-asc' | 'stock-asc' | 'stock-desc' | 'price-desc' | 'price-asc' | 'margin-asc'
+  >('default');
 
   // Feedback banner
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
@@ -81,7 +83,7 @@ export default function AdminProducts() {
   });
 
   // Restock modal form
-  const [restockType, setRestockType] = useState<'IN' | 'OUT'>('IN');
+  const [restockType, setRestockType] = useState<'IN' | 'OUT' | 'ADJUSTMENT'>('IN');
   const [restockQty, setRestockQty] = useState<number>(10);
   const [restockReason, setRestockReason] = useState<string>('');
 
@@ -93,10 +95,10 @@ export default function AdminProducts() {
     feedbackTimerRef.current = setTimeout(() => setFeedbackMsg(''), 3500);
   };
 
-  // Memoized filtering: skips string lowercasing if search is empty
+  // Memoized filtering & sorting
   const filteredProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return products.filter((p) => {
+    const list = products.filter((p) => {
       const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
       const matchesCategory = categoryFilter === 'Semua' || p.category === categoryFilter;
 
@@ -107,7 +109,27 @@ export default function AdminProducts() {
 
       return matchesSearch && matchesCategory && matchesStatus;
     });
-  }, [products, searchQuery, categoryFilter, stockStatusFilter]);
+
+    if (sortBy === 'default') return list;
+    return [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name, 'id-ID');
+        case 'stock-asc':
+          return a.stock - b.stock;
+        case 'stock-desc':
+          return b.stock - a.stock;
+        case 'price-desc':
+          return b.sellPrice - a.sellPrice;
+        case 'price-asc':
+          return a.sellPrice - b.sellPrice;
+        case 'margin-asc':
+          return calcMarginPct(a.sellPrice, a.buyPrice) - calcMarginPct(b.sellPrice, b.buyPrice);
+        default:
+          return 0;
+      }
+    });
+  }, [products, searchQuery, categoryFilter, stockStatusFilter, sortBy]);
 
   // Pagination state (Catalog & Logs)
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -165,7 +187,7 @@ export default function AdminProducts() {
       sanitizeCsvCell(p.category),
       p.buyPrice,
       p.sellPrice,
-      calcMarginPct(p.buyPrice, p.sellPrice),
+      calcMarginPct(p.sellPrice, p.buyPrice),
       p.stock,
       p.minStock,
       sanitizeCsvCell(p.unit),
@@ -294,11 +316,17 @@ export default function AdminProducts() {
     e.preventDefault();
     if (!restockProduct) return;
     setModalError('');
+    const defaultReason =
+      restockType === 'IN'
+        ? 'Restock pasokan supplier'
+        : restockType === 'OUT'
+          ? 'Pengurangan stok rusak/hilang'
+          : 'Stok opname fisik gudang';
     const res = adjustStock(
       restockProduct.id,
       restockQty,
       restockType,
-      restockReason || (restockType === 'IN' ? 'Restock pasokan supplier' : 'Pengurangan stok rusak/hilang')
+      restockReason || defaultReason
     );
     if (!res.success) {
       setModalError(res.error || 'Gagal menyesuaikan stok.');
@@ -421,8 +449,14 @@ export default function AdminProducts() {
         <>
           {/* Filter and Search Bar */}
           <div className="sip-card" style={{ padding: '14px 18px' }}>
-            <div className="filter-grid-3">
-              <div style={{ position: 'relative' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))',
+                gap: '10px',
+              }}
+            >
+              <div style={{ position: 'relative', gridColumn: 'span 1' }}>
                 <Search
                   size={15}
                   style={{
@@ -483,6 +517,7 @@ export default function AdminProducts() {
                     setCurrentPage(1);
                   }}
                   className="sip-select"
+                  aria-label="Filter Kategori"
                 >
                   <option value="Semua">Semua Kategori</option>
                   {categories.map((c) => (
@@ -501,11 +536,41 @@ export default function AdminProducts() {
                     setCurrentPage(1);
                   }}
                   className="sip-select"
+                  aria-label="Filter Status Stok"
                 >
                   <option value="Semua">Semua Status Stok</option>
                   <option value="Aman">Stok Aman</option>
                   <option value="Menipis">Stok Menipis</option>
                   <option value="Habis">Stok Habis</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(
+                      e.target.value as
+                        | 'default'
+                        | 'name-asc'
+                        | 'stock-asc'
+                        | 'stock-desc'
+                        | 'price-desc'
+                        | 'price-asc'
+                        | 'margin-asc'
+                    );
+                    setCurrentPage(1);
+                  }}
+                  className="sip-select"
+                  aria-label="Urutkan Daftar Produk"
+                >
+                  <option value="default">Urutkan: Terbaru / Bawaan</option>
+                  <option value="name-asc">Urutkan: Nama (A - Z)</option>
+                  <option value="stock-asc">Urutkan: Stok Paling Menipis</option>
+                  <option value="stock-desc">Urutkan: Stok Terbanyak</option>
+                  <option value="price-desc">Urutkan: Harga Jual Termahal</option>
+                  <option value="price-asc">Urutkan: Harga Jual Termurah</option>
+                  <option value="margin-asc">Urutkan: Margin Terendah</option>
                 </select>
               </div>
             </div>
@@ -810,89 +875,16 @@ export default function AdminProducts() {
           </div>
 
           {/* Catalog Pagination Bar */}
-          {filteredProducts.length > 0 && (
-            <div
-              className="sip-card"
-              style={{
-                padding: '12px 18px',
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                  Menampilkan{' '}
-                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                    {(safePage - 1) * pageSize + 1}&ndash;
-                    {Math.min(safePage * pageSize, filteredProducts.length)}
-                  </strong>{' '}
-                  dari{' '}
-                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                    {filteredProducts.length}
-                  </strong>{' '}
-                  produk
-                </span>
-
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="sip-select font-mono"
-                  style={{ width: 'auto', padding: '4px 28px 4px 10px', fontSize: '12px', minHeight: '32px' }}
-                  aria-label="Jumlah baris per halaman"
-                >
-                  {[5, 10, 20, 50].map((size) => (
-                    <option key={size} value={size}>
-                      {size} / halaman
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  disabled={safePage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '6px 10px', minHeight: '32px' }}
-                >
-                  <ChevronLeft size={14} />
-                  <span className="hide-xs">Sebelumnya</span>
-                </button>
-
-                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
-                  <button
-                    key={pageNum}
-                    type="button"
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`btn btn-sm font-mono ${
-                      pageNum === safePage ? 'btn-primary' : 'btn-secondary'
-                    }`}
-                    style={{ minWidth: '32px', minHeight: '32px', padding: '0 8px' }}
-                  >
-                    {pageNum}
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '6px 10px', minHeight: '32px' }}
-                >
-                  <span className="hide-xs">Berikutnya</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
-          )}
+          <PaginationBar
+            variant="card"
+            currentPage={safePage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredProducts.length}
+            itemLabel="produk"
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </>
       ) : (
         /* Stock Mutation Logs View */
@@ -1051,88 +1043,17 @@ export default function AdminProducts() {
             )}
           </div>
 
-          {filteredLogs.length > 0 && (
-            <div
-              style={{
-                padding: '12px 18px',
-                borderTop: '1px solid var(--border-color)',
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                  Menampilkan{' '}
-                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                    {(safeLogPage - 1) * logPageSize + 1}&ndash;
-                    {Math.min(safeLogPage * logPageSize, filteredLogs.length)}
-                  </strong>{' '}
-                  dari{' '}
-                  <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                    {filteredLogs.length}
-                  </strong>{' '}
-                  log mutasi
-                </span>
-                <select
-                  value={logPageSize}
-                  onChange={(e) => {
-                    setLogPageSize(Number(e.target.value));
-                    setLogPage(1);
-                  }}
-                  className="sip-select font-mono"
-                  style={{ width: 'auto', padding: '4px 28px 4px 10px', fontSize: '12px', minHeight: '32px' }}
-                  aria-label="Jumlah log per halaman"
-                >
-                  {[5, 8, 20, 50].map((size) => (
-                    <option key={size} value={size}>
-                      {size} / halaman
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  disabled={safeLogPage <= 1}
-                  onClick={() => setLogPage((p) => Math.max(1, p - 1))}
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '6px 10px', minHeight: '32px' }}
-                >
-                  <ChevronLeft size={14} />
-                  <span className="hide-xs">Sebelumnya</span>
-                </button>
-                {Array.from({ length: totalLogPages }, (_, idx) => idx + 1)
-                  .slice(0, 7)
-                  .map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      onClick={() => setLogPage(pageNum)}
-                      className={`btn btn-sm font-mono ${
-                        pageNum === safeLogPage ? 'btn-primary' : 'btn-secondary'
-                      }`}
-                      style={{ minWidth: '32px', minHeight: '32px', padding: '0 8px' }}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-                <button
-                  type="button"
-                  disabled={safeLogPage >= totalLogPages}
-                  onClick={() => setLogPage((p) => Math.min(totalLogPages, p + 1))}
-                  className="btn btn-secondary btn-sm"
-                  style={{ padding: '6px 10px', minHeight: '32px' }}
-                >
-                  <span className="hide-xs">Berikutnya</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
-          )}
+          <PaginationBar
+            variant="border-top"
+            currentPage={safeLogPage}
+            totalPages={totalLogPages}
+            pageSize={logPageSize}
+            totalItems={filteredLogs.length}
+            itemLabel="log mutasi"
+            pageSizes={[5, 8, 20, 50]}
+            onPageChange={setLogPage}
+            onPageSizeChange={setLogPageSize}
+          />
         </div>
       )}
 
@@ -1351,6 +1272,16 @@ export default function AdminProducts() {
                 </div>
               </div>
 
+              {formData.sellPrice > 0 && formData.buyPrice > formData.sellPrice && (
+                <div className="alert-box-warning" style={{ fontSize: '12px', padding: '9px 12px' }}>
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                  <span>
+                    Perhatian: Harga jual ({formatRupiah(formData.sellPrice)}) lebih rendah dari harga modal (
+                    {formatRupiah(formData.buyPrice)}), margin keuntungan bernilai negatif.
+                  </span>
+                </div>
+              )}
+
               <div className="form-grid-2">
                 <div>
                   <label className="form-label">{isAddModalOpen ? 'Stok Awal' : 'Jumlah Stok'}</label>
@@ -1435,12 +1366,15 @@ export default function AdminProducts() {
             <form onSubmit={handleConfirmRestock} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label className="form-label">Jenis Mutasi</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
                   <button
                     type="button"
-                    onClick={() => setRestockType('IN')}
+                    onClick={() => {
+                      setRestockType('IN');
+                      setRestockQty(10);
+                    }}
                     style={{
-                      padding: '10px',
+                      padding: '9px 6px',
                       borderRadius: 'var(--radius-md)',
                       border: '1px solid',
                       borderColor: restockType === 'IN' ? 'var(--accent-green)' : 'var(--border-color)',
@@ -1448,17 +1382,20 @@ export default function AdminProducts() {
                       color: restockType === 'IN' ? 'var(--accent-green-text)' : 'var(--text-secondary)',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      fontSize: '12.5px',
+                      fontSize: '11.5px',
                     }}
                   >
-                    + Stok Masuk (Restock)
+                    + Stok Masuk
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setRestockType('OUT')}
+                    onClick={() => {
+                      setRestockType('OUT');
+                      setRestockQty(1);
+                    }}
                     style={{
-                      padding: '10px',
+                      padding: '9px 6px',
                       borderRadius: 'var(--radius-md)',
                       border: '1px solid',
                       borderColor: restockType === 'OUT' ? 'var(--accent-red)' : 'var(--border-color)',
@@ -1466,23 +1403,48 @@ export default function AdminProducts() {
                       color: restockType === 'OUT' ? 'var(--accent-red)' : 'var(--text-secondary)',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      fontSize: '12.5px',
+                      fontSize: '11.5px',
                     }}
                   >
-                    - Stok Keluar (Rusak)
+                    - Stok Keluar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRestockType('ADJUSTMENT');
+                      setRestockQty(restockProduct.stock);
+                    }}
+                    style={{
+                      padding: '9px 6px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid',
+                      borderColor: restockType === 'ADJUSTMENT' ? 'var(--accent-cyan)' : 'var(--border-color)',
+                      backgroundColor: restockType === 'ADJUSTMENT' ? 'rgba(var(--accent-cyan-rgb), 0.14)' : 'transparent',
+                      color: restockType === 'ADJUSTMENT' ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontSize: '11.5px',
+                    }}
+                  >
+                    = Stok Opname
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="form-label">Jumlah Barang ({restockProduct.unit})</label>
+                <label className="form-label">
+                  {restockType === 'ADJUSTMENT'
+                    ? `Total Stok Fisik Aktual (${restockProduct.unit})`
+                    : `Jumlah Barang (${restockProduct.unit})`}
+                </label>
                 <input
                   type="number"
-                  min="1"
+                  min={restockType === 'ADJUSTMENT' ? 0 : 1}
                   required
-                  placeholder="1"
-                  value={restockQty === 0 ? '' : restockQty}
-                  onChange={(e) => setRestockQty(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder={restockType === 'ADJUSTMENT' ? '0' : '1'}
+                  value={restockType === 'ADJUSTMENT' ? restockQty : restockQty === 0 ? '' : restockQty}
+                  onChange={(e) => setRestockQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="sip-input font-mono"
                   style={{ fontSize: '15px', fontWeight: 700 }}
                 />
@@ -1492,7 +1454,11 @@ export default function AdminProducts() {
                 <label className="form-label">Catatan Operasional</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Penerimaan PO supplier atau kemasan rusak"
+                  placeholder={
+                    restockType === 'ADJUSTMENT'
+                      ? 'Contoh: Hasil hitung ulang fisik rak toko / opname bulanan'
+                      : 'Contoh: Penerimaan PO supplier atau kemasan rusak'
+                  }
                   value={restockReason}
                   onChange={(e) => setRestockReason(e.target.value)}
                   className="sip-input"
@@ -1520,12 +1486,19 @@ export default function AdminProducts() {
                   className="font-mono"
                   style={{
                     fontWeight: 700,
-                    color: restockType === 'IN' ? 'var(--accent-green-text)' : 'var(--accent-red)',
+                    color:
+                      restockType === 'IN'
+                        ? 'var(--accent-green-text)'
+                        : restockType === 'OUT'
+                          ? 'var(--accent-red)'
+                          : 'var(--accent-cyan)',
                   }}
                 >
                   {restockType === 'IN'
                     ? restockProduct.stock + restockQty
-                    : Math.max(0, restockProduct.stock - restockQty)}{' '}
+                    : restockType === 'OUT'
+                      ? Math.max(0, restockProduct.stock - restockQty)
+                      : Math.max(0, restockQty)}{' '}
                   {restockProduct.unit}
                 </span>
               </div>

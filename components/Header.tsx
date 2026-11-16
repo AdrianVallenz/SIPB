@@ -39,7 +39,7 @@ function getUserInitials(name: string): string {
 }
 
 export default function Header({ onOpenAuth }: HeaderProps) {
-  const { user, theme, toggleTheme, logout, activeTab, isCloudConnected, paymentSettings } =
+  const { user, theme, toggleTheme, logout, activeTab, isCloudConnected, pendingSyncCount, paymentSettings } =
     useApp();
   const { settings } = useBluetoothPrinter();
 
@@ -211,7 +211,13 @@ export default function Header({ onOpenAuth }: HeaderProps) {
         <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div className="header-status-pill hide-tablet-header">
             <span className={`header-status-dot ${isCloudConnected ? 'online' : 'local'}`} />
-            <span>{isCloudConnected ? 'Tersinkron' : 'Mode Offline'}</span>
+            <span>
+              {isCloudConnected
+                ? 'Tersinkron'
+                : pendingSyncCount > 0
+                  ? `Offline (${pendingSyncCount} Antre)`
+                  : 'Mode Offline'}
+            </span>
             {timeString && (
               <>
                 <span style={{ color: 'var(--border-color)' }}>|</span>

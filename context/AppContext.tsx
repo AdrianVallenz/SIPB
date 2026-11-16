@@ -22,6 +22,7 @@ import {
 } from '@/lib/types';
 import {
   getDefaultStorePaymentSettings,
+  getOfflineSyncQueue,
   getStoredAccounts,
   getStoredCashiers,
   getStoredCustomCategories,
@@ -32,7 +33,9 @@ import {
   getStoredTheme,
   getStoredTransactions,
   hashPasswordSha256,
+  OfflineSyncTask,
   removeStoredAccount,
+  saveOfflineSyncQueue,
   saveStoredAccount,
   saveStoredCashiers,
   saveStoredCustomCategories,
@@ -45,9 +48,11 @@ import {
   verifyPasswordHash,
 } from '@/lib/storage';
 import {
+  CloudSyncResult,
   createCashierCloud,
   deleteCashierCloud,
   fetchCloudSnapshot,
+  getSupabaseAccessToken,
   registerAdminCloud,
   setSupabaseAccessToken,
   signInSupabase,
@@ -61,6 +66,7 @@ import {
   syncVoidTransaction,
   toggleCashierCloud,
   updateCashierCloud,
+  updateOwnSupabaseAccount,
 } from '@/lib/supabase';
 import { INITIAL_PRODUCTS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
@@ -80,6 +86,7 @@ interface AppContextType {
   user: UserSession | null;
   isHydrated: boolean;
   isCloudConnected: boolean;
+  pendingSyncCount: number;
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   products: Product[];
@@ -94,6 +101,7 @@ interface AppContextType {
   updatePaymentSettings: (
     patch: Partial<Omit<StorePaymentSettings, 'ownerId' | 'updatedAt'>>
   ) => Promise<ActionResult>;
+  updateOwnProfile: (patch: { name?: string; password?: string }) => Promise<ActionResult>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   login: (email: string, pass: string) => Promise<AuthResult>;
@@ -208,27 +216,100 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(() =>
+    getOfflineSyncQueue(user?.ownerId || '').length
+  );
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  const hydrateTenantCache = (ownerId: string) => {
-    setProducts(getStoredProducts(ownerId));
-    setTransactions(getStoredTransactions(ownerId));
-    setStockLogs(getStoredStockLogs(ownerId));
-    setCashiers(getStoredCashiers(ownerId));
-    setPaymentSettings(getStoredPaymentSettings(ownerId));
-    setCustomCategories(getStoredCustomCategories(ownerId));
-  };
+  const executeCloudTask = useCallback(
+    async (task: OfflineSyncTask, ownerId: string): Promise<CloudSyncResult> => {
+      switch (task.type) {
+        case 'upsert_product':
+          return syncUpsertProduct(task.product, ownerId);
+        case 'upsert_products':
+          return syncUpsertProducts(task.products, ownerId);
+        case 'update_stock':
+          return syncUpdateProductStock(task.productId, task.stock, task.updatedAt);
+        case 'delete_product':
+          return syncDeleteProduct(task.productId);
+        case 'insert_logs':
+          return syncInsertStockLogs(task.logs, ownerId);
+        case 'insert_transaction':
+          return syncInsertTransaction(task.transaction, ownerId);
+        case 'void_transaction':
+          return syncVoidTransaction(task.transactionId, task.voidReason, task.voidedAt);
+        case 'upsert_payment':
+          return syncUpsertPaymentSettings(task.settings, ownerId);
+      }
+    },
+    []
+  );
 
-  useEffect(() => {
-    if (!user) return;
-    let active = true;
-    const targetOwnerId = user.ownerId;
-    (async () => {
+  const dispatchCloudTask = useCallback(
+    async (task: OfflineSyncTask, ownerId: string): Promise<CloudSyncResult> => {
+      if (!ownerId || !getSupabaseAccessToken()) {
+        return { ok: false, offline: true, error: 'Offline' };
+      }
+
+      const enqueue = () => {
+        const existing = getOfflineSyncQueue(ownerId);
+        const next = [...existing, task];
+        saveOfflineSyncQueue(next, ownerId);
+        setPendingSyncCount(next.length);
+      };
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        enqueue();
+        setIsCloudConnected(false);
+        return { ok: false, offline: true, error: 'Offline' };
+      }
+
+      const res = await executeCloudTask(task, ownerId);
+      if (!res.ok && res.offline) {
+        enqueue();
+        setIsCloudConnected(false);
+      }
+      return res;
+    },
+    [executeCloudTask]
+  );
+
+  const flushAndHydrateFromCloud = useCallback(
+    async (targetOwnerId: string): Promise<boolean> => {
+      if (!targetOwnerId || !getSupabaseAccessToken()) return false;
+      const queued = getOfflineSyncQueue(targetOwnerId);
+      const remaining: OfflineSyncTask[] = [];
+      let hitOffline = false;
+
+      for (let i = 0; i < queued.length; i++) {
+        const task = queued[i];
+        if (hitOffline) {
+          remaining.push(task);
+          continue;
+        }
+        const res = await executeCloudTask(task, targetOwnerId);
+        if (!res.ok && res.offline) {
+          hitOffline = true;
+          remaining.push(task);
+        }
+      }
+
+      saveOfflineSyncQueue(remaining, targetOwnerId);
+      if (getStoredSession()?.ownerId === targetOwnerId) {
+        setPendingSyncCount(remaining.length);
+      }
+      if (remaining.length > 0) {
+        setIsCloudConnected(false);
+        return false;
+      }
+
       const snapshot = await fetchCloudSnapshot();
-      if (!active || !snapshot.connected || getStoredSession()?.ownerId !== targetOwnerId) return;
+      if (!snapshot.connected || getStoredSession()?.ownerId !== targetOwnerId) {
+        return false;
+      }
       setIsCloudConnected(true);
       if (snapshot.products) {
         setProducts(snapshot.products);
@@ -252,11 +333,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         setPaymentSettings(getStoredPaymentSettings(targetOwnerId));
       }
+      return true;
+    },
+    [executeCloudTask]
+  );
+
+  const hydrateTenantCache = (ownerId: string) => {
+    setProducts(getStoredProducts(ownerId));
+    setTransactions(getStoredTransactions(ownerId));
+    setStockLogs(getStoredStockLogs(ownerId));
+    setCashiers(getStoredCashiers(ownerId));
+    setPaymentSettings(getStoredPaymentSettings(ownerId));
+    setCustomCategories(getStoredCustomCategories(ownerId));
+    setPendingSyncCount(getOfflineSyncQueue(ownerId).length);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const targetOwnerId = user.ownerId;
+    (async () => {
+      if (!active) return;
+      await flushAndHydrateFromCloud(targetOwnerId);
     })();
+
+    const handleOnline = () => {
+      if (active) {
+        void flushAndHydrateFromCloud(targetOwnerId);
+      }
+    };
+    const handleOffline = () => {
+      if (active) setIsCloudConnected(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     return () => {
       active = false;
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-  }, [user]);
+  }, [user, flushAndHydrateFromCloud]);
 
   const setActiveTab = (tab: string) => {
     const activeUser = user || getStoredSession();
@@ -689,7 +806,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProducts(sampleProducts);
     saveStoredProducts(sampleProducts, user.ownerId);
 
-    await syncUpsertProducts(sampleProducts, user.ownerId);
+    await dispatchCloudTask({ id: makeId('sync'), type: 'upsert_products', products: sampleProducts }, user.ownerId);
 
     return { success: true };
   };
@@ -755,9 +872,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveStoredStockLogs(updatedLogs, user.ownerId);
     }
 
-    void syncUpsertProduct(newProduct, user.ownerId).then((res) => {
-      if (res.ok && initialLog) {
-        void syncInsertStockLogs([initialLog], user.ownerId);
+    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: newProduct }, user.ownerId).then((res) => {
+      if (initialLog) {
+        if (res.ok || res.offline) {
+          void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [initialLog] }, user.ownerId);
+        }
       }
     });
 
@@ -800,7 +919,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = products.map((p) => (p.id === sanitized.id ? sanitized : p));
     setProducts(updated);
     saveStoredProducts(updated, user.ownerId);
-    void syncUpsertProduct(sanitized, user.ownerId);
+    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: sanitized }, user.ownerId);
 
     if (existing.stock !== sanitized.stock) {
       const diff = Math.abs(sanitized.stock - existing.stock);
@@ -820,7 +939,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updatedLogs = [log, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs, user.ownerId);
-      void syncInsertStockLogs([log], user.ownerId);
+      void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [log] }, user.ownerId);
     }
 
     return { success: true };
@@ -833,7 +952,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = products.filter((p) => p.id !== productId);
     setProducts(updated);
     saveStoredProducts(updated, user.ownerId);
-    void syncDeleteProduct(productId);
+    void dispatchCloudTask({ id: makeId('sync'), type: 'delete_product', productId }, user.ownerId);
     return { success: true };
   };
 
@@ -850,8 +969,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!prod) return { success: false, error: 'Produk tidak ditemukan.' };
 
     const cleanQty = Math.floor(Number(quantity) || 0);
-    if (cleanQty <= 0) {
-      return { success: false, error: 'Jumlah penyesuaian stok harus lebih dari 0.' };
+    if (type === 'ADJUSTMENT' ? cleanQty < 0 : cleanQty <= 0) {
+      return {
+        success: false,
+        error:
+          type === 'ADJUSTMENT'
+            ? 'Nilai stok fisik tidak boleh negatif.'
+            : 'Jumlah penyesuaian stok harus lebih dari 0.',
+      };
     }
 
     const previousStock = prod.stock;
@@ -868,6 +993,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       newStock = previousStock - cleanQty;
     } else {
+      if (cleanQty === previousStock) {
+        return {
+          success: false,
+          error: `Stok saat ini sudah ${previousStock} ${prod.unit}. Ubah nilai untuk melakukan opname.`,
+        };
+      }
       newStock = Math.max(0, cleanQty);
     }
 
@@ -880,7 +1011,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = products.map((p) => (p.id === productId ? updatedProd : p));
     setProducts(updated);
     saveStoredProducts(updated, user.ownerId);
-    void syncUpsertProduct(updatedProd, user.ownerId);
+    void dispatchCloudTask({ id: makeId('sync'), type: 'upsert_product', product: updatedProd }, user.ownerId);
 
     const log: StockLog = {
       id: makeId('log'),
@@ -888,17 +1019,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       productId: prod.id,
       productName: prod.name,
       type,
-      quantity: cleanQty,
+      quantity: type === 'ADJUSTMENT' ? Math.abs(newStock - previousStock) : cleanQty,
       previousStock,
       newStock,
-      reason: reason.trim() || (type === 'IN' ? 'Restock barang masuk' : 'Penyesuaian stok gudang'),
+      reason:
+        reason.trim() ||
+        (type === 'IN'
+          ? 'Restock barang masuk'
+          : type === 'OUT'
+            ? 'Pengurangan stok rusak/hilang'
+            : 'Stok opname fisik gudang'),
       createdAt: new Date().toISOString(),
       operator: user.email,
     };
     const updatedLogs = [log, ...stockLogs];
     setStockLogs(updatedLogs);
     saveStoredStockLogs(updatedLogs, user.ownerId);
-    void syncInsertStockLogs([log], user.ownerId);
+    void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: [log] }, user.ownerId);
 
     return { success: true };
   };
@@ -1039,10 +1176,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProducts(updatedProducts);
     saveStoredProducts(updatedProducts, user.ownerId);
 
-    // Concurrently dispatch stock updates to Supabase without serial bottlenecks
+    // Concurrently dispatch stock updates with offline queue fallback
     if (stockSyncQueue.length > 0) {
       void Promise.allSettled(
-        stockSyncQueue.map((item) => syncUpdateProductStock(item.id, item.stock, item.updatedAt))
+        stockSyncQueue.map((item) =>
+          dispatchCloudTask(
+            { id: makeId('sync'), type: 'update_stock', productId: item.id, stock: item.stock, updatedAt: item.updatedAt },
+            user.ownerId
+          )
+        )
       );
     }
 
@@ -1050,13 +1192,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updatedLogs = [...saleLogs, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs, user.ownerId);
-      void syncInsertStockLogs(saleLogs, user.ownerId);
+      void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: saleLogs }, user.ownerId);
     }
 
     const updatedTransactions = [newTransaction, ...transactions];
     setTransactions(updatedTransactions);
     saveStoredTransactions(updatedTransactions, user.ownerId);
-    void syncInsertTransaction(newTransaction, user.ownerId);
+    void dispatchCloudTask({ id: makeId('sync'), type: 'insert_transaction', transaction: newTransaction }, user.ownerId);
 
     playCashierChime();
 
@@ -1130,7 +1272,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveStoredProducts(updatedProducts, user.ownerId);
     if (voidStockSyncQueue.length > 0) {
       void Promise.allSettled(
-        voidStockSyncQueue.map((item) => syncUpdateProductStock(item.id, item.stock, item.updatedAt))
+        voidStockSyncQueue.map((item) =>
+          dispatchCloudTask(
+            { id: makeId('sync'), type: 'update_stock', productId: item.id, stock: item.stock, updatedAt: item.updatedAt },
+            user.ownerId
+          )
+        )
       );
     }
 
@@ -1138,12 +1285,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updatedLogs = [...voidLogs, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs, user.ownerId);
-      void syncInsertStockLogs(voidLogs, user.ownerId);
+      void dispatchCloudTask({ id: makeId('sync'), type: 'insert_logs', logs: voidLogs }, user.ownerId);
     }
 
     setTransactions(updatedTransactions);
     saveStoredTransactions(updatedTransactions, user.ownerId);
-    void syncVoidTransaction(transactionId, cleanReason, nowIso);
+    void dispatchCloudTask(
+      { id: makeId('sync'), type: 'void_transaction', transactionId, voidReason: cleanReason, voidedAt: nowIso },
+      user.ownerId
+    );
 
     return { success: true };
   };
@@ -1168,9 +1318,72 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPaymentSettings(nextSettings);
     saveStoredPaymentSettings(nextSettings, user.ownerId);
 
-    const syncRes = await syncUpsertPaymentSettings(nextSettings, user.ownerId);
-    if (!syncRes.ok && syncRes.error !== 'Offline') {
+    const syncRes = await dispatchCloudTask(
+      { id: makeId('sync'), type: 'upsert_payment', settings: nextSettings },
+      user.ownerId
+    );
+    if (!syncRes.ok && !syncRes.offline) {
       return { success: false, error: syncRes.error || 'Gagal menyinkronkan pengaturan ke cloud.' };
+    }
+
+    return { success: true };
+  };
+
+  const updateOwnProfile = async (patch: {
+    name?: string;
+    password?: string;
+  }): Promise<ActionResult> => {
+    const authErr = requireAdmin();
+    if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+
+    const cleanName = patch.name?.trim();
+    const nextPassword = patch.password;
+    if (!cleanName && !nextPassword) {
+      return { success: false, error: 'Isi nama baru atau kata sandi baru.' };
+    }
+    if (cleanName && cleanName.length < 2) {
+      return { success: false, error: 'Nama pemilik/toko minimal 2 karakter.' };
+    }
+    if (nextPassword && nextPassword.length < 6) {
+      return { success: false, error: 'Kata sandi baru minimal 6 karakter.' };
+    }
+
+    const isDemoAdmin = user.email.toLowerCase() === 'admin@sipb.web.id';
+    if (nextPassword && isDemoAdmin) {
+      return {
+        success: false,
+        error: 'Kata sandi akun demo publik (admin@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
+      };
+    }
+
+    if (getSupabaseAccessToken()) {
+      const cloudRes = await updateOwnSupabaseAccount({
+        ...(cleanName ? { name: cleanName } : {}),
+        ...(nextPassword ? { password: nextPassword } : {}),
+      });
+      if (!cloudRes.ok && !cloudRes.offline) {
+        return { success: false, error: cloudRes.error || 'Gagal memperbarui profil akun.' };
+      }
+    }
+
+    const localAcc = getStoredAccounts().find(
+      (a) => a.email.toLowerCase() === user.email.toLowerCase()
+    );
+    if (localAcc) {
+      const nextPass = nextPassword
+        ? await hashPasswordSha256(nextPassword)
+        : localAcc.password;
+      saveStoredAccount({
+        ...localAcc,
+        name: cleanName || localAcc.name,
+        password: nextPass,
+      });
+    }
+
+    if (cleanName) {
+      const updatedSession: UserSession = { ...user, name: cleanName };
+      setUser(updatedSession);
+      saveStoredSession(updatedSession);
     }
 
     return { success: true };
@@ -1261,6 +1474,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     processSale,
     voidTransaction,
     updatePaymentSettings,
+    updateOwnProfile,
   });
 
   useEffect(() => {
@@ -1284,6 +1498,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       processSale,
       voidTransaction,
       updatePaymentSettings,
+      updateOwnProfile,
     };
   });
 
@@ -1367,6 +1582,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       actionsRef.current.updatePaymentSettings(patch),
     []
   );
+  const stableUpdateOwnProfile = useCallback(
+    (patch: { name?: string; password?: string }) =>
+      actionsRef.current.updateOwnProfile(patch),
+    []
+  );
 
   // Gunakan nilai deterministik saat SSR agar Landing HTML utuh tanpa hydration mismatch
   const contextValue = useMemo<AppContextType>(
@@ -1374,6 +1594,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user: isInitialized ? user : null,
       isHydrated: isInitialized,
       isCloudConnected: isInitialized ? isCloudConnected : false,
+      pendingSyncCount: isInitialized ? pendingSyncCount : 0,
       theme: isInitialized ? theme : 'dark',
       toggleTheme: stableToggleTheme,
       products: isInitialized ? products : SSR_EMPTY_PRODUCTS,
@@ -1386,6 +1607,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cashiers: isInitialized ? cashiers : SSR_EMPTY_CASHIERS,
       paymentSettings: isInitialized ? paymentSettings : SSR_DEFAULT_PAYMENT_SETTINGS,
       updatePaymentSettings: stableUpdatePaymentSettings,
+      updateOwnProfile: stableUpdateOwnProfile,
       activeTab: isInitialized ? activeTab : 'pos',
       setActiveTab: stableSetActiveTab,
       login: stableLogin,
@@ -1407,6 +1629,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isInitialized,
       user,
       isCloudConnected,
+      pendingSyncCount,
       theme,
       products,
       categories,
@@ -1420,6 +1643,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stableAddCategory,
       stableDeleteCategory,
       stableUpdatePaymentSettings,
+      stableUpdateOwnProfile,
       stableSetActiveTab,
       stableLogin,
       stableRegister,

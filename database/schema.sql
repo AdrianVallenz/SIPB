@@ -25,14 +25,14 @@ CREATE TABLE IF NOT EXISTS public.products (
   buy_price NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (buy_price >= 0),
   sell_price NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (sell_price >= 0),
   stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
-  min_stock INTEGER NOT NULL DEFAULT 5 CHECK (min_stock >= 0),
+  min_stock INTEGER NOT NULL DEFAULT 5 CHECK (min_stock >= 1),
   unit TEXT NOT NULL DEFAULT 'pcs',
   description TEXT NOT NULL DEFAULT '',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_products_owner_id ON public.products(owner_id);
-CREATE INDEX IF NOT EXISTS idx_products_sku ON public.products(owner_id, sku);
+CREATE INDEX IF NOT EXISTS idx_products_owner_updated_at ON public.products(owner_id, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_owner_sku ON public.products(owner_id, sku);
 
 -- 3. TABEL TRANSAKSI PENJUALAN KASIR (POS)
 CREATE TABLE IF NOT EXISTS public.transactions (
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.store_payment_settings (
   qris_image_data TEXT NOT NULL DEFAULT '',
   qris_merchant_name TEXT NOT NULL DEFAULT '',
   qris_nmid TEXT NOT NULL DEFAULT '',
-  qris_theme TEXT NOT NULL DEFAULT 'clean',
+  qris_theme TEXT NOT NULL DEFAULT 'classic',
   qris_custom_note TEXT NOT NULL DEFAULT '',
   show_qris_on_receipt BOOLEAN NOT NULL DEFAULT TRUE,
   bank_name TEXT NOT NULL DEFAULT '',

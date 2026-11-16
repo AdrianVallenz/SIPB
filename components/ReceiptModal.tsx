@@ -115,9 +115,13 @@ function ReceiptModalContent({
   }, [activeQrPayload]);
 
   const currentQrDataUrl = qrImageState.payload === activeQrPayload ? qrImageState.url : '';
+  const resolvedStoreName =
+    settings.storeName && settings.storeName !== 'SIP BARANG'
+      ? settings.storeName
+      : paymentSettings.qrisMerchantName?.trim() || settings.storeName || 'SIP BARANG';
   const qrCaptionText =
     qrMode === 'qris' && hasValidMerchantQris
-      ? `QRIS NOTA • ${paymentSettings.qrisMerchantName || parsedMerchantQris?.merchantName || settings.storeName}`
+      ? `QRIS NOTA • ${paymentSettings.qrisMerchantName || parsedMerchantQris?.merchantName || resolvedStoreName}`
       : 'QR VERIFIKASI NOTA';
 
   const handleBrowserPrint = () => {
@@ -228,7 +232,7 @@ function ReceiptModalContent({
             {/* Store Header */}
             <div style={{ textAlign: 'center', marginBottom: '12px' }}>
               <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '0.05em' }}>
-                {settings.storeName || 'SIP BARANG'}
+                {resolvedStoreName}
               </div>
               {settings.storeTagline && (
                 <div style={{ fontSize: '10px', color: '#555555' }}>{settings.storeTagline}</div>

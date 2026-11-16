@@ -3,9 +3,10 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction } from '@/lib/types';
-import { formatRupiah, formatDateTime } from '@/lib/format';
+import { formatRupiah, formatDateTime, getLocalDateKey, sanitizeCsvCell } from '@/lib/format';
 import ReceiptModal from './ReceiptModal';
-import { Eye, ShoppingBag, Banknote, CreditCard, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import PaginationBar from './PaginationBar';
+import { Eye, ShoppingBag, Banknote, CreditCard, Search, Download } from 'lucide-react';
 
 export default function CashierHistory() {
   const { user, transactions } = useApp();
@@ -67,6 +68,35 @@ export default function CashierHistory() {
     return cashierTransactions.slice(start, start + pageSize);
   }, [cashierTransactions, safePage, pageSize]);
 
+  const handleExportShiftCsv = () => {
+    if (cashierTransactions.length === 0) return;
+    const todayKey = getLocalDateKey(new Date());
+    const headers = [
+      'No. Nota',
+      'Status',
+      'Waktu Transaksi',
+      'Metode Bayar',
+      'Jumlah Item (Pcs)',
+      'Total Tagihan',
+    ];
+    const rows = cashierTransactions.map((t) => [
+      sanitizeCsvCell(t.invoiceNo),
+      sanitizeCsvCell(t.status === 'VOIDED' ? 'VOID / DIBATALKAN' : 'SELESAI'),
+      sanitizeCsvCell(formatDateTime(t.createdAt, true)),
+      sanitizeCsvCell(t.paymentMethod),
+      t.totalQty,
+      t.status === 'VOIDED' ? 0 : t.total,
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Riwayat-Shift-Kasir-${todayKey}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="page-container">
       {/* Header */}
@@ -77,6 +107,16 @@ export default function CashierHistory() {
             Rekapitulasi transaksi yang ditangani oleh petugas kasir aktif ({user?.name}).
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleExportShiftCsv}
+          disabled={cashierTransactions.length === 0}
+          className="btn btn-secondary btn-sm no-print"
+        >
+          <Download size={14} />
+          <span>Ekspor CSV Shift</span>
+        </button>
       </div>
 
       {/* Shift Overview Cards */}
@@ -307,88 +347,16 @@ export default function CashierHistory() {
           )}
         </div>
 
-        {cashierTransactions.length > 0 && (
-          <div
-            style={{
-              padding: '12px 18px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                Menampilkan{' '}
-                <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                  {(safePage - 1) * pageSize + 1}&ndash;
-                  {Math.min(safePage * pageSize, cashierTransactions.length)}
-                </strong>{' '}
-                dari{' '}
-                <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                  {cashierTransactions.length}
-                </strong>{' '}
-                nota
-              </span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="sip-select font-mono"
-                style={{ width: 'auto', padding: '4px 28px 4px 10px', fontSize: '12px', minHeight: '32px' }}
-                aria-label="Jumlah nota per halaman"
-              >
-                {[5, 10, 20, 50].map((size) => (
-                  <option key={size} value={size}>
-                    {size} / halaman
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                type="button"
-                disabled={safePage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '6px 10px', minHeight: '32px' }}
-              >
-                <ChevronLeft size={14} />
-                <span className="hide-xs">Sebelumnya</span>
-              </button>
-              {Array.from({ length: totalPages }, (_, idx) => idx + 1)
-                .slice(0, 7)
-                .map((pageNum) => (
-                  <button
-                    key={pageNum}
-                    type="button"
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`btn btn-sm font-mono ${
-                      pageNum === safePage ? 'btn-primary' : 'btn-secondary'
-                    }`}
-                    style={{ minWidth: '32px', minHeight: '32px', padding: '0 8px' }}
-                  >
-                    {pageNum}
-                  </button>
-                ))}
-              <button
-                type="button"
-                disabled={safePage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '6px 10px', minHeight: '32px' }}
-              >
-                <span className="hide-xs">Berikutnya</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationBar
+          variant="border-top"
+          currentPage={safePage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={cashierTransactions.length}
+          itemLabel="nota"
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {selectedReceipt && (

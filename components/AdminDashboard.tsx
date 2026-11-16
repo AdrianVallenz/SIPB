@@ -58,7 +58,7 @@ export default function AdminDashboard() {
     setActiveTab,
   } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<Transaction | null>(null);
-  const [chartRange, setChartRange] = useState<7 | 14>(7);
+  const [chartRange, setChartRange] = useState<7 | 14 | 30>(7);
   const [chartMetric, setChartMetric] = useState<'both' | 'revenue' | 'profit'>('both');
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -706,7 +706,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="sb-chip-group" role="group" aria-label="Rentang hari">
-                  {([7, 14] as const).map((days) => (
+                  {([7, 14, 30] as const).map((days) => (
                     <button
                       key={days}
                       type="button"
@@ -824,7 +824,7 @@ export default function AdminDashboard() {
                 {/* Subtle Vertical Data Bars Behind Points */}
                 {points.map((pt, idx) => {
                   const isSelected = hoveredIdx === idx;
-                  const barWidth = chartRange === 7 ? 24 : 12;
+                  const barWidth = chartRange === 7 ? 24 : chartRange === 14 ? 12 : 6;
                   const revBarH = Math.max(0, baselineY - pt.revY);
                   const profBarH = Math.max(0, baselineY - pt.profY);
                   return (
@@ -892,9 +892,13 @@ export default function AdminDashboard() {
 
                 {points.map((pt, idx) => {
                   const isSelected = hoveredIdx === idx;
-                  const showXLabel = chartRange === 7 || idx % 2 === 0 || idx === points.length - 1;
-                  const revSize = isSelected ? 8 : 5.5;
-                  const profSize = isSelected ? 7 : 4.5;
+                  const showXLabel =
+                    chartRange === 7 ||
+                    (chartRange === 14
+                      ? idx % 2 === 0 || idx === points.length - 1
+                      : idx % 5 === 0 || idx === points.length - 1);
+                  const revSize = isSelected ? 8 : chartRange === 30 ? 4 : 5.5;
+                  const profSize = isSelected ? 7 : chartRange === 30 ? 3.5 : 4.5;
                   const valLabelY = Math.max(15, (chartMetric === 'profit' ? pt.profY : pt.revY) - 10);
                   const displayVal = chartMetric === 'profit' ? Math.max(0, pt.profit) : pt.total;
                   return (

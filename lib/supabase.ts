@@ -507,17 +507,24 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
   }
 }
 
+export interface CloudSyncResult {
+  ok: boolean;
+  offline?: boolean;
+  error?: string;
+  code?: string;
+}
+
 export async function syncUpsertProduct(
   p: Product,
   ownerId: string
-): Promise<{ ok: boolean; error?: string; code?: string }> {
+): Promise<CloudSyncResult> {
   return syncUpsertProducts([p], ownerId);
 }
 
 export async function syncUpsertProducts(
   items: Product[],
   ownerId: string
-): Promise<{ ok: boolean; error?: string; code?: string }> {
+): Promise<CloudSyncResult> {
   if (items.length === 0) return { ok: true };
   try {
     const payload = items.map((p) => ({
@@ -547,7 +554,7 @@ export async function syncUpsertProducts(
     }
     return { ok: true };
   } catch {
-    return { ok: false, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Offline' };
   }
 }
 
@@ -555,34 +562,42 @@ export async function syncUpdateProductStock(
   productId: string,
   stock: number,
   updatedAt: string
-): Promise<void> {
+): Promise<CloudSyncResult> {
   try {
-    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
       method: 'PATCH',
       body: JSON.stringify({
         stock,
         updated_at: updatedAt,
       }),
     });
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch {
-    // Fallback remains in localStorage
+    return { ok: false, offline: true, error: 'Offline' };
   }
 }
 
-export async function syncDeleteProduct(productId: string): Promise<void> {
+export async function syncDeleteProduct(productId: string): Promise<CloudSyncResult> {
   try {
-    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
       method: 'DELETE',
     });
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch {
-    // Ignore offline error
+    return { ok: false, offline: true, error: 'Offline' };
   }
 }
 
-export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Promise<void> {
-  if (!logs.length) return;
+export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Promise<CloudSyncResult> {
+  if (!logs.length) return { ok: true };
   try {
-    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/stock_logs`, {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/stock_logs`, {
       method: 'POST',
       headers: {
         Prefer: 'resolution=merge-duplicates',
@@ -603,14 +618,18 @@ export async function syncInsertStockLogs(logs: StockLog[], ownerId: string): Pr
         }))
       ),
     });
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch {
-    // Ignore offline error
+    return { ok: false, offline: true, error: 'Offline' };
   }
 }
 
-export async function syncInsertTransaction(t: Transaction, ownerId: string): Promise<void> {
+export async function syncInsertTransaction(t: Transaction, ownerId: string): Promise<CloudSyncResult> {
   try {
-    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions`, {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions`, {
       method: 'POST',
       headers: {
         Prefer: 'resolution=merge-duplicates',
@@ -635,8 +654,12 @@ export async function syncInsertTransaction(t: Transaction, ownerId: string): Pr
         voided_at: t.voidedAt || null,
       }),
     });
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch {
-    // Ignore offline error
+    return { ok: false, offline: true, error: 'Offline' };
   }
 }
 
@@ -644,9 +667,9 @@ export async function syncVoidTransaction(
   transactionId: string,
   voidReason: string,
   voidedAt: string
-): Promise<void> {
+): Promise<CloudSyncResult> {
   try {
-    await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/transactions?id=eq.${encodeURIComponent(transactionId)}`, {
       method: 'PATCH',
       body: JSON.stringify({
         status: 'VOIDED',
@@ -654,15 +677,42 @@ export async function syncVoidTransaction(
         voided_at: voidedAt,
       }),
     });
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch {
-    // Ignore offline error
+    return { ok: false, offline: true, error: 'Offline' };
+  }
+}
+
+export async function updateOwnSupabaseAccount(
+  patch: { name?: string; password?: string }
+): Promise<{ ok: boolean; error?: string; offline?: boolean }> {
+  const token = getSupabaseAccessToken();
+  if (!token) return { ok: false, offline: true, error: 'Tidak ada sesi cloud aktif.' };
+  try {
+    const body: Record<string, unknown> = {};
+    if (patch.password) body.password = patch.password;
+    if (patch.name) body.data = { name: patch.name };
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { msg?: string; message?: string };
+      return { ok: false, error: err.msg || err.message || 'Gagal memperbarui akun.' };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, offline: true, error: 'Offline' };
   }
 }
 
 export async function syncUpsertPaymentSettings(
   settings: StorePaymentSettings,
   ownerId: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; offline?: boolean; error?: string }> {
   try {
     const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/store_payment_settings`, {
       method: 'POST',
@@ -690,6 +740,6 @@ export async function syncUpsertPaymentSettings(
     }
     return { ok: true };
   } catch {
-    return { ok: false, error: 'Offline' };
+    return { ok: false, offline: true, error: 'Offline' };
   }
 }

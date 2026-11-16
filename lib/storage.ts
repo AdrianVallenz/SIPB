@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
   CASHIERS: 'sip_cashiers_v2',
   PAYMENT_SETTINGS: 'sip_payment_settings_v1',
   CUSTOM_CATEGORIES: 'sip_custom_categories_v1',
+  OFFLINE_QUEUE: 'sip_offline_queue_v1',
   SESSION: 'sip_session_v2',
   THEME: 'sip_theme_v1',
   ACCOUNTS: 'sip_registered_accounts_v2',
@@ -459,5 +460,40 @@ export const saveStoredCustomCategories = (
     );
   } catch (err) {
     console.error('Failed to save custom categories to storage', err);
+  }
+};
+
+export type OfflineSyncTask =
+  | { id: string; type: 'upsert_product'; product: Product }
+  | { id: string; type: 'upsert_products'; products: Product[] }
+  | { id: string; type: 'update_stock'; productId: string; stock: number; updatedAt: string }
+  | { id: string; type: 'delete_product'; productId: string }
+  | { id: string; type: 'insert_logs'; logs: StockLog[] }
+  | { id: string; type: 'insert_transaction'; transaction: Transaction }
+  | { id: string; type: 'void_transaction'; transactionId: string; voidReason: string; voidedAt: string }
+  | { id: string; type: 'upsert_payment'; settings: StorePaymentSettings };
+
+export const getOfflineSyncQueue = (ownerId: string = ''): OfflineSyncTask[] => {
+  if (!ownerId || typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(tenantKey(STORAGE_KEYS.OFFLINE_QUEUE, ownerId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveOfflineSyncQueue = (queue: OfflineSyncTask[], ownerId: string = ''): void => {
+  if (!ownerId || typeof window === 'undefined') return;
+  try {
+    if (queue.length === 0) {
+      localStorage.removeItem(tenantKey(STORAGE_KEYS.OFFLINE_QUEUE, ownerId));
+    } else {
+      localStorage.setItem(tenantKey(STORAGE_KEYS.OFFLINE_QUEUE, ownerId), JSON.stringify(queue));
+    }
+  } catch (err) {
+    console.error('Failed to save offline sync queue', err);
   }
 };

@@ -71,4 +71,27 @@ export function sanitizeCsvCell(val: string | number): string {
   return `"${safePrefix.replace(/"/g, '""')}"`;
 }
 
+export function getPaginationWindow(
+  currentPage: number,
+  totalPages: number
+): Array<number | 'ellipsis'> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, idx) => idx + 1);
+  }
+
+  const pages: Array<number | 'ellipsis'> = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) pages.push('ellipsis');
+  for (let p = start; p <= end; p++) {
+    pages.push(p);
+  }
+  if (end < totalPages - 1) pages.push('ellipsis');
+  pages.push(totalPages);
+
+  return pages;
+}
+
+
 

@@ -26,13 +26,19 @@ import {
 
 export default function AdminSettings() {
   const {
+    user,
     cashiers,
     paymentSettings,
     createCashier,
     toggleCashierStatus,
     updateCashier,
     deleteCashier,
+    updateOwnProfile,
   } = useApp();
+
+  const [adminName, setAdminName] = useState(user?.name || '');
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const [cashierName, setCashierName] = useState('');
   const [cashierEmail, setCashierEmail] = useState('');
@@ -147,6 +153,34 @@ export default function AdminSettings() {
     }
   };
 
+  const handleSaveAdminProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSavingProfile || !user) return;
+    setFeedback(null);
+    setIsSavingProfile(true);
+    try {
+      const patch: { name?: string; password?: string } = {};
+      if (adminName.trim() && adminName.trim() !== user.name) {
+        patch.name = adminName.trim();
+      }
+      if (adminNewPassword) {
+        patch.password = adminNewPassword;
+      }
+      const res = await updateOwnProfile(patch);
+      if (!res.success) {
+        setFeedback({ type: 'error', text: res.error || 'Gagal memperbarui profil administrator.' });
+        return;
+      }
+      setAdminNewPassword('');
+      setFeedback({
+        type: 'success',
+        text: 'Profil akun Administrator berhasil diperbarui.',
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const isQrisConfigured = Boolean(
     paymentSettings.qrisPayload.trim() || paymentSettings.qrisImageData
   );
@@ -206,6 +240,97 @@ export default function AdminSettings() {
           </button>
         </div>
       )}
+
+      {/* Admin Profile & Password Section */}
+      <div className="sip-card" style={{ padding: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            padding: '18px 20px',
+            borderBottom: '1px solid var(--border-color)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: '1 1 220px' }}>
+            <KeyRound size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>
+                Profil &amp; Keamanan Akun Administrator
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Perbarui nama pemilik atau kata sandi akun Administrator Anda ({user?.email}).
+              </p>
+            </div>
+          </div>
+          <span className="badge badge-muted font-mono" style={{ flexShrink: 0 }}>
+            Admin Toko
+          </span>
+        </div>
+
+        <form
+          onSubmit={handleSaveAdminProfile}
+          style={{
+            padding: '18px 20px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+            gap: '12px',
+            alignItems: 'end',
+          }}
+        >
+          <div>
+            <label className="form-label">Nama Administrator / Pemilik</label>
+            <input
+              type="text"
+              required
+              minLength={2}
+              value={adminName}
+              onChange={(e) => setAdminName(e.target.value)}
+              className="sip-input"
+              placeholder="Nama pemilik toko"
+            />
+          </div>
+
+          <div>
+            <label className="form-label">
+              Kata Sandi Baru <span style={{ fontWeight: 400 }}>(Kosongkan jika tetap)</span>
+            </label>
+            <input
+              type="password"
+              minLength={6}
+              disabled={user?.email.toLowerCase() === 'admin@sipb.web.id'}
+              value={adminNewPassword}
+              onChange={(e) => setAdminNewPassword(e.target.value)}
+              className="sip-input font-mono"
+              placeholder={
+                user?.email.toLowerCase() === 'admin@sipb.web.id'
+                  ? 'Terkunci pada akun demo'
+                  : 'Min. 6 karakter baru'
+              }
+            />
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isSavingProfile}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '38px' }}
+            >
+              {isSavingProfile ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <span>Simpan Profil Admin</span>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* Store Receipt Identity & Paper Width */}
       <div className="sip-card" style={{ padding: 0 }}>

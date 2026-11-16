@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Product, PAYMENT_METHODS, PaymentMethod, Transaction } from '@/lib/types';
 import {
@@ -46,6 +46,9 @@ export default function PosView() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
+  const [sortBy, setSortBy] = useState<
+    'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'stock-desc' | 'stock-asc'
+  >('name-asc');
   const [cart, setCart] = useState<CartItemState[]>([]);
   const [discount, setDiscount] = useState<number>(0);
   const [posNotice, setPosNotice] = useState<string>('');
@@ -99,14 +102,41 @@ export default function PosView() {
 
   const cartQtyMap = useMemo(() => new Map(validCart.map((c) => [c.productId, c.quantity])), [validCart]);
 
+  const categoryCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of products) {
+      map.set(p.category, (map.get(p.category) || 0) + 1);
+    }
+    return map;
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return products.filter((p) => {
+    const list = products.filter((p) => {
       const matchesCategory = selectedCategory === 'Semua' || p.category === selectedCategory;
       const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
       return matchesCategory && matchesSearch;
     });
-  }, [products, selectedCategory, searchQuery]);
+
+    return [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name, 'id-ID');
+        case 'name-desc':
+          return b.name.localeCompare(a.name, 'id-ID');
+        case 'price-asc':
+          return a.sellPrice - b.sellPrice;
+        case 'price-desc':
+          return b.sellPrice - a.sellPrice;
+        case 'stock-desc':
+          return b.stock - a.stock;
+        case 'stock-asc':
+          return a.stock - b.stock;
+        default:
+          return 0;
+      }
+    });
+  }, [products, selectedCategory, searchQuery, sortBy]);
 
   const addToCart = (product: Product) => {
     if (product.stock <= 0) return;
@@ -150,6 +180,23 @@ export default function PosView() {
     );
   };
 
+  const setExactQuantity = (productId: string, rawQty: number) => {
+    const prod = productMap.get(productId);
+    if (!prod || prod.stock <= 0) return;
+
+    const clean = Math.max(1, Math.floor(Number(rawQty) || 1));
+    const finalQty = Math.min(clean, prod.stock);
+    if (clean > prod.stock) {
+      notifyLimit(`Batas stok maksimal untuk "${prod.name}" adalah ${prod.stock} ${prod.unit}.`);
+    }
+
+    setCart((prev) =>
+      prev.map((item) =>
+        item.productId === productId ? { ...item, quantity: finalQty } : item
+      )
+    );
+  };
+
   const removeFromCart = (productId: string) => {
     setCart((prev) => prev.filter((item) => item.productId !== productId));
   };
@@ -172,12 +219,21 @@ export default function PosView() {
     return { cartSubtotal: subtotal, totalPcsInCart: totalPcs };
   }, [validCart, productMap]);
 
+  const maxCashierDiscount = Math.round(cartSubtotal * 0.25);
+  const isCashierDiscountBlocked =
+    user?.role !== 'admin' && discount > 0 && discount > maxCashierDiscount;
   const finalDiscount = Math.min(discount, cartSubtotal);
   const grandTotal = Math.max(0, cartSubtotal - finalDiscount);
   const changeAmount = paymentMethod === 'Tunai' ? Math.max(0, cashGiven - grandTotal) : 0;
 
   const handleOpenCheckout = () => {
     if (validCart.length === 0) return;
+    if (isCashierDiscountBlocked) {
+      notifyLimit(
+        `Otorisasi Kasir membatasi diskon maksimal 25% (${formatRupiah(maxCashierDiscount)}).`
+      );
+      return;
+    }
     setPaymentError('');
     setCashGiven(grandTotal);
     setDraftInvoiceNo(generateInvoiceNo(user?.ownerId || ''));
@@ -244,6 +300,56 @@ export default function PosView() {
       setPaymentError(res.error || 'Terjadi kesalahan saat memproses penjualan.');
     }
   };
+
+  const shortcutHandlersRef = useRef({
+    onF2: () => {},
+    onF8: () => {},
+    onEscape: () => {},
+  });
+
+  useEffect(() => {
+    shortcutHandlersRef.current = {
+      onF2: () => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      },
+      onF8: () => {
+        if (completedTransaction || isPrinterModalOpen || isQrisSetupOpen) return;
+        if (isPaymentModalOpen) {
+          if (paymentMethod === 'Tunai' && cashGiven < grandTotal) return;
+          void handleConfirmPayment();
+          return;
+        }
+        handleOpenCheckout();
+      },
+      onEscape: () => {
+        if (isQrisSetupOpen) setIsQrisSetupOpen(false);
+        else if (isPrinterModalOpen) setIsPrinterModalOpen(false);
+        else if (isPaymentModalOpen) setIsPaymentModalOpen(false);
+        else if (isMobileCartOpen) setIsMobileCartOpen(false);
+        else if (completedTransaction) {
+          setCompletedTransaction(null);
+          setReceiptPrintNotice(null);
+        }
+      },
+    };
+  });
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        shortcutHandlersRef.current.onF2();
+      } else if (e.key === 'F8') {
+        e.preventDefault();
+        shortcutHandlersRef.current.onF8();
+      } else if (e.key === 'Escape') {
+        shortcutHandlersRef.current.onEscape();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   const renderCartBody = (isSheet = false) => (
     <div
@@ -357,19 +463,39 @@ export default function PosView() {
                   @ {formatRupiah(prod.sellPrice)}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
                     type="button"
                     onClick={() => updateQuantity(prod.id, -1)}
                     className="btn btn-secondary btn-icon"
                     style={{ width: '30px', height: '30px', padding: 0 }}
+                    aria-label={`Kurangi qty ${prod.name}`}
                   >
                     <Minus size={13} />
                   </button>
 
-                  <span className="font-mono" style={{ fontWeight: 700, fontSize: '13px', minWidth: '22px', textAlign: 'center' }}>
-                    {item.quantity}
-                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={item.quantity}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                      if (Number.isFinite(val) && val > 0) {
+                        setExactQuantity(prod.id, val);
+                      }
+                    }}
+                    className="sip-input font-mono"
+                    style={{
+                      width: '44px',
+                      height: '30px',
+                      padding: '2px 4px',
+                      fontWeight: 700,
+                      fontSize: '12.5px',
+                      textAlign: 'center',
+                    }}
+                    aria-label={`Jumlah ${prod.name}`}
+                  />
 
                   <button
                     type="button"
@@ -377,6 +503,7 @@ export default function PosView() {
                     disabled={item.quantity >= prod.stock}
                     className="btn btn-secondary btn-icon"
                     style={{ width: '30px', height: '30px', padding: 0 }}
+                    aria-label={`Tambah qty ${prod.name}`}
                   >
                     <Plus size={13} />
                   </button>
@@ -423,7 +550,7 @@ export default function PosView() {
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', gap: '8px' }}>
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Potongan Diskon (Rp)</span>
           <div style={{ position: 'relative', width: '138px', flexShrink: 0 }}>
             <span
@@ -448,10 +575,22 @@ export default function PosView() {
               onChange={(e) => setDiscount(parseNumberInput(e.target.value))}
               placeholder="0"
               className="sip-input font-mono"
-              style={{ width: '100%', padding: '6px 10px 6px 30px', fontSize: '13px', textAlign: 'right' }}
+              style={{
+                width: '100%',
+                padding: '6px 10px 6px 30px',
+                fontSize: '13px',
+                textAlign: 'right',
+                borderColor: isCashierDiscountBlocked ? 'var(--accent-red)' : undefined,
+              }}
             />
           </div>
         </div>
+
+        {isCashierDiscountBlocked && (
+          <div style={{ fontSize: '11px', color: 'var(--accent-red)', fontWeight: 600, marginBottom: '6px', textAlign: 'right' }}>
+            Maks. diskon kasir 25% ({formatRupiah(maxCashierDiscount)}).
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: 'var(--text-secondary)' }}>
           <span>Subtotal ({totalPcsInCart} pcs):</span>
@@ -487,13 +626,24 @@ export default function PosView() {
 
         <button
           type="button"
-          disabled={validCart.length === 0}
+          disabled={validCart.length === 0 || isCashierDiscountBlocked}
           onClick={handleOpenCheckout}
           className="btn btn-primary"
           style={{ width: '100%', padding: '12px', minHeight: '44px', fontSize: '13.5px' }}
         >
           <CreditCard size={16} />
           <span>Bayar &amp; Cetak Nota ({validCart.length} SKU)</span>
+          <span
+            className="hide-mobile font-mono"
+            style={{
+              fontSize: '10px',
+              padding: '1px 5px',
+              borderRadius: '4px',
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+            }}
+          >
+            F8
+          </span>
         </button>
       </div>
     </div>
@@ -521,7 +671,7 @@ export default function PosView() {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Cari barang, ketik SKU + Enter / scan barcode..."
+                placeholder="Cari barang, ketik SKU + Enter / [F2]..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -605,36 +755,59 @@ export default function PosView() {
             </button>
           </div>
 
-          {/* Category Filter Pills */}
-          <div className="pos-category-scroll" style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
-            {categories.map((cat) => {
-              const isSelected = selectedCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat)}
-                  style={{
-                    padding: '6px 13px',
-                    borderRadius: 'var(--radius-full)',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    border: '1px solid',
-                    borderColor: isSelected ? 'var(--accent-cyan)' : 'var(--border-color)',
-                    backgroundColor: isSelected
-                      ? 'rgba(var(--accent-cyan-rgb), 0.14)'
-                      : 'var(--bg-subtle)',
-                    color: isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                    transition: 'all 0.15s ease',
-                    flexShrink: 0,
-                  }}
-                >
-                  {cat}
-                </button>
-              );
-            })}
+          {/* Category & Sort Dropdown Controls (No Horizontal Slide Scrollbar) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '8px',
+              alignItems: 'center',
+            }}
+          >
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="sip-select"
+              style={{ fontSize: '12.5px', minHeight: '38px', fontWeight: 600 }}
+              aria-label="Filter Kategori Barang"
+            >
+              {categories.map((cat) => {
+                const count =
+                  cat === 'Semua' ? products.length : categoryCountMap.get(cat) || 0;
+                return (
+                  <option key={cat} value={cat}>
+                    {cat === 'Semua'
+                      ? `Semua Kategori (${count})`
+                      : `${cat} (${count})`}
+                  </option>
+                );
+              })}
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(
+                  e.target.value as
+                    | 'name-asc'
+                    | 'name-desc'
+                    | 'price-asc'
+                    | 'price-desc'
+                    | 'stock-desc'
+                    | 'stock-asc'
+                )
+              }
+              className="sip-select"
+              style={{ fontSize: '12.5px', minHeight: '38px', fontWeight: 600 }}
+              aria-label="Urutkan Barang"
+            >
+              <option value="name-asc">Urutkan: Nama (A - Z)</option>
+              <option value="name-desc">Urutkan: Nama (Z - A)</option>
+              <option value="price-asc">Urutkan: Harga Termurah</option>
+              <option value="price-desc">Urutkan: Harga Termahal</option>
+              <option value="stock-desc">Urutkan: Stok Terbanyak</option>
+              <option value="stock-asc">Urutkan: Stok Menipis</option>
+            </select>
           </div>
         </div>
 
@@ -880,24 +1053,45 @@ export default function PosView() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                     <button
                       type="button"
                       onClick={() => updateQuantity(prod.id, -1)}
                       className="btn btn-secondary btn-icon"
                       style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', padding: 0 }}
+                      aria-label={`Kurangi qty ${prod.name}`}
                     >
                       <Minus size={12} />
                     </button>
-                    <span className="font-mono" style={{ fontSize: '12px', fontWeight: 700, minWidth: '18px', textAlign: 'center' }}>
-                      {item.quantity}
-                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={item.quantity}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                        if (Number.isFinite(val) && val > 0) {
+                          setExactQuantity(prod.id, val);
+                        }
+                      }}
+                      className="sip-input font-mono"
+                      style={{
+                        width: '36px',
+                        height: '26px',
+                        padding: '1px 2px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        textAlign: 'center',
+                      }}
+                      aria-label={`Jumlah ${prod.name}`}
+                    />
                     <button
                       type="button"
                       disabled={item.quantity >= prod.stock}
                       onClick={() => updateQuantity(prod.id, 1)}
                       className="btn btn-secondary btn-icon"
                       style={{ width: '26px', height: '26px', minWidth: '26px', minHeight: '26px', padding: 0 }}
+                      aria-label={`Tambah qty ${prod.name}`}
                     >
                       <Plus size={12} />
                     </button>
@@ -938,7 +1132,7 @@ export default function PosView() {
 
           <button
             type="button"
-            disabled={validCart.length === 0}
+            disabled={validCart.length === 0 || isCashierDiscountBlocked}
             onClick={handleOpenCheckout}
             className="btn btn-primary"
             style={{ padding: '10px 16px', minHeight: '42px', flexShrink: 0, fontWeight: 700 }}

@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction, PAYMENT_METHODS } from '@/lib/types';
 import { formatRupiah, formatDateTime, getLocalDateKey, sanitizeCsvCell } from '@/lib/format';
+import { useBluetoothPrinter } from '@/lib/usePrinter';
 import ReceiptModal from './ReceiptModal';
+import PaginationBar from './PaginationBar';
 import {
   Search,
   Printer,
@@ -14,14 +16,16 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 
 export default function AdminReports() {
-  const { transactions, voidTransaction } = useApp();
+  const { user, transactions, products, paymentSettings, voidTransaction } = useApp();
+  const { settings: printerSettings } = useBluetoothPrinter();
 
-  const [dateFilter, setDateFilter] = useState<'today' | '7days' | '30days' | 'all'>('all');
+  const todayKey = getLocalDateKey(new Date());
+  const [dateFilter, setDateFilter] = useState<'today' | '7days' | '30days' | 'custom' | 'all'>('all');
+  const [customStartDate, setCustomStartDate] = useState<string>(todayKey);
+  const [customEndDate, setCustomEndDate] = useState<string>(todayKey);
   const [methodFilter, setMethodFilter] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingReceipt, setViewingReceipt] = useState<Transaction | null>(null);
@@ -33,15 +37,22 @@ export default function AdminReports() {
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const todayKey = getLocalDateKey(new Date());
+  const productBuyMap = useMemo(
+    () => new Map(products.map((p) => [p.id, p.buyPrice])),
+    [products]
+  );
 
   const {
     filteredTransactions,
     activeTransactions,
     totalOmzet,
+    totalSubtotal,
+    totalDiscount,
+    voidedCount,
     totalProfit,
     totalItemsSold,
     averageTransaction,
+    paymentRecap,
   } = useMemo(() => {
     const now = new Date();
     const past7StartMs = new Date(
@@ -66,12 +77,24 @@ export default function AdminReports() {
 
     const filtered = transactions.filter((t) => {
       let matchesDate = true;
+      const trxKey = getLocalDateKey(t.createdAt);
       if (dateFilter === 'today') {
-        matchesDate = getLocalDateKey(t.createdAt) === todayKey;
+        matchesDate = trxKey === todayKey;
       } else if (dateFilter === '7days') {
         matchesDate = Date.parse(t.createdAt) >= past7StartMs;
       } else if (dateFilter === '30days') {
         matchesDate = Date.parse(t.createdAt) >= past30StartMs;
+      } else if (dateFilter === 'custom') {
+        const minDate =
+          customStartDate && customEndDate && customStartDate > customEndDate
+            ? customEndDate
+            : customStartDate;
+        const maxDate =
+          customStartDate && customEndDate && customStartDate > customEndDate
+            ? customStartDate
+            : customEndDate;
+        if (minDate && trxKey < minDate) matchesDate = false;
+        if (maxDate && trxKey > maxDate) matchesDate = false;
       }
 
       const matchesMethod = methodFilter === 'Semua' || t.paymentMethod === methodFilter;
@@ -86,33 +109,61 @@ export default function AdminReports() {
 
     const active: Transaction[] = [];
     let omzet = 0;
+    let subtotal = 0;
+    let discount = 0;
+    let voided = 0;
     let profit = 0;
     let itemsSold = 0;
+    const byMethod = new Map<string, { count: number; total: number }>();
 
     for (const t of filtered) {
-      if (t.status !== 'VOIDED') {
-        active.push(t);
-        omzet += t.total;
-        let cogs = 0;
-        for (const i of t.items) {
-          itemsSold += i.quantity;
-          cogs += (Number(i.buyPrice) || 0) * i.quantity;
-        }
-        profit += Math.max(0, t.total - cogs);
+      if (t.status === 'VOIDED') {
+        voided += 1;
+        continue;
       }
+      active.push(t);
+      omzet += t.total;
+      subtotal += t.subtotal;
+      discount += t.discount;
+      const prev = byMethod.get(t.paymentMethod) ?? { count: 0, total: 0 };
+      byMethod.set(t.paymentMethod, { count: prev.count + 1, total: prev.total + t.total });
+
+      let cogs = 0;
+      for (const i of t.items) {
+        itemsSold += i.quantity;
+        const unitBuy = i.buyPrice ?? productBuyMap.get(i.productId) ?? Math.round(i.price * 0.78);
+        cogs += unitBuy * i.quantity;
+      }
+      profit += t.total - cogs;
     }
 
     const avg = active.length > 0 ? Math.round(omzet / active.length) : 0;
+    const recap = Array.from(byMethod.entries())
+      .map(([method, stats]) => ({ method, count: stats.count, total: stats.total }))
+      .sort((a, b) => b.total - a.total);
 
     return {
       filteredTransactions: filtered,
       activeTransactions: active,
       totalOmzet: omzet,
+      totalSubtotal: subtotal,
+      totalDiscount: discount,
+      voidedCount: voided,
       totalProfit: profit,
       totalItemsSold: itemsSold,
       averageTransaction: avg,
+      paymentRecap: recap,
     };
-  }, [transactions, dateFilter, methodFilter, searchQuery, todayKey]);
+  }, [
+    transactions,
+    productBuyMap,
+    dateFilter,
+    customStartDate,
+    customEndDate,
+    methodFilter,
+    searchQuery,
+    todayKey,
+  ]);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(5);
@@ -142,8 +193,11 @@ export default function AdminReports() {
       'Keterangan Void',
     ];
     const rows = filteredTransactions.map((t) => {
-      const cogs = t.items.reduce((s, i) => s + (Number(i.buyPrice) || 0) * i.quantity, 0);
-      const netProfit = t.status === 'VOIDED' ? 0 : Math.max(0, t.total - cogs);
+      const cogs = t.items.reduce((s, i) => {
+        const unitBuy = i.buyPrice ?? productBuyMap.get(i.productId) ?? Math.round(i.price * 0.78);
+        return s + unitBuy * i.quantity;
+      }, 0);
+      const netProfit = t.status === 'VOIDED' ? 0 : t.total - cogs;
       return [
         sanitizeCsvCell(t.invoiceNo),
         sanitizeCsvCell(t.status === 'VOIDED' ? 'VOID / DIBATALKAN' : 'SELESAI'),
@@ -168,14 +222,41 @@ export default function AdminReports() {
     URL.revokeObjectURL(url);
   };
 
+  useEffect(() => {
+    if (!isPrintingAll || typeof window === 'undefined') return;
+    const handleAfterPrint = () => {
+      setIsPrintingAll(false);
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    const printTimer = setTimeout(() => {
+      window.print();
+    }, 80);
+    return () => {
+      clearTimeout(printTimer);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [isPrintingAll]);
+
   const handlePrintReport = () => {
     if (typeof window === 'undefined') return;
     setIsPrintingAll(true);
-    setTimeout(() => {
-      window.print();
-      setIsPrintingAll(false);
-    }, 120);
   };
+
+  const reportStoreName =
+    printerSettings.storeName && printerSettings.storeName !== 'SIP BARANG'
+      ? printerSettings.storeName
+      : paymentSettings.qrisMerchantName?.trim() || printerSettings.storeName || 'SIP BARANG';
+
+  const activePeriodLabel =
+    dateFilter === 'today'
+      ? `Hari Ini (${todayKey})`
+      : dateFilter === '7days'
+        ? '7 Hari Terakhir'
+        : dateFilter === '30days'
+          ? '30 Hari Terakhir'
+          : dateFilter === 'custom'
+            ? `${customStartDate || '-'} s/d ${customEndDate || '-'}`
+            : 'Semua Periode Waktu';
 
   const handleConfirmVoid = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,8 +284,73 @@ export default function AdminReports() {
 
   return (
     <div className="page-container">
+      {/* Official Print Report Header (Visible only in Print / PDF) */}
+      <div className="print-report-header">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: '20px',
+            borderBottom: '2.5px solid #0F172A',
+            paddingBottom: '12px',
+            marginBottom: '6px',
+          }}
+        >
+          <div style={{ borderLeft: '4px solid #047857', paddingLeft: '12px' }}>
+            <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '-0.02em', color: '#0F172A' }}>
+              {reportStoreName}
+            </div>
+            {printerSettings.storeTagline && (
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#047857', marginTop: '2px' }}>
+                {printerSettings.storeTagline}
+              </div>
+            )}
+            {(printerSettings.storeAddress || printerSettings.storePhone) && (
+              <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '3px', lineHeight: 1.4 }}>
+                {[
+                  printerSettings.storeAddress,
+                  printerSettings.storePhone ? `Telp: ${printerSettings.storePhone}` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' • ')}
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              textAlign: 'right',
+              background: '#F8FAFC',
+              border: '1px solid #CBD5E1',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              minWidth: '250px',
+            }}
+          >
+            <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.05em', color: '#047857' }}>
+              LAPORAN TRANSAKSI PENJUALAN
+            </div>
+            <div style={{ fontSize: '10.5px', color: '#334155', marginTop: '4px', lineHeight: 1.5 }}>
+              <div>
+                <strong>Periode:</strong> {activePeriodLabel}
+              </div>
+              <div>
+                <strong>Metode Bayar:</strong> {methodFilter}
+              </div>
+              <div>
+                <strong>Dicetak:</strong> {formatDateTime(new Date().toISOString(), true)}
+              </div>
+              <div>
+                <strong>Operator:</strong> {user?.name || 'Administrator'} &bull; {filteredTransactions.length} baris ({activeTransactions.length} sah{voidedCount > 0 ? `, ${voidedCount} void` : ''})
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header no-print">
         <div>
           <h2 className="page-title">Laporan Transaksi Penjualan</h2>
           <p className="page-subtitle">
@@ -240,7 +386,7 @@ export default function AdminReports() {
 
       {/* Summary KPI Strip */}
       <div className="kpi-grid">
-        <div className="sip-card" style={{ padding: '16px 20px' }}>
+        <div className="sip-card print-kpi-card" style={{ padding: '16px 20px' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
             Total Omzet Bersih
           </div>
@@ -252,7 +398,7 @@ export default function AdminReports() {
           </div>
         </div>
 
-        <div className="sip-card" style={{ padding: '16px 20px' }}>
+        <div className="sip-card print-kpi-card" style={{ padding: '16px 20px' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
             Nota Sah / Aktif
           </div>
@@ -262,9 +408,14 @@ export default function AdminReports() {
               Nota
             </span>
           </div>
+          {voidedCount > 0 && (
+            <div style={{ fontSize: '11px', color: 'var(--accent-red)', marginTop: '4px', fontWeight: 600 }}>
+              {voidedCount} Nota Dibatalkan (Void)
+            </div>
+          )}
         </div>
 
-        <div className="sip-card" style={{ padding: '16px 20px' }}>
+        <div className="sip-card print-kpi-card" style={{ padding: '16px 20px' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
             Unit Barang Terjual
           </div>
@@ -274,7 +425,7 @@ export default function AdminReports() {
           </div>
         </div>
 
-        <div className="sip-card" style={{ padding: '16px 20px' }}>
+        <div className="sip-card print-kpi-card" style={{ padding: '16px 20px' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
             Rata-Rata Nilai Nota
           </div>
@@ -344,15 +495,17 @@ export default function AdminReports() {
             <select
               value={dateFilter}
               onChange={(e) => {
-                setDateFilter(e.target.value as 'today' | '7days' | '30days' | 'all');
+                setDateFilter(e.target.value as 'today' | '7days' | '30days' | 'custom' | 'all');
                 setCurrentPage(1);
               }}
               className="sip-select"
+              aria-label="Filter Periode Tanggal"
             >
               <option value="all">Semua Periode Waktu</option>
               <option value="today">Hari Ini</option>
               <option value="7days">7 Hari Terakhir</option>
               <option value="30days">30 Hari Terakhir</option>
+              <option value="custom">Rentang Tanggal Kustom</option>
             </select>
           </div>
 
@@ -364,6 +517,7 @@ export default function AdminReports() {
                 setCurrentPage(1);
               }}
               className="sip-select"
+              aria-label="Filter Metode Pembayaran"
             >
               <option value="Semua">Semua Metode Bayar</option>
               {PAYMENT_METHODS.map((m) => (
@@ -374,6 +528,48 @@ export default function AdminReports() {
             </select>
           </div>
         </div>
+
+        {dateFilter === 'custom' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '10px',
+              marginTop: '10px',
+              paddingTop: '10px',
+              borderTop: '1px solid var(--border-color)',
+            }}
+          >
+            <div>
+              <label className="form-label" style={{ fontSize: '11.5px' }}>
+                Dari Tanggal
+              </label>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => {
+                  setCustomStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="sip-input font-mono"
+              />
+            </div>
+            <div>
+              <label className="form-label" style={{ fontSize: '11.5px' }}>
+                Sampai Tanggal
+              </label>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => {
+                  setCustomEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="sip-input font-mono"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Transactions Table (Desktop) & Card List (Mobile) */}
@@ -411,8 +607,9 @@ export default function AdminReports() {
                         {t.items.length} SKU ({t.items.reduce((s, i) => s + i.quantity, 0)} pcs)
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {t.items.slice(0, 2).map((i) => `${i.name} (${i.quantity}x)`).join(', ')}
-                        {t.items.length > 2 ? '...' : ''}
+                        {isPrintingAll
+                          ? t.items.map((i) => `${i.name} (${i.quantity}x)`).join(', ')
+                          : `${t.items.slice(0, 2).map((i) => `${i.name} (${i.quantity}x)`).join(', ')}${t.items.length > 2 ? '...' : ''}`}
                       </div>
                     </td>
                     <td>
@@ -437,11 +634,17 @@ export default function AdminReports() {
                       style={{
                         fontWeight: 700,
                         fontSize: '13.5px',
-                        textDecoration: isVoided ? 'line-through' : 'none',
                         color: isVoided ? 'var(--text-muted)' : 'var(--text-primary)',
                       }}
                     >
-                      {formatRupiah(t.total)}
+                      <span style={{ textDecoration: isVoided ? 'line-through' : 'none' }}>
+                        {formatRupiah(t.total)}
+                      </span>
+                      {t.discount > 0 && (
+                        <div style={{ fontSize: '10.5px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                          Diskon: -{formatRupiah(t.discount)}
+                        </div>
+                      )}
                     </td>
                     <td className="no-print" style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '6px' }}>
@@ -483,7 +686,155 @@ export default function AdminReports() {
                 </tr>
               )}
             </tbody>
+            {filteredTransactions.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={3} style={{ fontSize: '11.5px', color: 'var(--text-primary)' }}>
+                    TOTAL KESELURUHAN ({activeTransactions.length} Nota Sah
+                    {voidedCount > 0 ? `, ${voidedCount} Void` : ''})
+                  </td>
+                  <td style={{ fontSize: '11.5px', fontWeight: 700 }}>
+                    {totalItemsSold} pcs terjual
+                  </td>
+                  <td colSpan={2} style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    {totalDiscount > 0
+                      ? `Total Diskon: -${formatRupiah(totalDiscount)}`
+                      : `Subtotal: ${formatRupiah(totalSubtotal)}`}
+                  </td>
+                  <td className="font-mono" style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    <div>{formatRupiah(totalOmzet)}</div>
+                    <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--accent-green-text)' }}>
+                      Laba: {formatRupiah(totalProfit)}
+                    </div>
+                  </td>
+                  <td className="no-print" />
+                </tr>
+              </tfoot>
+            )}
           </table>
+        </div>
+      </div>
+
+      {/* Official Print Report Footer: Payment Method Recap & Sign-off (Visible only in Print / PDF) */}
+      <div className="print-report-footer" style={{ marginTop: '10px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.15fr 1fr',
+            gap: '16px',
+            alignItems: 'stretch',
+          }}
+        >
+          {/* Payment Recap Box */}
+          <div
+            style={{
+              border: '1px solid #CBD5E1',
+              borderRadius: '6px',
+              padding: '10px 12px',
+              background: '#F8FAFC',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: '#0F172A',
+                borderBottom: '1px solid #CBD5E1',
+                paddingBottom: '5px',
+                marginBottom: '6px',
+              }}
+            >
+              Rekapitulasi Metode Pembayaran (Nota Sah)
+            </div>
+            {paymentRecap.length === 0 ? (
+              <div style={{ fontSize: '10.5px', color: '#64748B' }}>
+                Belum ada transaksi sah pada periode ini.
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5px' }}>
+                <tbody>
+                  {paymentRecap.map((row) => (
+                    <tr key={row.method}>
+                      <td style={{ padding: '3px 0', color: '#334155', fontWeight: 600 }}>{row.method}</td>
+                      <td style={{ padding: '3px 8px', color: '#64748B', textAlign: 'right' }}>
+                        {row.count} nota
+                      </td>
+                      <td
+                        className="font-mono"
+                        style={{ padding: '3px 0', color: '#0F172A', fontWeight: 700, textAlign: 'right' }}
+                      >
+                        {formatRupiah(row.total)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '1px solid #94A3B8' }}>
+                    <td style={{ paddingTop: '5px', fontWeight: 800, color: '#0F172A' }}>Total Omzet Sah</td>
+                    <td
+                      style={{
+                        paddingTop: '5px',
+                        paddingRight: '8px',
+                        textAlign: 'right',
+                        fontWeight: 700,
+                        color: '#334155',
+                      }}
+                    >
+                      {activeTransactions.length} nota
+                    </td>
+                    <td
+                      className="font-mono"
+                      style={{ paddingTop: '5px', textAlign: 'right', fontWeight: 800, color: '#047857' }}
+                    >
+                      {formatRupiah(totalOmzet)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Authorization Signature Box */}
+          <div
+            style={{
+              border: '1px solid #CBD5E1',
+              borderRadius: '6px',
+              padding: '10px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'right' }}>
+              Dokumen dicetak otomatis melalui sistem POS &bull; {reportStoreName}
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '18px',
+                marginTop: '10px',
+                textAlign: 'center',
+                fontSize: '10.5px',
+                color: '#334155',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600 }}>Disiapkan Oleh,</div>
+                <div style={{ height: '38px' }} />
+                <div style={{ borderTop: '1px solid #64748B', paddingTop: '4px', fontWeight: 700, color: '#0F172A' }}>
+                  {user?.name || 'Operator / Admin'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontWeight: 600 }}>Mengetahui,</div>
+                <div style={{ height: '38px' }} />
+                <div style={{ borderTop: '1px solid #64748B', paddingTop: '4px', fontWeight: 700, color: '#0F172A' }}>
+                  Pemilik / Pimpinan Toko
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -583,91 +934,16 @@ export default function AdminReports() {
       </div>
 
       {/* Pagination Bar */}
-      {filteredTransactions.length > 0 && (
-        <div
-          className="sip-card no-print"
-          style={{
-            padding: '12px 18px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-              Menampilkan{' '}
-              <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                {(safePage - 1) * pageSize + 1}&ndash;
-                {Math.min(safePage * pageSize, filteredTransactions.length)}
-              </strong>{' '}
-              dari{' '}
-              <strong className="font-mono" style={{ color: 'var(--text-primary)' }}>
-                {filteredTransactions.length}
-              </strong>{' '}
-              transaksi
-            </span>
-
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="sip-select font-mono"
-              style={{ width: 'auto', padding: '4px 28px 4px 10px', fontSize: '12px', minHeight: '32px' }}
-              aria-label="Jumlah transaksi per halaman"
-            >
-              {[5, 10, 20, 50].map((size) => (
-                <option key={size} value={size}>
-                  {size} / halaman
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              type="button"
-              disabled={safePage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '6px 10px', minHeight: '32px' }}
-            >
-              <ChevronLeft size={14} />
-              <span className="hide-xs">Sebelumnya</span>
-            </button>
-
-            {Array.from({ length: totalPages }, (_, idx) => idx + 1)
-              .slice(0, 7)
-              .map((pageNum) => (
-                <button
-                  key={pageNum}
-                  type="button"
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`btn btn-sm font-mono ${
-                    pageNum === safePage ? 'btn-primary' : 'btn-secondary'
-                  }`}
-                  style={{ minWidth: '32px', minHeight: '32px', padding: '0 8px' }}
-                >
-                  {pageNum}
-                </button>
-              ))}
-
-            <button
-              type="button"
-              disabled={safePage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '6px 10px', minHeight: '32px' }}
-            >
-              <span className="hide-xs">Berikutnya</span>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        variant="card"
+        currentPage={safePage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={filteredTransactions.length}
+        itemLabel="transaksi"
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+      />
 
       {/* VOID TRANSACTION CONFIRMATION MODAL */}
       {voidingTrx && (
