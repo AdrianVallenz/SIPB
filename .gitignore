@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local video recordings
 /recordings/
+
+# local generated documentation
+/docs/
