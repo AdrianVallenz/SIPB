@@ -110,5 +110,12 @@ export interface StorePaymentSettings {
   bankName: string;
   bankAccountNumber: string;
   bankAccountHolder: string;
+  storeName?: string;
+  storeTagline?: string;
+  storeAddress?: string;
+  storePhone?: string;
+  receiptFooter?: string;
+  paperWidth?: '58mm' | '80mm';
+  customCategories?: string[];
   updatedAt: string;
 }

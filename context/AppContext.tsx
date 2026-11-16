@@ -41,25 +41,25 @@ import {
   saveStoredTransactions,
 } from '@/lib/storage';
 import {
+  adjustProductStockRpc,
   createCashierCloud,
   deleteCashierCloud,
   fetchCloudSnapshot,
   getSupabaseAccessToken,
   getSupabaseRefreshToken,
+  processPosSaleRpc,
   registerAdminCloud,
   setSupabaseAccessToken,
   signInSupabase,
   syncDeleteProduct,
   syncInsertStockLogs,
-  syncInsertTransaction,
-  syncUpdateProductStock,
   syncUpsertPaymentSettings,
   syncUpsertProduct,
   syncUpsertProducts,
-  syncVoidTransaction,
   toggleCashierCloud,
   updateCashierCloud,
   updateOwnSupabaseAccount,
+  voidPosTransactionRpc,
 } from '@/lib/supabase';
 import { INITIAL_PRODUCTS } from '@/lib/dummyData';
 import { playCashierChime } from '@/lib/audio';
@@ -90,8 +90,8 @@ interface AppContextType {
   products: Product[];
   categories: string[];
   customCategories: string[];
-  addCategory: (name: string) => ActionResult;
-  deleteCategory: (name: string) => ActionResult;
+  addCategory: (name: string) => Promise<ActionResult>;
+  deleteCategory: (name: string) => Promise<ActionResult>;
   transactions: Transaction[];
   stockLogs: StockLog[];
   cashiers: CashierAccount[];
@@ -284,6 +284,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (snapshot.paymentSettings) {
         setPaymentSettings(snapshot.paymentSettings);
         saveStoredPaymentSettings(snapshot.paymentSettings, targetOwnerId);
+        if (Array.isArray(snapshot.paymentSettings.customCategories)) {
+          setCustomCategories(snapshot.paymentSettings.customCategories);
+          saveStoredCustomCategories(snapshot.paymentSettings.customCategories, targetOwnerId);
+        }
       } else {
         setPaymentSettings(getStoredPaymentSettings(targetOwnerId));
       }
@@ -613,12 +617,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
+  const isLockedDemoCashier = (cashierId: string): boolean => {
+    const target = cashiers.find((c) => c.id === cashierId);
+    return Boolean(target && target.email.toLowerCase() === 'kasir@sipb.web.id');
+  };
+
   const toggleCashierStatus = async (
     cashierId: string,
     isActive: boolean
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    if (isLockedDemoCashier(cashierId)) {
+      return {
+        success: false,
+        error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
+      };
+    }
     const netErr = requireOnlineCloudSession();
     if (netErr) return { success: false, error: netErr };
 
@@ -640,6 +655,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    if (isLockedDemoCashier(cashierId)) {
+      return {
+        success: false,
+        error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
+      };
+    }
     const netErr = requireOnlineCloudSession();
     if (netErr) return { success: false, error: netErr };
 
@@ -674,6 +695,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteCashier = async (cashierId: string): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
+    if (isLockedDemoCashier(cashierId)) {
+      return {
+        success: false,
+        error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
+      };
+    }
     const netErr = requireOnlineCloudSession();
     if (netErr) return { success: false, error: netErr };
 
@@ -930,73 +957,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    const previousStock = prod.stock;
-    let newStock = previousStock;
-
-    if (type === 'IN') {
-      newStock = previousStock + cleanQty;
-    } else if (type === 'OUT') {
-      if (cleanQty > previousStock) {
-        return {
-          success: false,
-          error: `Jumlah pengurangan (${cleanQty}) melebihi stok saat ini (${previousStock}).`,
-        };
-      }
-      newStock = previousStock - cleanQty;
-    } else {
-      if (cleanQty === previousStock) {
-        return {
-          success: false,
-          error: `Stok saat ini sudah ${previousStock} ${prod.unit}. Ubah nilai untuk melakukan opname.`,
-        };
-      }
-      newStock = Math.max(0, cleanQty);
-    }
-
     const ownerId = user.ownerId;
-    const updatedProd: Product = {
-      ...prod,
-      ownerId,
-      stock: newStock,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const stockRes = await syncUpsertProduct(updatedProd, ownerId);
-    markCloudSyncResult(stockRes);
-    if (!stockRes.ok) {
+    const rpcRes = await adjustProductStockRpc({
+      productId,
+      quantity: cleanQty,
+      type,
+      reason: reason.trim(),
+      createdAt: new Date().toISOString(),
+    });
+    markCloudSyncResult(rpcRes);
+    if (!rpcRes.ok || !rpcRes.product) {
+      if (!rpcRes.offline) {
+        void syncFromCloud(ownerId);
+      }
       return {
         success: false,
-        error: stockRes.error || 'Gagal memperbarui stok produk di server cloud.',
+        error: rpcRes.error || 'Gagal memperbarui stok produk di server cloud.',
       };
     }
 
-    const updated = products.map((p) => (p.id === productId ? updatedProd : p));
+    const updated = products.map((p) =>
+      p.id === productId
+        ? {
+            ...p,
+            stock: rpcRes.product!.stock,
+            updatedAt: rpcRes.product!.updatedAt,
+          }
+        : p
+    );
     setProducts(updated);
     saveStoredProducts(updated, ownerId);
 
-    const log: StockLog = {
-      id: makeId('log'),
-      ownerId,
-      productId: prod.id,
-      productName: prod.name,
-      type,
-      quantity: type === 'ADJUSTMENT' ? Math.abs(newStock - previousStock) : cleanQty,
-      previousStock,
-      newStock,
-      reason:
-        reason.trim() ||
-        (type === 'IN'
-          ? 'Restock barang masuk'
-          : type === 'OUT'
-            ? 'Pengurangan stok rusak/hilang'
-            : 'Stok opname fisik gudang'),
-      createdAt: new Date().toISOString(),
-      operator: user.email,
-    };
-    const logRes = await syncInsertStockLogs([log], ownerId);
-    markCloudSyncResult(logRes);
-    if (logRes.ok) {
-      const updatedLogs = [log, ...stockLogs];
+    if (rpcRes.stockLog) {
+      const updatedLogs = [rpcRes.stockLog, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs, ownerId);
     }
@@ -1019,7 +1012,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Keranjang belanja masih kosong.' };
     }
 
-    // Build O(1) lookup Map for products and aggregate quantities
+    // Build O(1) lookup Map for fast client pre-validation before locking rows in Postgres
     const productById = new Map<string, Product>(products.map((p) => [p.id, p]));
     const cartQtyById = new Map<string, number>();
 
@@ -1043,21 +1036,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     let subtotal = 0;
-    const transactionItems = cartItems.map((item) => {
+    for (const item of cartItems) {
       const prod = productById.get(item.productId)!;
-      const qty = Math.floor(item.quantity);
-      const itemSubtotal = prod.sellPrice * qty;
-      subtotal += itemSubtotal;
-      return {
-        productId: prod.id,
-        sku: prod.sku,
-        name: prod.name,
-        buyPrice: prod.buyPrice,
-        price: prod.sellPrice,
-        quantity: qty,
-        subtotal: itemSubtotal,
-      };
-    });
+      subtotal += prod.sellPrice * Math.floor(item.quantity);
+    }
 
     const safeDiscount = Math.max(0, Math.round(Number(discount) || 0));
     const maxCashierDiscount = Math.round(subtotal * 0.25);
@@ -1079,10 +1061,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    const change = paymentMethod === 'Tunai' ? Math.max(0, safeAmountPaid - grandTotal) : 0;
     const finalAmountPaid = paymentMethod === 'Tunai' ? safeAmountPaid : grandTotal;
-
-    const now = new Date();
     const ownerId = user.ownerId;
     const cleanInvoiceNo = customInvoiceNo?.trim();
     const invoiceNo =
@@ -1090,96 +1069,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? cleanInvoiceNo
         : generateInvoiceNo(ownerId);
 
-    const newTransaction: Transaction = {
-      id: makeId('trx'),
-      ownerId,
+    // Atomic transaction in Postgres (FOR UPDATE row lock + stock check + audit logs)
+    const rpcRes = await processPosSaleRpc({
+      trxId: makeId('trx'),
       invoiceNo,
-      createdAt: now.toISOString(),
-      cashierEmail: user.email,
       cashierName: user.name,
-      items: transactionItems,
-      subtotal,
-      discount: finalDiscount,
-      tax: 0,
-      total: grandTotal,
       paymentMethod,
+      discount: finalDiscount,
       amountPaid: finalAmountPaid,
-      change,
-      status: 'COMPLETED',
-    };
-
-    const saleLogs: StockLog[] = [];
-    const stockSyncQueue: Array<{ id: string; stock: number; updatedAt: string }> = [];
-
-    const updatedProducts = products.map((p) => {
-      const deductQty = cartQtyById.get(p.id);
-      if (deductQty && deductQty > 0) {
-        const newStock = p.stock - deductQty;
-        const updatedAt = now.toISOString();
-        saleLogs.push({
-          id: makeId('log'),
-          ownerId,
-          productId: p.id,
-          productName: p.name,
-          type: 'OUT',
-          quantity: deductQty,
-          previousStock: p.stock,
-          newStock,
-          reason: `Penjualan Kasir (${invoiceNo})`,
-          createdAt: updatedAt,
-          operator: user.email,
-        });
-        stockSyncQueue.push({ id: p.id, stock: newStock, updatedAt });
-        return {
-          ...p,
-          stock: newStock,
-          updatedAt,
-        };
-      }
-      return p;
+      items: cartItems.map((item) => ({
+        productId: item.productId,
+        quantity: Math.floor(Number(item.quantity) || 0),
+      })),
+      createdAt: new Date().toISOString(),
     });
+    markCloudSyncResult(rpcRes);
 
-    // Save transaction on Supabase Cloud first before mutating state/cache
-    const trxRes = await syncInsertTransaction(newTransaction, ownerId);
-    markCloudSyncResult(trxRes);
-    if (!trxRes.ok) {
+    if (!rpcRes.ok || !rpcRes.transaction) {
+      if (!rpcRes.offline) {
+        void syncFromCloud(ownerId);
+      }
       return {
         success: false,
-        error: trxRes.error || 'Gagal menyimpan transaksi ke server cloud. Periksa koneksi internet Anda.',
+        error: rpcRes.error || 'Gagal menyimpan transaksi ke server cloud. Periksa koneksi internet Anda.',
       };
     }
 
-    await Promise.all([
-      ...stockSyncQueue.map((item) =>
-        syncUpdateProductStock(item.id, item.stock, item.updatedAt).then((r) => {
-          markCloudSyncResult(r);
-          return r;
-        })
-      ),
-      saleLogs.length > 0
-        ? syncInsertStockLogs(saleLogs, ownerId).then((r) => {
-            markCloudSyncResult(r);
-            return r;
-          })
-        : Promise.resolve({ ok: true }),
-    ]);
-
+    const patchById = new Map((rpcRes.updatedProducts || []).map((p) => [p.id, p]));
+    const updatedProducts = products.map((p) => {
+      const patch = patchById.get(p.id);
+      return patch ? { ...p, stock: patch.stock, updatedAt: patch.updatedAt } : p;
+    });
     setProducts(updatedProducts);
     saveStoredProducts(updatedProducts, ownerId);
 
-    if (saleLogs.length > 0) {
-      const updatedLogs = [...saleLogs, ...stockLogs];
+    if (rpcRes.stockLogs && rpcRes.stockLogs.length > 0) {
+      const updatedLogs = [...rpcRes.stockLogs, ...stockLogs];
       setStockLogs(updatedLogs);
       saveStoredStockLogs(updatedLogs, ownerId);
     }
 
-    const updatedTransactions = [newTransaction, ...transactions];
+    const updatedTransactions = [rpcRes.transaction, ...transactions];
     setTransactions(updatedTransactions);
     saveStoredTransactions(updatedTransactions, ownerId);
 
     playCashierChime();
 
-    return { success: true, transaction: newTransaction };
+    return { success: true, transaction: rpcRes.transaction };
   };
 
   const voidTransaction = async (
@@ -1202,88 +1138,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const cleanReason = reason.trim() || 'Pembatalan nota / retur barang oleh Administrator';
     const nowIso = new Date().toISOString();
     const ownerId = user.ownerId;
-    const voidLogs: StockLog[] = [];
-    const voidStockSyncQueue: Array<{ id: string; stock: number; updatedAt: string }> = [];
 
-    const itemQtyByProduct = new Map<string, number>();
-    for (const item of targetTrx.items) {
-      itemQtyByProduct.set(
-        item.productId,
-        (itemQtyByProduct.get(item.productId) || 0) + item.quantity
-      );
-    }
-
-    const updatedProducts = products.map((p) => {
-      const returnQty = itemQtyByProduct.get(p.id);
-      if (returnQty && returnQty > 0) {
-        const newStock = p.stock + returnQty;
-        voidLogs.push({
-          id: makeId('log-void'),
-          ownerId,
-          productId: p.id,
-          productName: p.name,
-          type: 'IN',
-          quantity: returnQty,
-          previousStock: p.stock,
-          newStock,
-          reason: `Void Nota ${targetTrx.invoiceNo}: ${cleanReason}`,
-          createdAt: nowIso,
-          operator: user.email,
-        });
-        voidStockSyncQueue.push({ id: p.id, stock: newStock, updatedAt: nowIso });
-        return {
-          ...p,
-          stock: newStock,
-          updatedAt: nowIso,
-        };
-      }
-      return p;
+    const rpcRes = await voidPosTransactionRpc({
+      transactionId,
+      voidReason: cleanReason,
+      voidedAt: nowIso,
     });
-
-    const voidRes = await syncVoidTransaction(transactionId, cleanReason, nowIso);
-    markCloudSyncResult(voidRes);
-    if (!voidRes.ok) {
+    markCloudSyncResult(rpcRes);
+    if (!rpcRes.ok) {
+      if (!rpcRes.offline) {
+        void syncFromCloud(ownerId);
+      }
       return {
         success: false,
-        error: voidRes.error || 'Gagal membatalkan nota di server cloud.',
+        error: rpcRes.error || 'Gagal membatalkan nota di server cloud.',
       };
     }
 
-    await Promise.all([
-      ...voidStockSyncQueue.map((item) =>
-        syncUpdateProductStock(item.id, item.stock, item.updatedAt).then((r) => {
-          markCloudSyncResult(r);
-          return r;
-        })
-      ),
-      voidLogs.length > 0
-        ? syncInsertStockLogs(voidLogs, ownerId).then((r) => {
-            markCloudSyncResult(r);
-            return r;
-          })
-        : Promise.resolve({ ok: true }),
-    ]);
+    const patchById = new Map((rpcRes.updatedProducts || []).map((p) => [p.id, p]));
+    const updatedProducts = products.map((p) => {
+      const patch = patchById.get(p.id);
+      return patch ? { ...p, stock: patch.stock, updatedAt: patch.updatedAt } : p;
+    });
+    setProducts(updatedProducts);
+    saveStoredProducts(updatedProducts, ownerId);
+
+    if (rpcRes.stockLogs && rpcRes.stockLogs.length > 0) {
+      const updatedLogs = [...rpcRes.stockLogs, ...stockLogs];
+      setStockLogs(updatedLogs);
+      saveStoredStockLogs(updatedLogs, ownerId);
+    }
 
     const updatedTransactions = transactions.map((t) =>
       t.id === transactionId
         ? {
             ...t,
             status: 'VOIDED' as const,
-            voidReason: cleanReason,
-            voidedAt: nowIso,
+            voidReason: rpcRes.voidReason || cleanReason,
+            voidedAt: rpcRes.voidedAt || nowIso,
           }
         : t
     );
-
-    setProducts(updatedProducts);
-    saveStoredProducts(updatedProducts, ownerId);
-
-    if (voidLogs.length > 0) {
-      const updatedLogs = [...voidLogs, ...stockLogs];
-      setStockLogs(updatedLogs);
-      saveStoredStockLogs(updatedLogs, ownerId);
-    }
-
     setTransactions(updatedTransactions);
     saveStoredTransactions(updatedTransactions, ownerId);
 
@@ -1392,7 +1287,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [customCategories, products]);
 
-  const addCategory = (rawName: string): ActionResult => {
+  const addCategory = async (rawName: string): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
     const netErr = requireOnlineCloudSession();
@@ -1410,12 +1305,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const updated = [...customCategories, cleanName];
+    const ownerId = user.ownerId;
+    const base =
+      paymentSettings.ownerId === ownerId
+        ? paymentSettings
+        : getDefaultStorePaymentSettings(ownerId);
+    const nextSettings: StorePaymentSettings = {
+      ...base,
+      ownerId,
+      customCategories: updated,
+      updatedAt: new Date().toISOString(),
+    };
+    const syncRes = await syncUpsertPaymentSettings(nextSettings, ownerId);
+    markCloudSyncResult(syncRes);
+    if (!syncRes.ok) {
+      return { success: false, error: syncRes.error || 'Gagal menyimpan kategori ke server cloud.' };
+    }
+
+    setPaymentSettings(nextSettings);
+    saveStoredPaymentSettings(nextSettings, ownerId);
     setCustomCategories(updated);
-    saveStoredCustomCategories(updated, user.ownerId);
+    saveStoredCustomCategories(updated, ownerId);
     return { success: true };
   };
 
-  const deleteCategory = (targetName: string): ActionResult => {
+  const deleteCategory = async (targetName: string): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
     const netErr = requireOnlineCloudSession();
@@ -1435,8 +1349,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const updated = customCategories.filter((c) => c.toLowerCase() !== lower);
+    const ownerId = user.ownerId;
+    const base =
+      paymentSettings.ownerId === ownerId
+        ? paymentSettings
+        : getDefaultStorePaymentSettings(ownerId);
+    const nextSettings: StorePaymentSettings = {
+      ...base,
+      ownerId,
+      customCategories: updated,
+      updatedAt: new Date().toISOString(),
+    };
+    const syncRes = await syncUpsertPaymentSettings(nextSettings, ownerId);
+    markCloudSyncResult(syncRes);
+    if (!syncRes.ok) {
+      return { success: false, error: syncRes.error || 'Gagal memperbarui kategori di server cloud.' };
+    }
+
+    setPaymentSettings(nextSettings);
+    saveStoredPaymentSettings(nextSettings, ownerId);
     setCustomCategories(updated);
-    saveStoredCustomCategories(updated, user.ownerId);
+    saveStoredCustomCategories(updated, ownerId);
     return { success: true };
   };
 

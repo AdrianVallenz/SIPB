@@ -1,4 +1,4 @@
-import { Transaction } from './types';
+import { StorePaymentSettings, Transaction } from './types';
 import { formatDateTime, formatRupiah } from './format';
 
 export type ThermalPaperWidth = '58mm' | '80mm';
@@ -76,6 +76,38 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   receiptFooter: 'Terima Kasih Atas Kunjungan Anda',
   lastDeviceName: '',
 };
+
+/** Resolves effective store receipt identity prioritizing cloud-synced settings over local defaults. */
+export function resolveStoreReceiptProfile(
+  paymentSettings: StorePaymentSettings,
+  printerSettings: PrinterSettings
+) {
+  const storeName =
+    paymentSettings.storeName?.trim() ||
+    (printerSettings.storeName && printerSettings.storeName !== 'SIP BARANG'
+      ? printerSettings.storeName.trim()
+      : '') ||
+    paymentSettings.qrisMerchantName?.trim() ||
+    printerSettings.storeName ||
+    'SIP BARANG';
+
+  return {
+    storeName,
+    storeTagline: paymentSettings.storeTagline?.trim() || printerSettings.storeTagline || '',
+    storeAddress: paymentSettings.storeAddress?.trim() || printerSettings.storeAddress || '',
+    storePhone: paymentSettings.storePhone?.trim() || printerSettings.storePhone || '',
+    receiptFooter:
+      paymentSettings.receiptFooter?.trim() ||
+      printerSettings.receiptFooter ||
+      'Terima Kasih Atas Kunjungan Anda',
+    paperWidth:
+      paymentSettings.paperWidth === '80mm'
+        ? ('80mm' as const)
+        : paymentSettings.paperWidth === '58mm'
+          ? ('58mm' as const)
+          : printerSettings.paperWidth,
+  };
+}
 
 // Common BLE GATT service UUIDs used by 58mm/80mm portable thermal printers
 // (Xprinter, Zjiang, Eppos, Blueprint, Panda, RPP02N, MPT-II, Iware, Gprinter, Sunmi)
@@ -584,6 +616,11 @@ class EscPosBuilder {
 
 export interface ThermalReceiptOptions {
   storeName?: string;
+  storeTagline?: string;
+  storeAddress?: string;
+  storePhone?: string;
+  receiptFooter?: string;
+  paperWidth?: ThermalPaperWidth;
   qrData?: string;
   qrCaption?: string;
   customNote?: string;
@@ -594,7 +631,8 @@ export function buildEscPosReceipt(
   settings: PrinterSettings,
   options?: ThermalReceiptOptions
 ): Uint8Array {
-  const cols = settings.paperWidth === '80mm' ? 48 : 32;
+  const activePaperWidth = options?.paperWidth || settings.paperWidth;
+  const cols = activePaperWidth === '80mm' ? 48 : 32;
   const builder = new EscPosBuilder();
 
   builder.init();
@@ -605,14 +643,17 @@ export function buildEscPosReceipt(
     builder.line(l)
   );
   builder.size('normal').bold(false);
-  if (settings.storeTagline) {
-    wrapTextLines(settings.storeTagline, cols).forEach((l) => builder.line(l));
+  const tagline = options?.storeTagline ?? settings.storeTagline;
+  const address = options?.storeAddress ?? settings.storeAddress;
+  const phone = options?.storePhone ?? settings.storePhone;
+  if (tagline) {
+    wrapTextLines(tagline, cols).forEach((l) => builder.line(l));
   }
-  if (settings.storeAddress) {
-    wrapTextLines(settings.storeAddress, cols).forEach((l) => builder.line(l));
+  if (address) {
+    wrapTextLines(address, cols).forEach((l) => builder.line(l));
   }
-  if (settings.storePhone) {
-    wrapTextLines(settings.storePhone, cols).forEach((l) => builder.line(l));
+  if (phone) {
+    wrapTextLines(phone, cols).forEach((l) => builder.line(l));
   }
 
   builder.align('left').divider(cols);
@@ -658,15 +699,16 @@ export function buildEscPosReceipt(
     if (options.qrCaption) {
       builder.bold(true).line(options.qrCaption).bold(false);
     }
-    const dotSize = options.qrData.length > 100 ? (settings.paperWidth === '80mm' ? 4 : 3) : 5;
+    const dotSize = options.qrData.length > 100 ? (activePaperWidth === '80mm' ? 4 : 3) : 5;
     builder.qrCode(options.qrData, dotSize);
   }
   builder.line(`*${trx.invoiceNo}*`);
   if (options?.customNote) {
     wrapTextLines(options.customNote, cols).forEach((l) => builder.line(l));
   }
-  if (settings.receiptFooter) {
-    wrapTextLines(settings.receiptFooter, cols).forEach((l) => builder.line(l));
+  const footer = options?.receiptFooter ?? settings.receiptFooter;
+  if (footer) {
+    wrapTextLines(footer, cols).forEach((l) => builder.line(l));
   }
   builder.line('Simpan struk sebagai bukti sah.');
   builder.feed(4).partialCut();

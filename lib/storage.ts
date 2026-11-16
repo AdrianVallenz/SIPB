@@ -290,6 +290,13 @@ export const getDefaultStorePaymentSettings = (
   bankName: '',
   bankAccountNumber: '',
   bankAccountHolder: '',
+  storeName: '',
+  storeTagline: '',
+  storeAddress: '',
+  storePhone: '',
+  receiptFooter: '',
+  paperWidth: '58mm',
+  customCategories: [],
   updatedAt: '',
 });
 
@@ -325,6 +332,15 @@ export const getStoredPaymentSettings = (
         typeof parsed.bankAccountNumber === 'string' ? parsed.bankAccountNumber : '',
       bankAccountHolder:
         typeof parsed.bankAccountHolder === 'string' ? parsed.bankAccountHolder : '',
+      storeName: typeof parsed.storeName === 'string' ? parsed.storeName : '',
+      storeTagline: typeof parsed.storeTagline === 'string' ? parsed.storeTagline : '',
+      storeAddress: typeof parsed.storeAddress === 'string' ? parsed.storeAddress : '',
+      storePhone: typeof parsed.storePhone === 'string' ? parsed.storePhone : '',
+      receiptFooter: typeof parsed.receiptFooter === 'string' ? parsed.receiptFooter : '',
+      paperWidth: parsed.paperWidth === '80mm' ? '80mm' : '58mm',
+      customCategories: Array.isArray(parsed.customCategories)
+        ? parsed.customCategories.filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
+        : [],
       updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
     };
   } catch {

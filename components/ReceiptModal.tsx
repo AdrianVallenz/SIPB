@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Transaction } from '@/lib/types';
 import { formatRupiah, formatDateTime } from '@/lib/format';
 import { useApp } from '@/context/AppContext';
+import { resolveStoreReceiptProfile } from '@/lib/bluetoothPrinter';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import {
   buildDynamicQrisPayload,
@@ -115,10 +116,8 @@ function ReceiptModalContent({
   }, [activeQrPayload]);
 
   const currentQrDataUrl = qrImageState.payload === activeQrPayload ? qrImageState.url : '';
-  const resolvedStoreName =
-    settings.storeName && settings.storeName !== 'SIP BARANG'
-      ? settings.storeName
-      : paymentSettings.qrisMerchantName?.trim() || settings.storeName || 'SIP BARANG';
+  const storeProfile = resolveStoreReceiptProfile(paymentSettings, settings);
+  const resolvedStoreName = storeProfile.storeName;
   const qrCaptionText =
     qrMode === 'qris' && hasValidMerchantQris
       ? `QRIS NOTA • ${paymentSettings.qrisMerchantName || parsedMerchantQris?.merchantName || resolvedStoreName}`
@@ -133,7 +132,12 @@ function ReceiptModalContent({
   const handleBluetoothPrint = async () => {
     setPrintNotice(null);
     const res = await printTransaction(transaction, true, {
-      storeName: resolvedStoreName,
+      storeName: storeProfile.storeName,
+      storeTagline: storeProfile.storeTagline,
+      storeAddress: storeProfile.storeAddress,
+      storePhone: storeProfile.storePhone,
+      receiptFooter: storeProfile.receiptFooter,
+      paperWidth: storeProfile.paperWidth,
       qrData: activeQrPayload || undefined,
       qrCaption: activeQrPayload ? qrCaptionText : undefined,
       customNote: paymentSettings.qrisCustomNote || undefined,
@@ -143,7 +147,7 @@ function ReceiptModalContent({
         type: 'success',
         text: `Struk ${transaction.invoiceNo} berhasil dicetak ke ${
           runtime.deviceName || settings.lastDeviceName || 'Printer Bluetooth'
-        } (${settings.paperWidth}).`,
+        } (${storeProfile.paperWidth}).`,
       });
     } else {
       setPrintNotice({
@@ -228,23 +232,23 @@ function ReceiptModalContent({
           {/* Printable Thermal Receipt Paper */}
           <div
             className="receipt-paper receipt-printable"
-            style={{ width: settings.paperWidth === '80mm' ? '340px' : '300px' }}
+            style={{ width: storeProfile.paperWidth === '80mm' ? '340px' : '300px' }}
           >
             {/* Store Header */}
             <div style={{ textAlign: 'center', marginBottom: '12px' }}>
               <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '0.05em' }}>
-                {resolvedStoreName}
+                {storeProfile.storeName}
               </div>
-              {settings.storeTagline && (
-                <div style={{ fontSize: '10px', color: '#555555' }}>{settings.storeTagline}</div>
+              {storeProfile.storeTagline && (
+                <div style={{ fontSize: '10px', color: '#555555' }}>{storeProfile.storeTagline}</div>
               )}
-              {settings.storeAddress && (
+              {storeProfile.storeAddress && (
                 <div style={{ fontSize: '9px', color: '#777777', marginTop: '2px' }}>
-                  {settings.storeAddress}
+                  {storeProfile.storeAddress}
                 </div>
               )}
-              {settings.storePhone && (
-                <div style={{ fontSize: '9px', color: '#777777' }}>{settings.storePhone}</div>
+              {storeProfile.storePhone && (
+                <div style={{ fontSize: '9px', color: '#777777' }}>{storeProfile.storePhone}</div>
               )}
             </div>
 
@@ -418,7 +422,7 @@ function ReceiptModalContent({
                 </div>
               )}
               <div style={{ fontSize: '9px', color: '#555555', marginTop: '4px' }}>
-                {settings.receiptFooter || 'Terima Kasih Atas Kunjungan Anda'}
+                {storeProfile.receiptFooter}
               </div>
               <div style={{ fontSize: '8px', color: '#777777' }}>
                 Simpan struk ini sebagai bukti transaksi pembayaran yang sah.

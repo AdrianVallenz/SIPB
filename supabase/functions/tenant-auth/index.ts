@@ -6,6 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+const LOCKED_DEMO_EMAILS = new Set(['kasir@sipb.web.id', 'admin@sipb.web.id']);
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -202,13 +204,19 @@ Deno.serve(async (req: Request) => {
 
       const { data: target, error: findErr } = await adminClient
         .from('store_cashiers')
-        .select('id, owner_id')
+        .select('id, owner_id, email')
         .eq('id', cashierId)
         .eq('owner_id', ownerId)
         .maybeSingle();
 
       if (findErr || !target) {
         return jsonResponse({ error: 'Akun kasir tidak ditemukan pada toko Anda.' }, 404);
+      }
+      if (LOCKED_DEMO_EMAILS.has(String(target.email || '').toLowerCase())) {
+        return jsonResponse(
+          { error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.' },
+          403
+        );
       }
 
       const { error: banErr } = await adminClient.auth.admin.updateUserById(cashierId, {
@@ -247,13 +255,19 @@ Deno.serve(async (req: Request) => {
 
       const { data: target, error: findErr } = await adminClient
         .from('store_cashiers')
-        .select('id, owner_id')
+        .select('id, owner_id, email')
         .eq('id', cashierId)
         .eq('owner_id', ownerId)
         .maybeSingle();
 
       if (findErr || !target) {
         return jsonResponse({ error: 'Akun kasir tidak ditemukan pada toko Anda.' }, 404);
+      }
+      if (LOCKED_DEMO_EMAILS.has(String(target.email || '').toLowerCase())) {
+        return jsonResponse(
+          { error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.' },
+          403
+        );
       }
 
       const authPatch: Record<string, unknown> = {};
@@ -290,13 +304,19 @@ Deno.serve(async (req: Request) => {
 
       const { data: target, error: findErr } = await adminClient
         .from('store_cashiers')
-        .select('id, owner_id')
+        .select('id, owner_id, email')
         .eq('id', cashierId)
         .eq('owner_id', ownerId)
         .maybeSingle();
 
       if (findErr || !target) {
         return jsonResponse({ error: 'Akun kasir tidak ditemukan pada toko Anda.' }, 404);
+      }
+      if (LOCKED_DEMO_EMAILS.has(String(target.email || '').toLowerCase())) {
+        return jsonResponse(
+          { error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.' },
+          403
+        );
       }
 
       const { error: delErr } = await adminClient.auth.admin.deleteUser(cashierId);

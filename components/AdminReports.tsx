@@ -4,6 +4,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction, PAYMENT_METHODS } from '@/lib/types';
 import { formatRupiah, formatDateTime, getLocalDateKey, sanitizeCsvCell } from '@/lib/format';
+import { resolveStoreReceiptProfile } from '@/lib/bluetoothPrinter';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import ReceiptModal from './ReceiptModal';
 import PaginationBar from './PaginationBar';
@@ -244,10 +245,8 @@ export default function AdminReports() {
     setIsPrintingAll(true);
   };
 
-  const reportStoreName =
-    printerSettings.storeName && printerSettings.storeName !== 'SIP BARANG'
-      ? printerSettings.storeName
-      : paymentSettings.qrisMerchantName?.trim() || printerSettings.storeName || 'SIP BARANG';
+  const reportStoreProfile = resolveStoreReceiptProfile(paymentSettings, printerSettings);
+  const reportStoreName = reportStoreProfile.storeName;
 
   const activePeriodLabel =
     dateFilter === 'today'
@@ -307,16 +306,16 @@ export default function AdminReports() {
             <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '-0.02em', color: '#0F172A' }}>
               {reportStoreName}
             </div>
-            {printerSettings.storeTagline && (
+            {reportStoreProfile.storeTagline && (
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#047857', marginTop: '2px' }}>
-                {printerSettings.storeTagline}
+                {reportStoreProfile.storeTagline}
               </div>
             )}
-            {(printerSettings.storeAddress || printerSettings.storePhone) && (
+            {(reportStoreProfile.storeAddress || reportStoreProfile.storePhone) && (
               <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '3px', lineHeight: 1.4 }}>
                 {[
-                  printerSettings.storeAddress,
-                  printerSettings.storePhone ? `Telp: ${printerSettings.storePhone}` : '',
+                  reportStoreProfile.storeAddress,
+                  reportStoreProfile.storePhone ? `Telp: ${reportStoreProfile.storePhone}` : '',
                 ]
                   .filter(Boolean)
                   .join(' • ')}

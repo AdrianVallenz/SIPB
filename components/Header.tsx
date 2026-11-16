@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
+import { resolveStoreReceiptProfile } from '@/lib/bluetoothPrinter';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import {
   Sun,
@@ -104,10 +105,7 @@ export default function Header({ onOpenAuth }: HeaderProps) {
 
   const isAdmin = user.role === 'admin';
   const currentTabLabel = TAB_LABELS[activeTab] || 'Operasional';
-  const activeStoreName =
-    paymentSettings.qrisMerchantName?.trim() ||
-    settings.storeName?.trim() ||
-    'SIP BARANG';
+  const activeStoreName = resolveStoreReceiptProfile(paymentSettings, settings).storeName;
   const initials = getUserInitials(user.name);
 
   return (

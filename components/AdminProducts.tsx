@@ -72,6 +72,7 @@ export default function AdminProducts() {
   const [categoryError, setCategoryError] = useState('');
   const [isInlineAddingCategory, setIsInlineAddingCategory] = useState(false);
   const [inlineCategoryName, setInlineCategoryName] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
 
   // Form state for Add/Edit
   const [formData, setFormData] = useState({
@@ -269,30 +270,42 @@ export default function AdminProducts() {
     });
   };
 
-  const handleAddCategoryModal = (e: React.FormEvent) => {
+  const handleAddCategoryModal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingCategory) return;
     setCategoryError('');
     const createdName = newCategoryName.trim();
-    const res = addCategory(createdName);
-    if (!res.success) {
-      setCategoryError(res.error || 'Gagal menambahkan kategori.');
-      return;
+    setIsSavingCategory(true);
+    try {
+      const res = await addCategory(createdName);
+      if (!res.success) {
+        setCategoryError(res.error || 'Gagal menambahkan kategori.');
+        return;
+      }
+      setNewCategoryName('');
+      showFeedback(`Kategori "${createdName}" berhasil ditambahkan.`);
+    } finally {
+      setIsSavingCategory(false);
     }
-    setNewCategoryName('');
-    showFeedback(`Kategori "${createdName}" berhasil ditambahkan.`);
   };
 
-  const handleSaveInlineCategory = () => {
+  const handleSaveInlineCategory = async () => {
+    if (isSavingCategory) return;
     setModalError('');
     const created = inlineCategoryName.trim();
-    const res = addCategory(created);
-    if (!res.success) {
-      setModalError(res.error || 'Gagal menambahkan kategori baru.');
-      return;
+    setIsSavingCategory(true);
+    try {
+      const res = await addCategory(created);
+      if (!res.success) {
+        setModalError(res.error || 'Gagal menambahkan kategori baru.');
+        return;
+      }
+      setFormData((prev) => ({ ...prev, category: created }));
+      setInlineCategoryName('');
+      setIsInlineAddingCategory(false);
+    } finally {
+      setIsSavingCategory(false);
     }
-    setFormData((prev) => ({ ...prev, category: created }));
-    setInlineCategoryName('');
-    setIsInlineAddingCategory(false);
   };
 
   const handleSaveAdd = async (e: React.FormEvent) => {
@@ -1180,20 +1193,22 @@ export default function AdminProducts() {
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            handleSaveInlineCategory();
+                            void handleSaveInlineCategory();
                           }
                         }}
+                        disabled={isSavingCategory}
                         className="sip-input"
                         placeholder="Ketik nama kategori..."
                         autoFocus
                       />
                       <button
                         type="button"
-                        onClick={handleSaveInlineCategory}
+                        disabled={isSavingCategory}
+                        onClick={() => void handleSaveInlineCategory()}
                         className="btn btn-primary btn-sm"
                         style={{ flexShrink: 0, padding: '0 12px' }}
                       >
-                        Tambah
+                        {isSavingCategory ? 'Menyimpan...' : 'Tambah'}
                       </button>
                     </div>
                   ) : (
@@ -1678,17 +1693,19 @@ export default function AdminProducts() {
                 type="text"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
+                disabled={isSavingCategory}
                 className="sip-input"
                 placeholder="Nama kategori baru (contoh: Kosmetik, Pakaian, Obat)..."
                 maxLength={40}
               />
               <button
                 type="submit"
+                disabled={isSavingCategory}
                 className="btn btn-primary"
                 style={{ flexShrink: 0, padding: '0 16px' }}
               >
                 <Plus size={15} />
-                <span>Tambah</span>
+                <span>{isSavingCategory ? 'Menyimpan...' : 'Tambah'}</span>
               </button>
             </form>
 
@@ -1765,23 +1782,29 @@ export default function AdminProducts() {
                       {!isBuiltIn && (
                         <button
                           type="button"
-                          disabled={count > 0}
+                          disabled={count > 0 || isSavingCategory}
                           title={
                             count > 0
                               ? 'Pindahkan atau hapus produk di kategori ini terlebih dahulu'
                               : `Hapus kategori ${cat}`
                           }
-                          onClick={() => {
+                          onClick={async () => {
+                            if (isSavingCategory) return;
                             setCategoryError('');
-                            const res = deleteCategory(cat);
-                            if (!res.success) {
-                              setCategoryError(res.error || 'Gagal menghapus kategori.');
-                              return;
+                            setIsSavingCategory(true);
+                            try {
+                              const res = await deleteCategory(cat);
+                              if (!res.success) {
+                                setCategoryError(res.error || 'Gagal menghapus kategori.');
+                                return;
+                              }
+                              if (categoryFilter === cat) {
+                                setCategoryFilter('Semua');
+                              }
+                              showFeedback(`Kategori "${cat}" telah dihapus.`);
+                            } finally {
+                              setIsSavingCategory(false);
                             }
-                            if (categoryFilter === cat) {
-                              setCategoryFilter('Semua');
-                            }
-                            showFeedback(`Kategori "${cat}" telah dihapus.`);
                           }}
                           className="btn btn-secondary btn-icon"
                           style={{

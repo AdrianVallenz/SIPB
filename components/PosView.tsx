@@ -10,6 +10,7 @@ import {
   generateInvoiceNo,
 } from '@/lib/format';
 import { buildDynamicQrisPayload, parseAndValidateQris } from '@/lib/qris';
+import { resolveStoreReceiptProfile } from '@/lib/bluetoothPrinter';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import ReceiptModal from './ReceiptModal';
 import PrinterModal from './PrinterModal';
@@ -318,10 +319,8 @@ export default function PosView() {
         setCart([]);
         setDiscount(0);
 
-        const resolvedStoreName =
-          settings.storeName && settings.storeName !== 'SIP BARANG'
-            ? settings.storeName
-            : paymentSettings.qrisMerchantName?.trim() || settings.storeName || 'SIP BARANG';
+        const storeProfile = resolveStoreReceiptProfile(paymentSettings, settings);
+        const resolvedStoreName = storeProfile.storeName;
 
         let autoNotice: { type: 'success' | 'error'; text: string } | null = null;
         if (settings.autoPrintOnSale && isConnected) {
@@ -347,7 +346,12 @@ export default function PosView() {
             }
           }
           const printRes = await printTransaction(res.transaction, false, {
-            storeName: resolvedStoreName,
+            storeName: storeProfile.storeName,
+            storeTagline: storeProfile.storeTagline,
+            storeAddress: storeProfile.storeAddress,
+            storePhone: storeProfile.storePhone,
+            receiptFooter: storeProfile.receiptFooter,
+            paperWidth: storeProfile.paperWidth,
             qrData,
             qrCaption,
             customNote: paymentSettings.qrisCustomNote || undefined,
@@ -1435,8 +1439,8 @@ export default function PosView() {
                 grandTotal={grandTotal}
                 totalPcs={totalPcsInCart}
                 itemCount={validCart.length}
-                storeName={settings.storeName}
-                storeTagline={settings.storeTagline}
+                storeName={resolveStoreReceiptProfile(paymentSettings, settings).storeName}
+                storeTagline={resolveStoreReceiptProfile(paymentSettings, settings).storeTagline}
                 isAdmin={user?.role === 'admin'}
                 onOpenQrisSetup={() => setIsQrisSetupOpen(true)}
               />

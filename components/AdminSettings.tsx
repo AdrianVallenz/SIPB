@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
-import { CashierAccount } from '@/lib/types';
+import { CashierAccount, StorePaymentSettings } from '@/lib/types';
+import { PrinterSettings, resolveStoreReceiptProfile } from '@/lib/bluetoothPrinter';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import QrisConfigPanel from './QrisConfigPanel';
 import {
@@ -133,11 +134,235 @@ function AdminProfileForm({
   );
 }
 
+interface StoreReceiptIdentityFormProps {
+  paymentSettings: StorePaymentSettings;
+  printerSettings: PrinterSettings;
+  updatePaymentSettings: (
+    patch: Partial<Omit<StorePaymentSettings, 'ownerId' | 'updatedAt'>>
+  ) => Promise<{ success: boolean; error?: string }>;
+  updatePrinterSettings: (patch: Partial<PrinterSettings>) => void;
+  onFeedback: (fb: { type: 'success' | 'error'; text: string } | null) => void;
+}
+
+function StoreReceiptIdentityForm({
+  paymentSettings,
+  printerSettings,
+  updatePaymentSettings,
+  updatePrinterSettings,
+  onFeedback,
+}: StoreReceiptIdentityFormProps) {
+  const initialProfile = resolveStoreReceiptProfile(paymentSettings, printerSettings);
+  const [storeName, setStoreName] = useState(initialProfile.storeName);
+  const [storeTagline, setStoreTagline] = useState(initialProfile.storeTagline);
+  const [storeAddress, setStoreAddress] = useState(initialProfile.storeAddress);
+  const [storePhone, setStorePhone] = useState(initialProfile.storePhone);
+  const [receiptFooter, setReceiptFooter] = useState(initialProfile.receiptFooter);
+  const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>(initialProfile.paperWidth);
+  const [isSavingStore, setIsSavingStore] = useState(false);
+
+  const handleSaveStoreIdentity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSavingStore) return;
+    onFeedback(null);
+
+    const trimmedName = storeName.trim();
+    if (!trimmedName) {
+      onFeedback({ type: 'error', text: 'Nama toko di struk wajib diisi.' });
+      return;
+    }
+
+    setIsSavingStore(true);
+    try {
+      const normalized = {
+        storeName: trimmedName,
+        storeTagline: storeTagline.trim(),
+        storeAddress: storeAddress.trim(),
+        storePhone: storePhone.trim(),
+        receiptFooter: receiptFooter.trim(),
+        paperWidth,
+      };
+      const res = await updatePaymentSettings(normalized);
+      if (!res.success) {
+        onFeedback({
+          type: 'error',
+          text: res.error || 'Gagal menyimpan identitas toko ke server.',
+        });
+        return;
+      }
+      updatePrinterSettings(normalized);
+      onFeedback({
+        type: 'success',
+        text: 'Identitas toko & pengaturan struk berhasil disimpan ke cloud untuk semua perangkat kasir.',
+      });
+    } finally {
+      setIsSavingStore(false);
+    }
+  };
+
+  return (
+    <div className="sip-card" style={{ padding: 0 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '18px 20px',
+          borderBottom: '1px solid var(--border-color)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: '1 1 220px' }}>
+          <Printer size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>
+              Identitas Toko &amp; Tampilan Struk Belanja
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              Informasi nama toko, alamat, nomor telepon, dan pesan penutup tersimpan di cloud dan otomatis dipakai oleh semua perangkat kasir.
+            </p>
+          </div>
+        </div>
+        <span className="badge badge-cyan" style={{ flexShrink: 0 }}>
+          Ukuran Kertas: {paperWidth}
+        </span>
+      </div>
+
+      <form
+        onSubmit={handleSaveStoreIdentity}
+        style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+            gap: '12px',
+          }}
+        >
+          <div>
+            <label className="form-label">Nama Toko di Struk</label>
+            <input
+              type="text"
+              required
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
+              disabled={isSavingStore}
+              placeholder="Contoh: Toko Sumber Rejeki"
+              className="sip-input"
+            />
+          </div>
+          <div>
+            <label className="form-label">Slogan / Subjudul Toko</label>
+            <input
+              type="text"
+              value={storeTagline}
+              onChange={(e) => setStoreTagline(e.target.value)}
+              disabled={isSavingStore}
+              placeholder="Contoh: Belanja Hemat Setiap Hari"
+              className="sip-input"
+            />
+          </div>
+          <div>
+            <label className="form-label">Alamat Toko</label>
+            <input
+              type="text"
+              value={storeAddress}
+              onChange={(e) => setStoreAddress(e.target.value)}
+              disabled={isSavingStore}
+              placeholder="Contoh: Jl. Merdeka No. 12"
+              className="sip-input"
+            />
+          </div>
+          <div>
+            <label className="form-label">Nomor Telepon / WhatsApp Toko</label>
+            <input
+              type="text"
+              value={storePhone}
+              onChange={(e) => setStorePhone(e.target.value)}
+              disabled={isSavingStore}
+              placeholder="Contoh: 0812-3456-7890"
+              className="sip-input"
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '12px',
+            alignItems: 'end',
+          }}
+        >
+          <div>
+            <label className="form-label">Pesan Penutup di Bawah Struk</label>
+            <input
+              type="text"
+              value={receiptFooter}
+              onChange={(e) => setReceiptFooter(e.target.value)}
+              disabled={isSavingStore}
+              placeholder="Contoh: Terima kasih sudah berbelanja di toko kami!"
+              className="sip-input"
+            />
+          </div>
+
+          <div>
+            <label className="form-label">Ukuran Kertas Struk Kasir</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {(['58mm', '80mm'] as const).map((w) => {
+                const selected = paperWidth === w;
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    disabled={isSavingStore}
+                    onClick={() => setPaperWidth(w)}
+                    className="btn btn-sm"
+                    style={{
+                      minHeight: '38px',
+                      borderColor: selected ? 'var(--accent-cyan)' : 'var(--border-color)',
+                      backgroundColor: selected
+                        ? 'rgba(var(--accent-cyan-rgb), 0.14)'
+                        : 'var(--bg-card)',
+                      color: selected ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                    }}
+                  >
+                    Kertas {w} ({w === '58mm' ? 'Kecil' : 'Lebar'})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isSavingStore}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '38px' }}
+            >
+              {isSavingStore ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <span>Simpan Identitas Struk</span>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function AdminSettings() {
   const {
     user,
     cashiers,
     paymentSettings,
+    updatePaymentSettings,
     createCashier,
     toggleCashierStatus,
     updateCashier,
@@ -361,132 +586,15 @@ export default function AdminSettings() {
         )}
       </div>
 
-      {/* Store Receipt Identity & Paper Width */}
-      <div className="sip-card" style={{ padding: 0 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
-            padding: '18px 20px',
-            borderBottom: '1px solid var(--border-color)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: '1 1 220px' }}>
-            <Printer size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0, marginTop: '2px' }} />
-            <div style={{ minWidth: 0 }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1.3 }}>
-                Identitas Toko &amp; Tampilan Struk Belanja
-              </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Informasi nama toko, alamat, nomor telepon, dan pesan penutup yang tercetak otomatis pada struk pembeli.
-              </p>
-            </div>
-          </div>
-          <span className="badge badge-cyan" style={{ flexShrink: 0 }}>Ukuran Kertas: {printerSettings.paperWidth}</span>
-        </div>
-
-        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Store Header Customization */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: '12px',
-            }}
-          >
-            <div>
-              <label className="form-label">Nama Toko di Struk</label>
-              <input
-                type="text"
-                value={printerSettings.storeName}
-                onChange={(e) => updatePrinterSettings({ storeName: e.target.value })}
-                placeholder="Contoh: Toko Sumber Rejeki"
-                className="sip-input"
-              />
-            </div>
-            <div>
-              <label className="form-label">Slogan / Subjudul Toko</label>
-              <input
-                type="text"
-                value={printerSettings.storeTagline}
-                onChange={(e) => updatePrinterSettings({ storeTagline: e.target.value })}
-                placeholder="Contoh: Belanja Hemat Setiap Hari"
-                className="sip-input"
-              />
-            </div>
-            <div>
-              <label className="form-label">Alamat Toko</label>
-              <input
-                type="text"
-                value={printerSettings.storeAddress}
-                onChange={(e) => updatePrinterSettings({ storeAddress: e.target.value })}
-                placeholder="Contoh: Jl. Merdeka No. 12"
-                className="sip-input"
-              />
-            </div>
-            <div>
-              <label className="form-label">Nomor Telepon / WhatsApp Toko</label>
-              <input
-                type="text"
-                value={printerSettings.storePhone}
-                onChange={(e) => updatePrinterSettings({ storePhone: e.target.value })}
-                placeholder="Contoh: 0812-3456-7890"
-                className="sip-input"
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '12px',
-              alignItems: 'end',
-            }}
-          >
-            <div>
-              <label className="form-label">Pesan Penutup di Bawah Struk</label>
-              <input
-                type="text"
-                value={printerSettings.receiptFooter}
-                onChange={(e) => updatePrinterSettings({ receiptFooter: e.target.value })}
-                placeholder="Contoh: Terima kasih sudah berbelanja di toko kami!"
-                className="sip-input"
-              />
-            </div>
-
-            <div>
-              <label className="form-label">Ukuran Kertas Struk Kasir</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {(['58mm', '80mm'] as const).map((w) => {
-                  const selected = printerSettings.paperWidth === w;
-                  return (
-                    <button
-                      key={w}
-                      type="button"
-                      onClick={() => updatePrinterSettings({ paperWidth: w })}
-                      className="btn btn-sm"
-                      style={{
-                        minHeight: '38px',
-                        borderColor: selected ? 'var(--accent-cyan)' : 'var(--border-color)',
-                        backgroundColor: selected
-                          ? 'rgba(var(--accent-cyan-rgb), 0.14)'
-                          : 'var(--bg-card)',
-                        color: selected ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                      }}
-                    >
-                      Kertas {w} ({w === '58mm' ? 'Kecil' : 'Lebar'})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Store Receipt Identity & Paper Width (Synced to Cloud) */}
+      <StoreReceiptIdentityForm
+        key={paymentSettings.updatedAt || 'store-init'}
+        paymentSettings={paymentSettings}
+        printerSettings={printerSettings}
+        updatePaymentSettings={updatePaymentSettings}
+        updatePrinterSettings={updatePrinterSettings}
+        onFeedback={setFeedback}
+      />
 
       {/* Store QRIS & Bank Transfer Configuration */}
       <div className="sip-card" style={{ padding: 0 }}>
@@ -725,6 +833,9 @@ export default function AdminSettings() {
                 cashiers.map((c) => {
                   const isBusy = busyId === c.id;
                   const isConfirming = confirmDeleteId === c.id;
+                  const isDemoCashier = c.email.toLowerCase() === 'kasir@sipb.web.id';
+                  const lockReason =
+                    'Akun kasir demo dikunci agar selalu dapat digunakan untuk evaluasi aplikasi';
                   const formattedDate = new Date(c.createdAt).toLocaleDateString('id-ID', {
                     day: '2-digit',
                     month: 'short',
@@ -742,9 +853,21 @@ export default function AdminSettings() {
                         </span>
                       </td>
                       <td>
-                        <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
-                          {c.isActive ? 'Aktif (Bisa Masuk Kasir)' : 'Dinonaktifkan'}
-                        </span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
+                            {c.isActive ? 'Aktif (Bisa Masuk Kasir)' : 'Dinonaktifkan'}
+                          </span>
+                          {isDemoCashier && (
+                            <span
+                              className="badge badge-muted font-mono"
+                              title={lockReason}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <Lock size={11} />
+                              Demo Terkunci
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         {formattedDate}
@@ -760,10 +883,10 @@ export default function AdminSettings() {
                         >
                           <button
                             type="button"
-                            disabled={isBusy}
+                            disabled={isBusy || isDemoCashier}
                             onClick={() => openEditModal(c)}
                             className="btn btn-secondary btn-sm"
-                            title="Ubah Nama / Ganti Kata Sandi"
+                            title={isDemoCashier ? lockReason : 'Ubah Nama / Ganti Kata Sandi'}
                           >
                             <KeyRound size={13} />
                             <span>Ubah / Sandi</span>
@@ -771,10 +894,16 @@ export default function AdminSettings() {
 
                           <button
                             type="button"
-                            disabled={isBusy}
+                            disabled={isBusy || isDemoCashier}
                             onClick={() => void handleToggleStatus(c)}
                             className="btn btn-secondary btn-sm"
-                            title={c.isActive ? 'Nonaktifkan Kasir' : 'Aktifkan Kasir'}
+                            title={
+                              isDemoCashier
+                                ? lockReason
+                                : c.isActive
+                                  ? 'Nonaktifkan Kasir'
+                                  : 'Aktifkan Kasir'
+                            }
                             style={{
                               color: c.isActive
                                 ? 'var(--accent-amber-text)'
@@ -785,7 +914,7 @@ export default function AdminSettings() {
                             <span>{c.isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
                           </button>
 
-                          {isConfirming ? (
+                          {isConfirming && !isDemoCashier ? (
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                               <button
                                 type="button"
@@ -811,11 +940,11 @@ export default function AdminSettings() {
                           ) : (
                             <button
                               type="button"
-                              disabled={isBusy}
+                              disabled={isBusy || isDemoCashier}
                               onClick={() => setConfirmDeleteId(c.id)}
                               className="btn btn-secondary btn-sm"
                               style={{ color: 'var(--accent-red)' }}
-                              title="Hapus Akun Kasir"
+                              title={isDemoCashier ? lockReason : 'Hapus Akun Kasir'}
                             >
                               <Trash2 size={13} />
                             </button>
@@ -840,6 +969,9 @@ export default function AdminSettings() {
             cashiers.map((c) => {
               const isBusy = busyId === c.id;
               const isConfirming = confirmDeleteId === c.id;
+              const isDemoCashier = c.email.toLowerCase() === 'kasir@sipb.web.id';
+              const lockReason =
+                'Akun kasir demo dikunci agar selalu dapat diakses untuk evaluasi aplikasi';
               const formattedDate = new Date(c.createdAt).toLocaleDateString('id-ID', {
                 day: '2-digit',
                 month: 'short',
@@ -855,9 +987,21 @@ export default function AdminSettings() {
                         {c.email}
                       </div>
                     </div>
-                    <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
-                      {c.isActive ? 'Aktif' : 'Nonaktif'}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                      <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
+                        {c.isActive ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                      {isDemoCashier && (
+                        <span
+                          className="badge badge-muted font-mono"
+                          title={lockReason}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Lock size={10} />
+                          Demo Terkunci
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -867,7 +1011,8 @@ export default function AdminSettings() {
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid var(--border-color)' }}>
                     <button
                       type="button"
-                      disabled={isBusy}
+                      disabled={isBusy || isDemoCashier}
+                      title={isDemoCashier ? lockReason : 'Ubah Nama / Ganti Kata Sandi'}
                       onClick={() => openEditModal(c)}
                       className="btn btn-secondary btn-sm"
                       style={{ flex: 1, minHeight: '36px' }}
@@ -878,7 +1023,14 @@ export default function AdminSettings() {
 
                     <button
                       type="button"
-                      disabled={isBusy}
+                      disabled={isBusy || isDemoCashier}
+                      title={
+                        isDemoCashier
+                          ? lockReason
+                          : c.isActive
+                            ? 'Nonaktifkan Kasir'
+                            : 'Aktifkan Kasir'
+                      }
                       onClick={() => void handleToggleStatus(c)}
                       className="btn btn-secondary btn-sm"
                       style={{
@@ -891,7 +1043,7 @@ export default function AdminSettings() {
                       <span>{c.isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
                     </button>
 
-                    {isConfirming ? (
+                    {isConfirming && !isDemoCashier ? (
                       <>
                         <button
                           type="button"
@@ -914,7 +1066,8 @@ export default function AdminSettings() {
                     ) : (
                       <button
                         type="button"
-                        disabled={isBusy}
+                        disabled={isBusy || isDemoCashier}
+                        title={isDemoCashier ? lockReason : 'Hapus Akun Kasir'}
                         onClick={() => setConfirmDeleteId(c.id)}
                         className="btn btn-secondary btn-sm"
                         style={{ minHeight: '36px', color: 'var(--accent-red)' }}

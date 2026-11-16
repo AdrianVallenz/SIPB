@@ -138,7 +138,7 @@ async function fetchWithSupabaseAuth(
   });
 
   let res = await fetch(url, { ...init, headers: buildHeaders(token) });
-  if ((res.status === 401 || res.status === 403) && token) {
+  if (res.status === 401 && token) {
     const refreshed = await refreshSupabaseToken();
     if (refreshed) {
       res = await fetch(url, { ...init, headers: buildHeaders(refreshed) });
@@ -433,6 +433,13 @@ interface DbStorePaymentSettingsRow {
   bank_name: string;
   bank_account_number: string;
   bank_account_holder: string;
+  store_name?: string;
+  store_tagline?: string;
+  store_address?: string;
+  store_phone?: string;
+  receipt_footer?: string;
+  paper_width?: string;
+  custom_categories?: unknown;
   updated_at: string;
 }
 
@@ -559,6 +566,17 @@ export async function fetchCloudSnapshot(token?: string | null): Promise<{
           bankName: firstPay.bank_name || '',
           bankAccountNumber: firstPay.bank_account_number || '',
           bankAccountHolder: firstPay.bank_account_holder || '',
+          storeName: firstPay.store_name || '',
+          storeTagline: firstPay.store_tagline || '',
+          storeAddress: firstPay.store_address || '',
+          storePhone: firstPay.store_phone || '',
+          receiptFooter: firstPay.receipt_footer || '',
+          paperWidth: firstPay.paper_width === '80mm' ? '80mm' : '58mm',
+          customCategories: Array.isArray(firstPay.custom_categories)
+            ? firstPay.custom_categories.filter(
+                (c): c is string => typeof c === 'string' && c.trim().length > 0
+              )
+            : [],
           updatedAt: firstPay.updated_at || '',
         }
       : null;
@@ -830,6 +848,13 @@ export async function syncUpsertPaymentSettings(
         bank_name: settings.bankName || '',
         bank_account_number: settings.bankAccountNumber || '',
         bank_account_holder: settings.bankAccountHolder || '',
+        store_name: settings.storeName || '',
+        store_tagline: settings.storeTagline || '',
+        store_address: settings.storeAddress || '',
+        store_phone: settings.storePhone || '',
+        receipt_footer: settings.receiptFooter || '',
+        paper_width: settings.paperWidth === '80mm' ? '80mm' : '58mm',
+        custom_categories: Array.isArray(settings.customCategories) ? settings.customCategories : [],
         updated_at: settings.updatedAt || new Date().toISOString(),
       }),
     });
@@ -841,4 +866,152 @@ export async function syncUpsertPaymentSettings(
   } catch {
     return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
   }
+}
+
+async function callSupabaseRpc<T>(
+  fnName: string,
+  args: Record<string, unknown>
+): Promise<{ ok: boolean; data?: T; offline?: boolean; error?: string; code?: string }> {
+  const token = await resolveCloudToken();
+  if (!token) {
+    return { ok: false, offline: true, error: 'Sesi cloud tidak aktif. Silakan masuk ulang.' };
+  }
+  try {
+    const res = await fetchWithSupabaseAuth(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+      method: 'POST',
+      body: JSON.stringify(args),
+    });
+    if (!res.ok) {
+      return { ok: false, ...(await parsePostgrestError(res)) };
+    }
+    const data = (await res.json()) as T;
+    return { ok: true, data };
+  } catch {
+    return { ok: false, offline: true, error: 'Tidak dapat terhubung ke server cloud.' };
+  }
+}
+
+export interface RpcProductStockPatch {
+  id: string;
+  stock: number;
+  updatedAt: string;
+}
+
+export async function processPosSaleRpc(params: {
+  trxId: string;
+  invoiceNo: string;
+  cashierName: string;
+  paymentMethod: PaymentMethod;
+  discount: number;
+  amountPaid: number;
+  items: { productId: string; quantity: number }[];
+  createdAt: string;
+}): Promise<{
+  ok: boolean;
+  offline?: boolean;
+  error?: string;
+  transaction?: Transaction;
+  updatedProducts?: RpcProductStockPatch[];
+  stockLogs?: StockLog[];
+}> {
+  const res = await callSupabaseRpc<{
+    transaction?: Transaction;
+    updated_products?: RpcProductStockPatch[];
+    stock_logs?: StockLog[];
+  }>('process_pos_sale', {
+    p_trx_id: params.trxId,
+    p_invoice_no: params.invoiceNo,
+    p_cashier_name: params.cashierName,
+    p_payment_method: params.paymentMethod,
+    p_discount: params.discount,
+    p_amount_paid: params.amountPaid,
+    p_items: params.items,
+    p_created_at: params.createdAt,
+  });
+  if (!res.ok || !res.data?.transaction) {
+    return { ok: false, offline: res.offline, error: res.error };
+  }
+  const trx = res.data.transaction;
+  return {
+    ok: true,
+    transaction: {
+      ...trx,
+      subtotal: Number(trx.subtotal),
+      discount: Number(trx.discount),
+      tax: Number(trx.tax),
+      total: Number(trx.total),
+      amountPaid: Number(trx.amountPaid),
+      change: Number(trx.change),
+    },
+    updatedProducts: Array.isArray(res.data.updated_products) ? res.data.updated_products : [],
+    stockLogs: Array.isArray(res.data.stock_logs) ? res.data.stock_logs : [],
+  };
+}
+
+export async function voidPosTransactionRpc(params: {
+  transactionId: string;
+  voidReason: string;
+  voidedAt: string;
+}): Promise<{
+  ok: boolean;
+  offline?: boolean;
+  error?: string;
+  voidReason?: string;
+  voidedAt?: string;
+  updatedProducts?: RpcProductStockPatch[];
+  stockLogs?: StockLog[];
+}> {
+  const res = await callSupabaseRpc<{
+    voidReason?: string;
+    voidedAt?: string;
+    updated_products?: RpcProductStockPatch[];
+    stock_logs?: StockLog[];
+  }>('void_pos_transaction', {
+    p_transaction_id: params.transactionId,
+    p_void_reason: params.voidReason,
+    p_voided_at: params.voidedAt,
+  });
+  if (!res.ok || !res.data) {
+    return { ok: false, offline: res.offline, error: res.error };
+  }
+  return {
+    ok: true,
+    voidReason: res.data.voidReason || params.voidReason,
+    voidedAt: res.data.voidedAt || params.voidedAt,
+    updatedProducts: Array.isArray(res.data.updated_products) ? res.data.updated_products : [],
+    stockLogs: Array.isArray(res.data.stock_logs) ? res.data.stock_logs : [],
+  };
+}
+
+export async function adjustProductStockRpc(params: {
+  productId: string;
+  quantity: number;
+  type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  reason: string;
+  createdAt: string;
+}): Promise<{
+  ok: boolean;
+  offline?: boolean;
+  error?: string;
+  product?: RpcProductStockPatch;
+  stockLog?: StockLog;
+}> {
+  const res = await callSupabaseRpc<{
+    product?: RpcProductStockPatch;
+    stock_log?: StockLog;
+  }>('adjust_product_stock', {
+    p_product_id: params.productId,
+    p_quantity: params.quantity,
+    p_type: params.type,
+    p_reason: params.reason,
+    p_created_at: params.createdAt,
+  });
+  if (!res.ok || !res.data?.product) {
+    return { ok: false, offline: res.offline, error: res.error };
+  }
+  return {
+    ok: true,
+    product: res.data.product,
+    stockLog: res.data.stock_log,
+  };
 }
