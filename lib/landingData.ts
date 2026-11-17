@@ -34,7 +34,7 @@ export const CORE_FEATURES: CoreFeatureItem[] = [
     id: 'cloud-sync',
     badge: 'Penyimpanan Cloud Aman',
     title: 'Pantau Toko dari Mana Saja via HP',
-    desc: 'Data toko Anda tersimpan aman di cloud. Pemilik bisa pantau penjualan dari rumah saat kasir bertugas di toko. Tetap bisa jualan walau internet toko mati sementara.',
+    desc: 'Data toko Anda tersimpan aman di cloud. Pemilik bisa pantau penjualan, pergerakan stok, dan laporan laba secara real-time dari mana saja.',
   },
   {
     id: 'reporting-print',
