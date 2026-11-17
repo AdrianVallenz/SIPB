@@ -1,6 +1,6 @@
 # 📦 SIP BARANG — Sistem Informasi Operasional Penjualan & Inventaris Barang (POS)
 
-**SIP Barang** adalah aplikasi web operasional toko ritel terpadu berbasis **Next.js (TypeScript)** dan **PostgreSQL (Supabase)** dalam mode **Full Online Cloud** yang dirancang untuk mengelola inventaris barang gudang, pencatatan mutasi stok atomik, transaksi kasir *Point of Sale* (POS) dengan dukungan **QRIS Dinamis (EMVCo CRC-16)** & **Printer Struk Thermal Bluetooth (ESC/POS)**, serta laporan keuangan yang dapat dicetak maupun diekspor ke Excel/CSV.
+**SIP Barang** adalah aplikasi web operasional toko ritel terpadu berbasis **Next.js (TypeScript)** dan **PostgreSQL (Supabase)** dalam mode **Full Online Cloud** yang dirancang untuk mengelola inventaris barang gudang, pencatatan mutasi stok atomik, transaksi kasir *Point of Sale* (POS) dengan dukungan **QRIS Dinamis (EMVCo CRC-16)** & **Printer Struk Thermal Bluetooth (ESC/POS)**, serta laporan keuangan yang dapat dicetak maupun diekspor ke **Excel (`.xlsx`)**.
 
 ---
 
@@ -13,7 +13,7 @@ Aplikasi ini menerapkan **Role-Based Access Control (RBAC)** dengan **2 peran pe
 - **CRUD Produk & Kategori Cloud**: Menambah, mengubah, dan menghapus produk (SKU unik per toko, harga modal, harga jual, satuan, batas stok minimum) serta mengelola kategori barang bawaan maupun kategori kustom yang tersinkron ke cloud.
 - **Manajemen Mutasi Stok Gudang Atomik**: Mencatat barang masuk (*Restock*), barang keluar, atau stok opname melalui RPC Postgres `adjust_product_stock` dengan penguncian baris (`FOR UPDATE`) dan audit log operator.
 - **Pencarian, Filter, & Pagination**: Pencarian instan berdasarkan kode SKU/nama/nomor nota, filter kategori, periode waktu, metode bayar, status stok, serta **Pagination** dinamis.
-- **Laporan Transaksi, Ekspor Excel (CSV), & Cetak PDF**: Merekap seluruh nota penjualan, membatalkan nota (`VOIDED` melalui RPC `void_pos_transaction` dengan pengembalian stok otomatis), mengekspor laporan ke **CSV/Excel**, mencetak laporan, dan meninjau ulang struk transaksi.
+- **Laporan Transaksi, Ekspor Excel (`.xlsx`), & Cetak PDF**: Merekap seluruh nota penjualan, membatalkan nota (`VOIDED` melalui RPC `void_pos_transaction` dengan pengembalian stok otomatis), mengekspor laporan ke **Microsoft Excel (`.xlsx`)** dengan kolom & format Rupiah rapi, mencetak laporan, dan meninjau ulang struk transaksi.
 - **Pengaturan Toko, Struk, QRIS, & Manajemen Kasir**: Mengelola profil pemilik toko, identitas header/footer & ukuran kertas struk (`58mm`/`80mm`) di cloud untuk semua perangkat kasir, unggah QRIS statis/EMVCo toko, rekening transfer bank, serta membuat dan mengelola akun staf kasir melalui Edge Function `tenant-auth`.
 
 ### 2. Peran Staf Kasir (`user`)
@@ -28,8 +28,8 @@ Aplikasi ini menerapkan **Role-Based Access Control (RBAC)** dengan **2 peran pe
 
 ### 1. Landing Page & Showcase Platform (`/` & `/showcase`)
 
-#### 1.1 Hero, Penjelasan Aplikasi, Tombol Demo Dashboard, & Ringkasan Telemetri
-Halaman utama (`/`) menyajikan ringkasan manfaat sistem, akses cepat **Masuk Demo Dashboard**, tombol **Masuk ke Sistem** / **Daftar Akun Administrator**, serta kartu telemetri stok dan omzet.
+#### 1.1 Hero, Penjelasan Aplikasi, & Ringkasan Telemetri
+Halaman utama (`/`) menyajikan ringkasan manfaat sistem, tombol **Masuk ke Sistem** / **Daftar Akun Administrator**, serta kartu telemetri stok dan omzet.
 
 ![Landing Page Hero SIP Barang](./public/screenshots/showcase-01-hero.png)
 
@@ -56,7 +56,7 @@ Ringkasan dukungan multi-perangkat (HP, tablet, desktop), operasional Full Onlin
 ---
 
 ### 2. Halaman Autentikasi (`/login`)
-Form masuk terpadu untuk **Administrator** dan **Staf Kasir**, dilengkapi tab **Daftar Admin** serta pintasan **Beranda** dan **Masuk Demo Dashboard** di pojok kiri atas.
+Form masuk terpadu untuk **Administrator** dan **Staf Kasir** (termasuk akun evaluasi melalui input email & kata sandi), dilengkapi tab **Daftar Admin** serta tombol **Kembali ke Beranda** di pojok kiri atas.
 
 ![Halaman Autentikasi Login](./public/screenshots/01-login.png)
 
@@ -84,8 +84,8 @@ Jejak audit terperinci untuk setiap pergerakan stok (`Stok Masuk`, `Stok Keluar`
 
 ![Riwayat Audit Log Mutasi Stok](./public/screenshots/05-admin-log-stok.png)
 
-#### 3.5 Laporan Transaksi Penjualan, Ekspor CSV & Cetak Laporan (`/admin/laporan`)
-Rekapitulasi seluruh nota penjualan, estimasi laba bersih, pencarian nota/kasir, filter rentang tanggal & metode pembayaran, pembatalan nota (*Void*), serta ekspor CSV/cetak laporan.
+#### 3.5 Laporan Transaksi Penjualan, Ekspor Excel & Cetak Laporan (`/admin/laporan`)
+Rekapitulasi seluruh nota penjualan, estimasi laba bersih, pencarian nota/kasir, filter rentang tanggal & metode pembayaran, pembatalan nota (*Void*), serta ekspor Excel (`.xlsx`)/cetak laporan.
 
 ![Laporan Transaksi Penjualan](./public/screenshots/06-admin-laporan.png)
 
@@ -119,7 +119,7 @@ Modal pembayaran multi-metode (`Tunai`, `QRIS`, `Transfer Bank`, `Kartu Debit`) 
 ![Modal Pembayaran QRIS Dinamis](./public/screenshots/11-kasir-pembayaran-qris.png)
 
 #### 4.3 Riwayat Shift Penjualan Saya (`/kasir/riwayat`)
-Halaman khusus staf kasir untuk memantau total penjualan shift aktif, pemisahan penerimaan tunai (kas laci) vs non-tunai, pencarian nota, cetak ulang struk, dan ekspor CSV shift.
+Halaman khusus staf kasir untuk memantau total penjualan shift aktif, pemisahan penerimaan tunai (kas laci) vs non-tunai, pencarian nota, cetak ulang struk, dan ekspor Excel (`.xlsx`) shift.
 
 ![Riwayat Shift Kasir](./public/screenshots/12-kasir-riwayat-shift.png)
 
@@ -133,8 +133,8 @@ Halaman khusus staf kasir untuk memantau total penjualan shift aktif, pemisahan 
    - Seluruh tabel (`products`, `transactions`, `stock_logs`, `store_cashiers`, `store_payment_settings`) dilindungi kebijakan **Row-Level Security (RLS)** di PostgreSQL sehingga setiap toko terisolasi ketat berdasarkan `owner_id` dan peran pengguna.
 3. **Transaksi & Mutasi Stok Atomik (`SECURITY INVOKER` RPC)**:
    - Operasi checkout POS (`process_pos_sale`), pembatalan transaksi (`void_pos_transaction`), dan penyesuaian stok (`adjust_product_stock`) dieksekusi atomik di server PostgreSQL menggunakan penguncian baris (`FOR UPDATE` terurut), idempotensi nomor transaksi, validasi stok server-side, serta perhitungan ulang subtotal, diskon, dan kembalian di database.
-4. **Proteksi Edge Function & Sanitasi Input**:
-   - Pengelolaan akun kasir melalui Edge Function `tenant-auth` memverifikasi peran `admin`, mengunci akun demo publik (`kasir@sipb.web.id`, `admin@sipb.web.id`) dari modifikasi/penghapusan, membatasi percobaan login gagal (*rate-limiting lockout*), serta menyanitasi ekspor CSV terhadap *Formula Injection* (`lib/format.ts`).
+4. **Proteksi Edge Function & Sanitasi Ekspor**:
+   - Pengelolaan akun kasir melalui Edge Function `tenant-auth` memverifikasi peran `admin`, mengunci akun demo publik (`kasir@sipb.web.id`, `admin@sipb.web.id`) dari modifikasi/penghapusan, membatasi percobaan login gagal (*rate-limiting lockout*), serta menghasilkan file Excel (`.xlsx`) dengan tipe `inlineStr` aman anti-injeksi formula (`lib/excelExport.ts`).
 
 ---
 
@@ -244,11 +244,11 @@ erDiagram
 
 ## 🧪 Akun Demo (Untuk Pengujian & Evaluasi)
 
-Anda dapat masuk ke **Demo Dashboard Admin** melalui tombol **"Masuk Demo Dashboard"** pada halaman utama `/` maupun halaman `/login`, atau masuk menggunakan salah satu kredensial berikut untuk menguji masing-masing peran:
+Silakan masuk melalui halaman `/login` menggunakan alamat email dan kata sandi berikut untuk menguji masing-masing peran:
 
 | Peran Pengguna | Alamat Email | Kata Sandi | Hak Akses Utama |
 | :--- | :--- | :--- | :--- |
-| **Administrator (Pemilik Toko)** | `admin@sipb.web.id` | `admin123` | Akses penuh: Dashboard, CRUD Produk & Kategori, Mutasi Stok, POS, Laporan (CSV/Print/Void), Pengaturan Toko & Kelola Kasir. |
+| **Administrator (Pemilik Toko)** | `admin@sipb.web.id` | `admin123` | Akses penuh: Dashboard, CRUD Produk & Kategori, Mutasi Stok, POS, Laporan (Excel `.xlsx`/Print/Void), Pengaturan Toko & Kelola Kasir. |
 | **User / Staf Kasir** | `kasir@sipb.web.id` | `kasir123` | Akses terbatas khusus operasional **Terminal Kasir (POS)**, **Riwayat Shift Saya**, dan cetak struk transaksi. |
 
 > Selain akun demo di atas, Anda juga dapat mendaftarkan workspace toko baru secara mandiri melalui tab **Daftar Admin** di halaman `/login`.

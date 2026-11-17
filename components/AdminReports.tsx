@@ -3,7 +3,8 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction, PAYMENT_METHODS } from '@/lib/types';
-import { formatRupiah, formatDateTime, getLocalDateKey, sanitizeCsvCell } from '@/lib/format';
+import { formatRupiah, formatDateTime, getLocalDateKey } from '@/lib/format';
+import { downloadWorkbookXlsx } from '@/lib/excelExport';
 import { resolveStoreReceiptProfile } from '@/lib/bluetoothPrinter';
 import { useBluetoothPrinter } from '@/lib/usePrinter';
 import ReceiptModal from './ReceiptModal';
@@ -180,49 +181,85 @@ export default function AdminReports() {
     return filteredTransactions.slice(start, start + pageSize);
   }, [filteredTransactions, safePage, pageSize, isPrintingAll]);
 
-  const handleExportCsv = () => {
+  const handleExportExcel = () => {
     if (filteredTransactions.length === 0) return;
-    const headers = [
-      'No. Nota',
-      'Status',
-      'Waktu Transaksi',
-      'Kasir',
-      'Metode Bayar',
-      'Jumlah Item (Pcs)',
-      'Subtotal',
-      'Diskon',
-      'Total Bayar',
-      'Estimasi Laba Bersih',
-      'Keterangan Void',
-    ];
+    let totalQtySum = 0;
+    let totalSubtotalSum = 0;
+    let totalDiscountSum = 0;
+    let totalPaySum = 0;
+    let totalProfitSum = 0;
+
     const rows = filteredTransactions.map((t) => {
+      const itemCount = t.items.reduce((s, i) => s + i.quantity, 0);
+      const itemSummary = t.items.map((i) => `${i.name} (${i.quantity}x)`).join(', ') || '-';
       const cogs = t.items.reduce((s, i) => {
         const unitBuy = i.buyPrice ?? productBuyMap.get(i.productId) ?? Math.round(i.price * 0.78);
         return s + unitBuy * i.quantity;
       }, 0);
-      const netProfit = t.status === 'VOIDED' ? 0 : t.total - cogs;
+      const isVoided = t.status === 'VOIDED';
+      const netTotal = isVoided ? 0 : t.total;
+      const netProfit = isVoided ? 0 : t.total - cogs;
+
+      if (!isVoided) {
+        totalQtySum += itemCount;
+        totalSubtotalSum += t.subtotal;
+        totalDiscountSum += t.discount;
+        totalPaySum += netTotal;
+        totalProfitSum += netProfit;
+      }
+
       return [
-        sanitizeCsvCell(t.invoiceNo),
-        sanitizeCsvCell(t.status === 'VOIDED' ? 'VOID / DIBATALKAN' : 'SELESAI'),
-        sanitizeCsvCell(formatDateTime(t.createdAt, true)),
-        sanitizeCsvCell(t.cashierName),
-        sanitizeCsvCell(t.paymentMethod),
-        t.items.reduce((s, i) => s + i.quantity, 0),
+        t.invoiceNo,
+        isVoided ? 'VOID / DIBATALKAN' : 'SELESAI',
+        formatDateTime(t.createdAt, true),
+        t.cashierName,
+        itemSummary,
+        t.paymentMethod,
+        itemCount,
         t.subtotal,
         t.discount,
-        t.status === 'VOIDED' ? 0 : t.total,
+        netTotal,
         netProfit,
-        sanitizeCsvCell(t.voidReason || '-'),
+        t.voidReason || '-',
       ];
     });
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Laporan-Penjualan-SIP-${todayKey}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+
+    const storeTitle = resolveStoreReceiptProfile(paymentSettings, printerSettings).storeName;
+    downloadWorkbookXlsx({
+      filename: `Laporan-Penjualan-SIP-${todayKey}.xlsx`,
+      sheetName: 'Laporan Transaksi',
+      title: `LAPORAN TRANSAKSI PENJUALAN — ${storeTitle.toUpperCase()}`,
+      subtitle: `Dicetak: ${formatDateTime(new Date().toISOString(), true)} | Total Nota Ditampilkan: ${filteredTransactions.length} (${activeTransactions.length} Selesai)`,
+      columns: [
+        { header: 'No. Nota', type: 'center', minWidth: 22 },
+        { header: 'Status', type: 'center', minWidth: 16 },
+        { header: 'Waktu Transaksi', type: 'center', minWidth: 20 },
+        { header: 'Kasir', type: 'string', minWidth: 20 },
+        { header: 'Rincian Barang', type: 'string', minWidth: 32, maxWidth: 48 },
+        { header: 'Metode Bayar', type: 'center', minWidth: 14 },
+        { header: 'Qty (Pcs)', type: 'integer', minWidth: 11 },
+        { header: 'Subtotal', type: 'currency', minWidth: 16 },
+        { header: 'Diskon', type: 'currency', minWidth: 14 },
+        { header: 'Total Bayar', type: 'currency', minWidth: 17 },
+        { header: 'Est. Laba Bersih', type: 'currency', minWidth: 18 },
+        { header: 'Keterangan Void', type: 'string', minWidth: 20 },
+      ],
+      rows,
+      totalsRow: [
+        'TOTAL (SELESAI)',
+        `${activeTransactions.length} Nota`,
+        null,
+        null,
+        null,
+        null,
+        totalQtySum,
+        totalSubtotalSum,
+        totalDiscountSum,
+        totalPaySum,
+        totalProfitSum,
+        null,
+      ],
+    });
   };
 
   useEffect(() => {
@@ -365,12 +402,13 @@ export default function AdminReports() {
 
         <div className="no-print" style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={handleExportCsv}
+            type="button"
+            onClick={handleExportExcel}
             disabled={filteredTransactions.length === 0}
             className="btn btn-secondary btn-sm"
           >
             <Download size={14} />
-            <span>Ekspor CSV</span>
+            <span>Ekspor Excel</span>
           </button>
           <button
             onClick={handlePrintReport}

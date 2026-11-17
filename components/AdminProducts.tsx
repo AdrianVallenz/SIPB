@@ -9,9 +9,9 @@ import {
   parseNumberInput,
   formatDateTime,
   calcMarginPct,
-  sanitizeCsvCell,
   getLocalDateKey,
 } from '@/lib/format';
+import { downloadWorkbookXlsx } from '@/lib/excelExport';
 import PaginationBar from './PaginationBar';
 import {
   Plus,
@@ -196,41 +196,44 @@ export default function AdminProducts() {
     return filteredLogs.slice(start, start + logPageSize);
   }, [filteredLogs, safeLogPage, logPageSize]);
 
-  const handleExportCatalogCsv = () => {
+  const handleExportCatalogExcel = () => {
     if (filteredProducts.length === 0) return;
     const todayKey = getLocalDateKey(new Date());
-    const headers = [
-      'Kode SKU',
-      'Nama Produk',
-      'Kategori',
-      'Harga Beli (Modal)',
-      'Harga Jual',
-      'Margin (%)',
-      'Stok Saat Ini',
-      'Batas Stok Minimum',
-      'Satuan',
-      'Nilai Aset Modal',
-    ];
     const rows = filteredProducts.map((p) => [
-      sanitizeCsvCell(p.sku),
-      sanitizeCsvCell(p.name),
-      sanitizeCsvCell(p.category),
+      p.sku,
+      p.name,
+      p.category,
       p.buyPrice,
       p.sellPrice,
       calcMarginPct(p.sellPrice, p.buyPrice),
       p.stock,
       p.minStock,
-      sanitizeCsvCell(p.unit),
+      p.unit,
       p.buyPrice * p.stock,
     ]);
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Katalog-Inventaris-SIP-${todayKey}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const totalStock = filteredProducts.reduce((sum, p) => sum + p.stock, 0);
+    const totalAssetValue = filteredProducts.reduce((sum, p) => sum + p.buyPrice * p.stock, 0);
+
+    downloadWorkbookXlsx({
+      filename: `Katalog-Inventaris-SIP-${todayKey}.xlsx`,
+      sheetName: 'Katalog Produk',
+      title: 'LAPORAN KATALOG & INVENTARIS BARANG',
+      subtitle: `Tanggal Ekspor: ${formatDateTime(new Date().toISOString(), true)} | Jumlah SKU: ${filteredProducts.length}`,
+      columns: [
+        { header: 'Kode SKU', type: 'center', minWidth: 14 },
+        { header: 'Nama Produk', type: 'string', minWidth: 28 },
+        { header: 'Kategori', type: 'center', minWidth: 18 },
+        { header: 'Harga Beli (Modal)', type: 'currency', minWidth: 18 },
+        { header: 'Harga Jual', type: 'currency', minWidth: 16 },
+        { header: 'Margin', type: 'percent', minWidth: 11 },
+        { header: 'Stok Saat Ini', type: 'integer', minWidth: 13 },
+        { header: 'Stok Min', type: 'integer', minWidth: 11 },
+        { header: 'Satuan', type: 'center', minWidth: 11 },
+        { header: 'Nilai Aset Modal', type: 'currency', minWidth: 20 },
+      ],
+      rows,
+      totalsRow: ['TOTAL', `${filteredProducts.length} Produk`, null, null, null, null, totalStock, null, null, totalAssetValue],
+    });
   };
 
   const handleOpenAdd = () => {
@@ -450,13 +453,13 @@ export default function AdminProducts() {
 
           <button
             type="button"
-            onClick={handleExportCatalogCsv}
+            onClick={handleExportCatalogExcel}
             disabled={filteredProducts.length === 0}
             className="btn btn-secondary btn-sm"
             style={{ padding: '8px 14px' }}
           >
             <Download size={14} />
-            <span>Ekspor CSV</span>
+            <span>Ekspor Excel</span>
           </button>
 
           <button

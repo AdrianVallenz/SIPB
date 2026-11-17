@@ -3,7 +3,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Transaction } from '@/lib/types';
-import { formatRupiah, formatDateTime, getLocalDateKey, sanitizeCsvCell } from '@/lib/format';
+import { formatRupiah, formatDateTime, getLocalDateKey } from '@/lib/format';
+import { downloadWorkbookXlsx } from '@/lib/excelExport';
 import ReceiptModal from './ReceiptModal';
 import PaginationBar from './PaginationBar';
 import { Eye, ShoppingBag, Banknote, CreditCard, Search, Download } from 'lucide-react';
@@ -68,33 +69,47 @@ export default function CashierHistory() {
     return cashierTransactions.slice(start, start + pageSize);
   }, [cashierTransactions, safePage, pageSize]);
 
-  const handleExportShiftCsv = () => {
+  const handleExportShiftExcel = () => {
     if (cashierTransactions.length === 0) return;
     const todayKey = getLocalDateKey(new Date());
-    const headers = [
-      'No. Nota',
-      'Status',
-      'Waktu Transaksi',
-      'Metode Bayar',
-      'Jumlah Item (Pcs)',
-      'Total Tagihan',
-    ];
-    const rows = cashierTransactions.map((t) => [
-      sanitizeCsvCell(t.invoiceNo),
-      sanitizeCsvCell(t.status === 'VOIDED' ? 'VOID / DIBATALKAN' : 'SELESAI'),
-      sanitizeCsvCell(formatDateTime(t.createdAt, true)),
-      sanitizeCsvCell(t.paymentMethod),
-      t.totalQty,
-      t.status === 'VOIDED' ? 0 : t.total,
-    ]);
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Riwayat-Shift-Kasir-${todayKey}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    let totalQtyActive = 0;
+    let totalSalesActive = 0;
+
+    const rows = cashierTransactions.map((t) => {
+      const isVoided = t.status === 'VOIDED';
+      const itemSummary = t.items.map((i) => `${i.name} (${i.quantity}x)`).join(', ') || '-';
+      if (!isVoided) {
+        totalQtyActive += t.totalQty;
+        totalSalesActive += t.total;
+      }
+      return [
+        t.invoiceNo,
+        isVoided ? 'VOID / DIBATALKAN' : 'SELESAI',
+        formatDateTime(t.createdAt, true),
+        itemSummary,
+        t.paymentMethod,
+        t.totalQty,
+        isVoided ? 0 : t.total,
+      ];
+    });
+
+    downloadWorkbookXlsx({
+      filename: `Riwayat-Shift-Kasir-${todayKey}.xlsx`,
+      sheetName: 'Riwayat Shift Kasir',
+      title: `REKAP RIWAYAT SHIFT KASIR — ${user?.name || user?.email || 'Kasir'}`,
+      subtitle: `Dicetak: ${formatDateTime(new Date().toISOString(), true)} | Nota Aktif: ${activeCount}`,
+      columns: [
+        { header: 'No. Nota', type: 'center', minWidth: 22 },
+        { header: 'Status', type: 'center', minWidth: 16 },
+        { header: 'Waktu Transaksi', type: 'center', minWidth: 20 },
+        { header: 'Rincian Barang', type: 'string', minWidth: 32, maxWidth: 48 },
+        { header: 'Metode Bayar', type: 'center', minWidth: 14 },
+        { header: 'Jumlah Item (Pcs)', type: 'integer', minWidth: 14 },
+        { header: 'Total Tagihan', type: 'currency', minWidth: 17 },
+      ],
+      rows,
+      totalsRow: ['TOTAL SHIFT AKTIF', `${activeCount} Nota`, null, null, null, totalQtyActive, totalSalesActive],
+    });
   };
 
   return (
@@ -110,12 +125,12 @@ export default function CashierHistory() {
 
         <button
           type="button"
-          onClick={handleExportShiftCsv}
+          onClick={handleExportShiftExcel}
           disabled={cashierTransactions.length === 0}
           className="btn btn-secondary btn-sm no-print"
         >
           <Download size={14} />
-          <span>Ekspor CSV Shift</span>
+          <span>Ekspor Excel Shift</span>
         </button>
       </div>
 

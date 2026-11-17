@@ -14,7 +14,6 @@ import {
   Package,
   Eye,
   EyeOff,
-  LayoutDashboard,
   UserPlus,
   LogIn,
   User,
@@ -24,13 +23,11 @@ import {
 
 interface LoginViewProps {
   initialMode?: 'login' | 'register';
-  onOpenDemoDashboard?: () => Promise<{ success: boolean; message?: string } | void> | void;
   onLoginSuccess?: (role?: 'admin' | 'user') => void;
 }
 
 export default function LoginView({
   initialMode = 'login',
-  onOpenDemoDashboard,
   onLoginSuccess,
 }: LoginViewProps) {
   const { login, register, theme, toggleTheme } = useApp();
@@ -41,21 +38,6 @@ export default function LoginView({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isOpeningDemo, setIsOpeningDemo] = useState(false);
-
-  const handleOpenDemo = async () => {
-    if (!onOpenDemoDashboard || isOpeningDemo || isSubmitting) return;
-    setError('');
-    setIsOpeningDemo(true);
-    try {
-      const res = await onOpenDemoDashboard();
-      if (res && !res.success) {
-        setError(res.message || 'Tidak dapat terhubung ke server cloud Demo.');
-      }
-    } finally {
-      setIsOpeningDemo(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +87,7 @@ export default function LoginView({
         position: 'relative',
       }}
     >
-      {/* Top Bar: Demo Dashboard & Unified Action Capsule */}
+      {/* Top Bar: Back to Landing & Unified Action Capsule */}
       <header
         className="app-header"
         style={{
@@ -124,50 +106,15 @@ export default function LoginView({
               border: '1px solid var(--border-color)',
               backgroundColor: 'var(--bg-subtle)',
               height: '36px',
-              padding: '0 10px',
+              padding: '0 12px',
               textDecoration: 'none',
             }}
             title="Kembali ke Beranda & Penjelasan Aplikasi"
           >
             <ArrowLeft size={14} />
-            <span className="hide-mobile">Beranda</span>
+            <span className="hide-mobile">Kembali ke Beranda</span>
+            <span className="show-mobile-only" style={{ fontSize: '12px' }}>Beranda</span>
           </Link>
-
-          {onOpenDemoDashboard ? (
-            <button
-              type="button"
-              disabled={isOpeningDemo || isSubmitting}
-              onClick={() => void handleOpenDemo()}
-              className="header-tool-btn"
-              style={{
-                border: '1px solid var(--border-color)',
-                backgroundColor: 'var(--bg-subtle)',
-                height: '36px',
-                padding: '0 12px',
-              }}
-            >
-              {isOpeningDemo ? (
-                <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent-cyan)' }} />
-              ) : (
-                <LayoutDashboard size={14} style={{ color: 'var(--accent-cyan)' }} />
-              )}
-              <span className="hide-mobile">
-                {isOpeningDemo ? 'Menghubungkan...' : 'Masuk Demo Dashboard'}
-              </span>
-              <span className="show-mobile-only" style={{ fontSize: '12px' }}>
-                {isOpeningDemo ? 'Loading...' : 'Dashboard'}
-              </span>
-            </button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className="brand-emblem">
-                <Package size={16} />
-              </div>
-              <span style={{ fontSize: '14.5px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                SIP <span style={{ color: 'var(--accent-cyan)' }}>BARANG</span>
-              </span>
-            </div>
-          )}
         </div>
 
         <div className="header-toolbar">

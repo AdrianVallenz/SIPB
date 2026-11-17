@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import LandingView from '@/components/LandingView';
 import RouteLoadingScreen from '@/components/RouteLoadingScreen';
@@ -11,12 +11,10 @@ interface LandingEntryClientProps {
   redirectPosSubdomain?: boolean;
 }
 
-/** Shared client wrapper rendering LandingView with Demo Dashboard, auth routing, and pos.* subdomain guard. */
+/** Shared client wrapper rendering LandingView with auth routing and pos.* subdomain guard. */
 export default function LandingEntryClient({ redirectPosSubdomain = false }: LandingEntryClientProps) {
   const router = useRouter();
-  const { user, isHydrated, setActiveTab, enterDemo } = useApp();
-  const [isOpeningDemo, setIsOpeningDemo] = useState(false);
-  const [demoError, setDemoError] = useState<string | null>(null);
+  const { user, isHydrated, setActiveTab } = useApp();
 
   const isPosSubdomain =
     redirectPosSubdomain &&
@@ -39,38 +37,18 @@ export default function LandingEntryClient({ redirectPosSubdomain = false }: Lan
 
   return (
     <LandingView
-      isOpeningDemo={isOpeningDemo}
-      demoError={demoError}
       onOpenAuth={(mode) => {
         router.push(mode === 'register' ? '/login?mode=register' : '/login');
       }}
-      onEnterApp={async (targetTab) => {
-        if (isOpeningDemo) return;
-        setDemoError(null);
-        const safeTab = targetTab || (user?.role === 'user' ? 'pos' : 'dashboard');
-
-        if (user) {
-          setActiveTab(safeTab);
-          router.push(getRouteForTab(safeTab, user.role));
+      onEnterApp={(targetTab) => {
+        if (!user) {
+          const nextRoute = targetTab ? getRouteForTab(targetTab, targetTab === 'pos' ? 'user' : 'admin') : '';
+          router.push(nextRoute ? `/login?next=${encodeURIComponent(nextRoute)}` : '/login');
           return;
         }
-
-        const roleToEnter = safeTab === 'pos' ? 'user' : 'admin';
-        setIsOpeningDemo(true);
-        try {
-          const res = await enterDemo(roleToEnter);
-          if (res.success) {
-            const activeRole = res.role || roleToEnter;
-            setActiveTab(safeTab);
-            router.push(getRouteForTab(safeTab, activeRole));
-            return;
-          }
-          setDemoError(
-            res.message || 'Gagal membuka Demo Dashboard. Periksa koneksi internet Anda.'
-          );
-        } finally {
-          setIsOpeningDemo(false);
-        }
+        const safeTab = targetTab || (user.role === 'user' ? 'pos' : 'dashboard');
+        setActiveTab(safeTab);
+        router.push(getRouteForTab(safeTab, user.role));
       }}
     />
   );

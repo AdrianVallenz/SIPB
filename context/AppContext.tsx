@@ -102,7 +102,6 @@ interface AppContextType {
   updateOwnProfile: (patch: { name?: string; password?: string }) => Promise<ActionResult>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  enterDemo: (role?: 'admin' | 'user') => Promise<AuthResult>;
   login: (email: string, pass: string) => Promise<AuthResult>;
   register: (name: string, email: string, pass: string) => Promise<AuthResult>;
   logout: () => void;
@@ -217,7 +216,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
-  const demoAuthPromiseRef = useRef<Promise<AuthResult> | null>(null);
   const isCloudConnected = connectionStatus === 'online';
 
   useEffect(() => {
@@ -364,50 +362,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     writeStoredActiveTab(defaultTab);
     setUser(session);
     setActiveTabState(defaultTab);
-  };
-
-  const enterDemo = async (role: 'admin' | 'user' = 'admin'): Promise<AuthResult> => {
-    if (demoAuthPromiseRef.current) {
-      return demoAuthPromiseRef.current;
-    }
-
-    const run = (async (): Promise<AuthResult> => {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        return {
-          success: false,
-          message: 'Koneksi internet terputus. Demo hanya tersedia dalam mode Full Online.',
-        };
-      }
-      const demoEmail = role === 'user' ? 'kasir@sipb.web.id' : 'admin@sipb.web.id';
-      const demoPass = role === 'user' ? 'kasir123' : 'admin123';
-      setSupabaseAccessToken(null);
-      const authRes = await signInSupabase(demoEmail, demoPass);
-      if (authRes.accessToken && authRes.user) {
-        const session: UserSession = {
-          id: authRes.user.id,
-          ownerId: authRes.user.ownerId || authRes.user.id,
-          email: authRes.user.email,
-          name: authRes.user.name,
-          role: authRes.user.role,
-          loginAt: new Date().toISOString(),
-        };
-        activateSession(session);
-        return { success: true, role: session.role };
-      }
-      return {
-        success: false,
-        message:
-          authRes.error ||
-          'Tidak dapat terhubung ke server cloud Demo. Periksa koneksi internet Anda.',
-      };
-    })();
-
-    demoAuthPromiseRef.current = run;
-    try {
-      return await run;
-    } finally {
-      demoAuthPromiseRef.current = null;
-    }
   };
 
   const login = async (email: string, pass: string): Promise<AuthResult> => {
@@ -1377,7 +1331,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const actionsRef = useRef({
     toggleTheme,
     setActiveTab,
-    enterDemo,
     login,
     register,
     logout,
@@ -1402,7 +1355,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     actionsRef.current = {
       toggleTheme,
       setActiveTab,
-      enterDemo,
       login,
       register,
       logout,
@@ -1426,10 +1378,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const stableToggleTheme = useCallback(() => actionsRef.current.toggleTheme(), []);
   const stableSetActiveTab = useCallback((tab: string) => actionsRef.current.setActiveTab(tab), []);
-  const stableEnterDemo = useCallback(
-    (role?: 'admin' | 'user') => actionsRef.current.enterDemo(role),
-    []
-  );
   const stableLogin = useCallback(
     (email: string, pass: string) => actionsRef.current.login(email, pass),
     []
@@ -1540,7 +1488,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateOwnProfile: stableUpdateOwnProfile,
       activeTab: isInitialized ? effectiveTab : 'pos',
       setActiveTab: stableSetActiveTab,
-      enterDemo: stableEnterDemo,
       login: stableLogin,
       register: stableRegister,
       logout: stableLogout,
@@ -1577,7 +1524,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stableUpdatePaymentSettings,
       stableUpdateOwnProfile,
       stableSetActiveTab,
-      stableEnterDemo,
       stableLogin,
       stableRegister,
       stableLogout,
