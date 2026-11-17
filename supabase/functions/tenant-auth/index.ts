@@ -6,8 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const LOCKED_DEMO_EMAILS = new Set(['kasir@sipb.web.id', 'admin@sipb.web.id']);
-
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -212,12 +210,6 @@ Deno.serve(async (req: Request) => {
       if (findErr || !target) {
         return jsonResponse({ error: 'Akun kasir tidak ditemukan pada toko Anda.' }, 404);
       }
-      if (LOCKED_DEMO_EMAILS.has(String(target.email || '').toLowerCase())) {
-        return jsonResponse(
-          { error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.' },
-          403
-        );
-      }
 
       const { error: banErr } = await adminClient.auth.admin.updateUserById(cashierId, {
         ban_duration: isActive ? 'none' : '876000h',
@@ -263,12 +255,6 @@ Deno.serve(async (req: Request) => {
       if (findErr || !target) {
         return jsonResponse({ error: 'Akun kasir tidak ditemukan pada toko Anda.' }, 404);
       }
-      if (LOCKED_DEMO_EMAILS.has(String(target.email || '').toLowerCase())) {
-        return jsonResponse(
-          { error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.' },
-          403
-        );
-      }
 
       const authPatch: Record<string, unknown> = {};
       if (password) authPatch.password = password;
@@ -311,12 +297,6 @@ Deno.serve(async (req: Request) => {
 
       if (findErr || !target) {
         return jsonResponse({ error: 'Akun kasir tidak ditemukan pada toko Anda.' }, 404);
-      }
-      if (LOCKED_DEMO_EMAILS.has(String(target.email || '').toLowerCase())) {
-        return jsonResponse(
-          { error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.' },
-          403
-        );
       }
 
       const { error: delErr } = await adminClient.auth.admin.deleteUser(cashierId);

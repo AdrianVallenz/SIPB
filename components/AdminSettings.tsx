@@ -27,7 +27,6 @@ import {
 
 interface AdminProfileFormProps {
   initialName: string;
-  email: string;
   updateOwnProfile: (patch: {
     name?: string;
     password?: string;
@@ -37,14 +36,12 @@ interface AdminProfileFormProps {
 
 function AdminProfileForm({
   initialName,
-  email,
   updateOwnProfile,
   onFeedback,
 }: AdminProfileFormProps) {
   const [adminName, setAdminName] = useState(initialName);
   const [adminNewPassword, setAdminNewPassword] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const isDemoAdmin = email.toLowerCase() === 'admin@sipb.web.id';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,11 +102,10 @@ function AdminProfileForm({
         <input
           type="password"
           minLength={6}
-          disabled={isDemoAdmin}
           value={adminNewPassword}
           onChange={(e) => setAdminNewPassword(e.target.value)}
           className="sip-input font-mono"
-          placeholder={isDemoAdmin ? 'Terkunci pada akun demo' : 'Min. 6 karakter baru'}
+          placeholder="Min. 6 karakter baru"
         />
       </div>
 
@@ -471,6 +467,10 @@ export default function AdminSettings() {
       if (editPassword) {
         patch.password = editPassword;
       }
+      if (!patch.name && !patch.password) {
+        setEditModalError('Isi nama baru atau kata sandi baru sebelum menyimpan.');
+        return;
+      }
       const res = await updateCashier(editingCashier.id, patch);
       if (!res.success) {
         setEditModalError(res.error || 'Gagal memperbarui kasir.');
@@ -579,7 +579,6 @@ export default function AdminSettings() {
           <AdminProfileForm
             key={user.id}
             initialName={user.name}
-            email={user.email}
             updateOwnProfile={updateOwnProfile}
             onFeedback={setFeedback}
           />
@@ -833,9 +832,6 @@ export default function AdminSettings() {
                 cashiers.map((c) => {
                   const isBusy = busyId === c.id;
                   const isConfirming = confirmDeleteId === c.id;
-                  const isDemoCashier = c.email.toLowerCase() === 'kasir@sipb.web.id';
-                  const lockReason =
-                    'Akun kasir demo dikunci agar selalu dapat digunakan untuk evaluasi aplikasi';
                   const formattedDate = new Date(c.createdAt).toLocaleDateString('id-ID', {
                     day: '2-digit',
                     month: 'short',
@@ -853,21 +849,9 @@ export default function AdminSettings() {
                         </span>
                       </td>
                       <td>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
-                            {c.isActive ? 'Aktif (Bisa Masuk Kasir)' : 'Dinonaktifkan'}
-                          </span>
-                          {isDemoCashier && (
-                            <span
-                              className="badge badge-muted font-mono"
-                              title={lockReason}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <Lock size={11} />
-                              Demo Terkunci
-                            </span>
-                          )}
-                        </div>
+                        <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
+                          {c.isActive ? 'Aktif (Bisa Masuk Kasir)' : 'Dinonaktifkan'}
+                        </span>
                       </td>
                       <td style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                         {formattedDate}
@@ -883,10 +867,10 @@ export default function AdminSettings() {
                         >
                           <button
                             type="button"
-                            disabled={isBusy || isDemoCashier}
+                            disabled={isBusy}
                             onClick={() => openEditModal(c)}
                             className="btn btn-secondary btn-sm"
-                            title={isDemoCashier ? lockReason : 'Ubah Nama / Ganti Kata Sandi'}
+                            title="Ubah Nama / Ganti Kata Sandi"
                           >
                             <KeyRound size={13} />
                             <span>Ubah / Sandi</span>
@@ -894,16 +878,10 @@ export default function AdminSettings() {
 
                           <button
                             type="button"
-                            disabled={isBusy || isDemoCashier}
+                            disabled={isBusy}
                             onClick={() => void handleToggleStatus(c)}
                             className="btn btn-secondary btn-sm"
-                            title={
-                              isDemoCashier
-                                ? lockReason
-                                : c.isActive
-                                  ? 'Nonaktifkan Kasir'
-                                  : 'Aktifkan Kasir'
-                            }
+                            title={c.isActive ? 'Nonaktifkan Kasir' : 'Aktifkan Kasir'}
                             style={{
                               color: c.isActive
                                 ? 'var(--accent-amber-text)'
@@ -914,7 +892,7 @@ export default function AdminSettings() {
                             <span>{c.isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
                           </button>
 
-                          {isConfirming && !isDemoCashier ? (
+                          {isConfirming ? (
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                               <button
                                 type="button"
@@ -940,11 +918,11 @@ export default function AdminSettings() {
                           ) : (
                             <button
                               type="button"
-                              disabled={isBusy || isDemoCashier}
+                              disabled={isBusy}
                               onClick={() => setConfirmDeleteId(c.id)}
                               className="btn btn-secondary btn-sm"
                               style={{ color: 'var(--accent-red)' }}
-                              title={isDemoCashier ? lockReason : 'Hapus Akun Kasir'}
+                              title="Hapus Akun Kasir"
                             >
                               <Trash2 size={13} />
                             </button>
@@ -969,9 +947,6 @@ export default function AdminSettings() {
             cashiers.map((c) => {
               const isBusy = busyId === c.id;
               const isConfirming = confirmDeleteId === c.id;
-              const isDemoCashier = c.email.toLowerCase() === 'kasir@sipb.web.id';
-              const lockReason =
-                'Akun kasir demo dikunci agar selalu dapat diakses untuk evaluasi aplikasi';
               const formattedDate = new Date(c.createdAt).toLocaleDateString('id-ID', {
                 day: '2-digit',
                 month: 'short',
@@ -987,21 +962,9 @@ export default function AdminSettings() {
                         {c.email}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                      <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
-                        {c.isActive ? 'Aktif' : 'Nonaktif'}
-                      </span>
-                      {isDemoCashier && (
-                        <span
-                          className="badge badge-muted font-mono"
-                          title={lockReason}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                        >
-                          <Lock size={10} />
-                          Demo Terkunci
-                        </span>
-                      )}
-                    </div>
+                    <span className={`badge ${c.isActive ? 'badge-green' : 'badge-red'}`}>
+                      {c.isActive ? 'Aktif' : 'Nonaktif'}
+                    </span>
                   </div>
 
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -1011,8 +974,8 @@ export default function AdminSettings() {
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid var(--border-color)' }}>
                     <button
                       type="button"
-                      disabled={isBusy || isDemoCashier}
-                      title={isDemoCashier ? lockReason : 'Ubah Nama / Ganti Kata Sandi'}
+                      disabled={isBusy}
+                      title="Ubah Nama / Ganti Kata Sandi"
                       onClick={() => openEditModal(c)}
                       className="btn btn-secondary btn-sm"
                       style={{ flex: 1, minHeight: '36px' }}
@@ -1023,14 +986,8 @@ export default function AdminSettings() {
 
                     <button
                       type="button"
-                      disabled={isBusy || isDemoCashier}
-                      title={
-                        isDemoCashier
-                          ? lockReason
-                          : c.isActive
-                            ? 'Nonaktifkan Kasir'
-                            : 'Aktifkan Kasir'
-                      }
+                      disabled={isBusy}
+                      title={c.isActive ? 'Nonaktifkan Kasir' : 'Aktifkan Kasir'}
                       onClick={() => void handleToggleStatus(c)}
                       className="btn btn-secondary btn-sm"
                       style={{
@@ -1043,7 +1000,7 @@ export default function AdminSettings() {
                       <span>{c.isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
                     </button>
 
-                    {isConfirming && !isDemoCashier ? (
+                    {isConfirming ? (
                       <>
                         <button
                           type="button"
@@ -1066,8 +1023,8 @@ export default function AdminSettings() {
                     ) : (
                       <button
                         type="button"
-                        disabled={isBusy || isDemoCashier}
-                        title={isDemoCashier ? lockReason : 'Hapus Akun Kasir'}
+                        disabled={isBusy}
+                        title="Hapus Akun Kasir"
                         onClick={() => setConfirmDeleteId(c.id)}
                         className="btn btn-secondary btn-sm"
                         style={{ minHeight: '36px', color: 'var(--accent-red)' }}

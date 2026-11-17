@@ -571,23 +571,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  const isLockedDemoCashier = (cashierId: string): boolean => {
-    const target = cashiers.find((c) => c.id === cashierId);
-    return Boolean(target && target.email.toLowerCase() === 'kasir@sipb.web.id');
-  };
-
   const toggleCashierStatus = async (
     cashierId: string,
     isActive: boolean
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
-    if (isLockedDemoCashier(cashierId)) {
-      return {
-        success: false,
-        error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
-      };
-    }
     const netErr = requireOnlineCloudSession();
     if (netErr) return { success: false, error: netErr };
 
@@ -609,12 +598,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
-    if (isLockedDemoCashier(cashierId)) {
-      return {
-        success: false,
-        error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
-      };
-    }
     const netErr = requireOnlineCloudSession();
     if (netErr) return { success: false, error: netErr };
 
@@ -649,12 +632,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteCashier = async (cashierId: string): Promise<ActionResult> => {
     const authErr = requireAdmin();
     if (authErr || !user) return authErr || { success: false, error: 'Sesi tidak valid.' };
-    if (isLockedDemoCashier(cashierId)) {
-      return {
-        success: false,
-        error: 'Akun kasir demo publik (kasir@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
-      };
-    }
     const netErr = requireOnlineCloudSession();
     if (netErr) return { success: false, error: netErr };
 
@@ -1193,14 +1170,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     if (nextPassword && nextPassword.length < 6) {
       return { success: false, error: 'Kata sandi baru minimal 6 karakter.' };
-    }
-
-    const isDemoAdmin = user.email.toLowerCase() === 'admin@sipb.web.id';
-    if (nextPassword && isDemoAdmin) {
-      return {
-        success: false,
-        error: 'Kata sandi akun demo publik (admin@sipb.web.id) dikunci agar tetap dapat digunakan untuk evaluasi.',
-      };
     }
 
     const cloudRes = await updateOwnSupabaseAccount({

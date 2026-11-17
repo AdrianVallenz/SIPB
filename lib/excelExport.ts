@@ -268,10 +268,12 @@ export function buildXlsxBytes(options: ExcelExportOptions): Uint8Array {
   }
 
   const lastDataRow = Math.max(4, currentRowNum - 1);
+  let lastSheetRow = lastDataRow;
 
   // Optional Summary / Totals Row
   if (options.totalsRow && options.totalsRow.length > 0) {
     const totalRowNum = currentRowNum;
+    lastSheetRow = totalRowNum;
     const cellsXml = cols
       .map((col, idx) => {
         const ref = `${columnLetter(idx)}${totalRowNum}`;
@@ -305,6 +307,9 @@ export function buildXlsxBytes(options: ExcelExportOptions): Uint8Array {
 
   const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <bookViews>
+    <workbookView activeTab="0"/>
+  </bookViews>
   <sheets>
     <sheet name="${sheetTitle}" sheetId="1" r:id="rId1"/>
   </sheets>
@@ -369,23 +374,30 @@ export function buildXlsxBytes(options: ExcelExportOptions): Uint8Array {
     <xf numFmtId="164" fontId="1" fillId="3" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
     <xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
   </cellXfs>
+  <cellStyles count="1">
+    <cellStyle name="Normal" xfId="0" builtinId="0"/>
+  </cellStyles>
+  <dxfs count="0"/>
+  <tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>
 </styleSheet>`;
 
   const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:${lastCol}${lastSheetRow}"/>
   <sheetViews>
-    <sheetView workbookViewId="0">
+    <sheetView tabSelected="1" workbookViewId="0">
       <pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/>
     </sheetView>
   </sheetViews>
   <sheetFormatPr defaultRowHeight="20"/>
   <cols>${colsXml}</cols>
   <sheetData>${sheetRowsXml.join('')}</sheetData>
+  <autoFilter ref="A4:${lastCol}${lastDataRow}"/>
   <mergeCells count="2">
     <mergeCell ref="A1:${lastCol}1"/>
     <mergeCell ref="A2:${lastCol}2"/>
   </mergeCells>
-  <autoFilter ref="A4:${lastCol}${lastDataRow}"/>
+  <pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
   <pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/>
 </worksheet>`;
 

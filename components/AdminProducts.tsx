@@ -196,6 +196,45 @@ export default function AdminProducts() {
     return filteredLogs.slice(start, start + logPageSize);
   }, [filteredLogs, safeLogPage, logPageSize]);
 
+  const handleExportLogsExcel = () => {
+    if (filteredLogs.length === 0) return;
+    const todayKey = getLocalDateKey(new Date());
+    const typeLabelMap: Record<string, string> = {
+      IN: 'Masuk (+)',
+      OUT: 'Keluar (-)',
+      ADJUSTMENT: 'Penyesuaian',
+    };
+
+    const rows: (string | number)[][] = filteredLogs.map((log) => [
+      formatDateTime(log.createdAt, true),
+      log.productName,
+      typeLabelMap[log.type] || log.type,
+      log.quantity,
+      log.previousStock,
+      log.newStock,
+      log.reason || '-',
+      log.operator || '-',
+    ]);
+
+    downloadWorkbookXlsx({
+      filename: `Riwayat-Mutasi-Stok-SIP-${todayKey}.xlsx`,
+      sheetName: 'Log Mutasi Stok',
+      title: 'LAPORAN RIWAYAT MUTASI STOK BARANG',
+      subtitle: `Tanggal Ekspor: ${formatDateTime(new Date().toISOString(), true)} | Jumlah Log: ${filteredLogs.length}`,
+      columns: [
+        { header: 'Waktu Mutasi', type: 'center', minWidth: 20 },
+        { header: 'Nama Produk', type: 'string', minWidth: 26, maxWidth: 42 },
+        { header: 'Tipe Mutasi', type: 'center', minWidth: 14 },
+        { header: 'Jumlah Ubah', type: 'integer', minWidth: 14 },
+        { header: 'Stok Awal', type: 'integer', minWidth: 12 },
+        { header: 'Stok Akhir', type: 'integer', minWidth: 12 },
+        { header: 'Keterangan / Alasan', type: 'string', minWidth: 26, maxWidth: 46 },
+        { header: 'Petugas / Operator', type: 'string', minWidth: 18 },
+      ],
+      rows,
+    });
+  };
+
   const handleExportCatalogExcel = () => {
     if (filteredProducts.length === 0) return;
     const todayKey = getLocalDateKey(new Date());
@@ -453,13 +492,13 @@ export default function AdminProducts() {
 
           <button
             type="button"
-            onClick={handleExportCatalogExcel}
-            disabled={filteredProducts.length === 0}
+            onClick={viewMode === 'logs' ? handleExportLogsExcel : handleExportCatalogExcel}
+            disabled={viewMode === 'logs' ? filteredLogs.length === 0 : filteredProducts.length === 0}
             className="btn btn-secondary btn-sm"
             style={{ padding: '8px 14px' }}
           >
             <Download size={14} />
-            <span>Ekspor Excel</span>
+            <span>{viewMode === 'logs' ? 'Ekspor Excel Log' : 'Ekspor Excel'}</span>
           </button>
 
           <button
