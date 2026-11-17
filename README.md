@@ -100,7 +100,7 @@ Konfigurasi nama pemilik toko, identitas struk (`store_name`, `store_tagline`, `
 ![Pengaturan Toko & QRIS](./public/screenshots/08-admin-pengaturan-toko.png)
 
 #### 3.8 Tema QRIS, Rekening Bank, & Manajemen Akun Staf Kasir (`/admin/pengaturan`)
-Kustomisasi tema tampilan QRIS (`Klasik Nota`, `Biru Modern`, `Hijau Kasir`, `Gelap Elegan`), rekening bank transfer, serta manajemen akun staf kasir (dengan proteksi penguncian pada akun demo publik `kasir@sipb.web.id`).
+Kustomisasi tema tampilan QRIS (`Klasik Nota`, `Biru Modern`, `Hijau Kasir`, `Gelap Elegan`), rekening bank transfer, serta manajemen akun staf kasir (tambah kasir, ubah nama/kata sandi, aktif/nonaktifkan, dan hapus akun).
 
 ![Manajemen Akun Staf Kasir](./public/screenshots/09-admin-pengaturan-kasir.png)
 
@@ -134,7 +134,15 @@ Halaman khusus staf kasir untuk memantau total penjualan shift aktif, pemisahan 
 3. **Transaksi & Mutasi Stok Atomik (`SECURITY INVOKER` RPC)**:
    - Operasi checkout POS (`process_pos_sale`), pembatalan transaksi (`void_pos_transaction`), dan penyesuaian stok (`adjust_product_stock`) dieksekusi atomik di server PostgreSQL menggunakan penguncian baris (`FOR UPDATE` terurut), idempotensi nomor transaksi, validasi stok server-side, serta perhitungan ulang subtotal, diskon, dan kembalian di database.
 4. **Proteksi Edge Function & Sanitasi Ekspor**:
-   - Pengelolaan akun kasir melalui Edge Function `tenant-auth` memverifikasi peran `admin`, mengunci akun demo publik (`kasir@sipb.web.id`, `admin@sipb.web.id`) dari modifikasi/penghapusan, membatasi percobaan login gagal (*rate-limiting lockout*), serta menghasilkan file Excel (`.xlsx`) dengan tipe `inlineStr` aman anti-injeksi formula (`lib/excelExport.ts`).
+   - Pengelolaan akun kasir melalui Edge Function `tenant-auth` memverifikasi peran `admin` dan kepemilikan toko (`owner_id`), membatasi percobaan login gagal (*rate-limiting lockout*), serta menghasilkan file Excel (`.xlsx`) kompatibel Microsoft Excel dengan tipe `inlineStr` aman anti-injeksi formula (`lib/excelExport.ts`).
+
+---
+
+## 🔀 Flowchart Alur Operasional Sistem
+
+Diagram alir berikut menggambarkan alur lengkap sistem mulai dari autentikasi pengguna (`Administrator` vs `Kasir POS`), modul manajemen gudang & laporan admin, hingga proses checkout kasir, sinkronisasi cloud, dan cetak struk:
+
+![Flowchart Alur Operasional Sistem SIP Barang](./public/screenshots/flowchart-sistem-sipb.png)
 
 ---
 
@@ -242,7 +250,7 @@ erDiagram
 
 ---
 
-## 🧪 Akun Demo (Untuk Pengujian & Evaluasi)
+## 🧪 Akun Tes (Untuk Pengujian Aplikasi)
 
 Silakan masuk melalui halaman `/login` menggunakan alamat email dan kata sandi berikut untuk menguji masing-masing peran:
 
@@ -251,7 +259,7 @@ Silakan masuk melalui halaman `/login` menggunakan alamat email dan kata sandi b
 | **Administrator (Pemilik Toko)** | `admin@sipb.web.id` | `admin123` | Akses penuh: Dashboard, CRUD Produk & Kategori, Mutasi Stok, POS, Laporan (Excel `.xlsx`/Print/Void), Pengaturan Toko & Kelola Kasir. |
 | **User / Staf Kasir** | `kasir@sipb.web.id` | `kasir123` | Akses terbatas khusus operasional **Terminal Kasir (POS)**, **Riwayat Shift Saya**, dan cetak struk transaksi. |
 
-> Selain akun demo di atas, Anda juga dapat mendaftarkan workspace toko baru secara mandiri melalui tab **Daftar Admin** di halaman `/login`.
+> Selain akun tes di atas, Anda juga dapat mendaftarkan workspace toko baru secara mandiri melalui tab **Daftar Admin** di halaman `/login`.
 
 ---
 
