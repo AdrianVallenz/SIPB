@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import {
   Sun,
   Moon,
+  ArrowLeft,
   ArrowRight,
   Lock,
   Mail,
@@ -115,6 +117,22 @@ export default function LoginView({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          <Link
+            href="/"
+            className="header-tool-btn"
+            style={{
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-subtle)',
+              height: '36px',
+              padding: '0 10px',
+              textDecoration: 'none',
+            }}
+            title="Kembali ke Beranda & Penjelasan Aplikasi"
+          >
+            <ArrowLeft size={14} />
+            <span className="hide-mobile">Beranda</span>
+          </Link>
+
           {onOpenDemoDashboard ? (
             <button
               type="button"

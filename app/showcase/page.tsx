@@ -1,5 +1,6 @@
-import { redirect } from 'next/navigation';
+import LandingEntryClient from '@/components/landing/LandingEntryClient';
 
-export default function ShowcaseRedirectPage() {
-  redirect('/admin/dashboard');
+/** Dedicated /showcase route rendering the full platform landing & interactive showcase view. */
+export default function ShowcasePage() {
+  return <LandingEntryClient />;
 }

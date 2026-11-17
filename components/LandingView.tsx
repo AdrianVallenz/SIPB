@@ -34,6 +34,9 @@ import {
   QrCode,
   Bluetooth,
   Smartphone,
+  LayoutDashboard,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 
 const CORE_FEATURE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -48,9 +51,16 @@ const CORE_FEATURE_ICONS: Record<string, React.ComponentType<{ size?: number }>>
 interface LandingViewProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
   onEnterApp: (targetTab?: string) => void;
+  isOpeningDemo?: boolean;
+  demoError?: string | null;
 }
 
-export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps) {
+export default function LandingView({
+  onOpenAuth,
+  onEnterApp,
+  isOpeningDemo = false,
+  demoError = null,
+}: LandingViewProps) {
   const { user, theme, toggleTheme, products, transactions, stockLogs } = useApp();
   const [activeShowcase, setActiveShowcase] = useState<ShowcaseTab>('dashboard');
   const [selectedSimPayment, setSelectedSimPayment] = useState<'Tunai' | 'QRIS' | 'Transfer Bank' | 'Kartu Debit'>('QRIS');
@@ -457,17 +467,34 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               <>
                 <button
                   type="button"
-                  onClick={() => onOpenAuth('login')}
+                  disabled={isOpeningDemo}
+                  onClick={() => onEnterApp('dashboard')}
                   className="btn btn-primary"
                   style={{ padding: '12px 22px', fontSize: '13.5px' }}
                 >
-                  <LogIn size={17} />
-                  <span>Masuk ke Sistem</span>
-                  <ArrowRight size={16} />
+                  {isOpeningDemo ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <LayoutDashboard size={16} />
+                  )}
+                  <span>{isOpeningDemo ? 'Menghubungkan Demo...' : 'Masuk Demo Dashboard'}</span>
+                  {!isOpeningDemo && <ArrowRight size={16} />}
                 </button>
 
                 <button
                   type="button"
+                  disabled={isOpeningDemo}
+                  onClick={() => onOpenAuth('login')}
+                  className="btn btn-secondary"
+                  style={{ padding: '12px 20px', fontSize: '13.5px' }}
+                >
+                  <LogIn size={16} style={{ color: 'var(--accent-cyan)' }} />
+                  <span>Masuk ke Sistem</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isOpeningDemo}
                   onClick={() => onOpenAuth('register')}
                   className="btn btn-secondary"
                   style={{
@@ -483,6 +510,20 @@ export default function LandingView({ onOpenAuth, onEnterApp }: LandingViewProps
               </>
             )}
           </div>
+
+          {demoError && (
+            <div
+              className="alert-box"
+              style={{
+                maxWidth: '520px',
+                margin: '-20px auto 26px',
+                justifyContent: 'center',
+              }}
+            >
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>{demoError}</span>
+            </div>
+          )}
 
           {/* Live System Telemetry Strip */}
           <div className="landing-telemetry-grid">

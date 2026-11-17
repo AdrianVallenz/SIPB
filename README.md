@@ -26,70 +26,99 @@ Aplikasi ini menerapkan **Role-Based Access Control (RBAC)** dengan **2 peran pe
 
 ## 🖼️ Tampilan Aplikasi (Screenshots per Section)
 
-### 1. Halaman Autentikasi (`/login`)
-Form masuk terpadu untuk **Administrator** dan **Staf Kasir**, dilengkapi tab **Daftar Admin** untuk membuat workspace toko baru serta pintasan **Masuk Demo Dashboard** di pojok kiri atas.
+### 1. Landing Page & Showcase Platform (`/` & `/showcase`)
+
+#### 1.1 Hero, Penjelasan Aplikasi, Tombol Demo Dashboard, & Ringkasan Telemetri
+Halaman utama (`/`) menyajikan ringkasan manfaat sistem, akses cepat **Masuk Demo Dashboard**, tombol **Masuk ke Sistem** / **Daftar Akun Administrator**, serta kartu telemetri stok dan omzet.
+
+![Landing Page Hero SIP Barang](./public/screenshots/showcase-01-hero.png)
+
+#### 1.2 Interactive Product Tour (`#showcase`)
+Pratinjau interaktif 4 modul utama sistem (**Dashboard Eksekutif**, **Terminal Kasir POS**, **Master Gudang & Stok**, serta **Laporan & Audit Void**) yang dapat dicoba langsung dari landing page.
+
+![Interactive Product Tour Showcase](./public/screenshots/showcase-02-preview.png)
+
+#### 1.3 Keunggulan Sistem (`#fitur`)
+Enam kartu penjelasan fitur utama mulai dari kecepatan transaksi POS, kalkulasi laba bersih HPP otomatis, pengawasan stok gudang, penguncian rahasia modal, penyimpanan cloud, hingga cetak struk Bluetooth & Excel.
+
+![Keunggulan Sistem SIP Barang](./public/screenshots/showcase-03-fitur.png)
+
+#### 1.4 Pemisahan Hak Akses Pemilik Toko & Kasir (`#akses-peran`)
+Perbandingan kapabilitas peran **Administrator Toko** vs **Operator Kasir POS** untuk menjaga keamanan data keuangan usaha.
+
+![Pemisahan Hak Akses Peran](./public/screenshots/showcase-04-peran.png)
+
+#### 1.5 Jaminan Keandalan Sistem & Footer (`#arsitektur`)
+Ringkasan dukungan multi-perangkat (HP, tablet, desktop), operasional Full Online real-time, QRIS dinamis, dan footer informasi perangkat kasir.
+
+![Jaminan Keandalan & Footer](./public/screenshots/showcase-05-arsitektur.png)
+
+---
+
+### 2. Halaman Autentikasi (`/login`)
+Form masuk terpadu untuk **Administrator** dan **Staf Kasir**, dilengkapi tab **Daftar Admin** serta pintasan **Beranda** dan **Masuk Demo Dashboard** di pojok kiri atas.
 
 ![Halaman Autentikasi Login](./public/screenshots/01-login.png)
 
 ---
 
-### 2. Panel Administrator (`/admin`)
+### 3. Panel Administrator (`/admin`)
 
-#### 2.1 Dashboard Analitik — Ringkasan KPI (`/admin/dashboard`)
+#### 3.1 Dashboard Analitik — Ringkasan KPI (`/admin/dashboard`)
 Menampilkan 4 kartu metrik utama (Pemasukan Hari Ini, Total Penjualan & Keuntungan Bersih, Modal Tertanam di Stok, serta Peringatan Stok Menipis).
 
 ![Dashboard Analitik Admin KPI](./public/screenshots/02-admin-dashboard-kpi.png)
 
-#### 2.2 Dashboard Analitik — Grafik Tren Omzet, Laba, & Pengawasan Stok (`/admin/dashboard`)
+#### 3.2 Dashboard Analitik — Grafik Tren Omzet, Laba, & Pengawasan Stok (`/admin/dashboard`)
 Menampilkan grafik interaktif **Tren Omzet & Keuntungan Bersih** (`7 / 14 / 30 Hari`), daftar barang menipis siap *restock*, komposisi pembayaran, dan 5 produk paling cepat terjual.
 
 ![Dashboard Analitik Admin Grafik](./public/screenshots/03-admin-dashboard-grafik.png)
 
-#### 2.3 Manajemen Barang, Kategori, & Pagination (`/admin/produk`)
+#### 3.3 Manajemen Barang, Kategori, & Pagination (`/admin/produk`)
 Pengelolaan katalog produk lengkap dengan harga modal, harga jual, persentase margin otomatis, sisa stok, tombol aksi *restock*/edit/hapus, kelola kategori kustom, dan pagination.
 
 ![Inventaris & Katalog Produk](./public/screenshots/04-admin-produk.png)
 
-#### 2.4 Riwayat Log Mutasi Stok Gudang (`/admin/produk` — Tab Log Mutasi)
+#### 3.4 Riwayat Log Mutasi Stok Gudang (`/admin/produk` — Tab Log Mutasi)
 Jejak audit terperinci untuk setiap pergerakan stok (`Stok Masuk`, `Stok Keluar`, `Penyesuaian`), menampilkan stok awal -> stok akhir, alasan/nomor nota, serta email operator.
 
 ![Riwayat Audit Log Mutasi Stok](./public/screenshots/05-admin-log-stok.png)
 
-#### 2.5 Laporan Transaksi Penjualan, Ekspor CSV & Cetak Laporan (`/admin/laporan`)
+#### 3.5 Laporan Transaksi Penjualan, Ekspor CSV & Cetak Laporan (`/admin/laporan`)
 Rekapitulasi seluruh nota penjualan, estimasi laba bersih, pencarian nota/kasir, filter rentang tanggal & metode pembayaran, pembatalan nota (*Void*), serta ekspor CSV/cetak laporan.
 
 ![Laporan Transaksi Penjualan](./public/screenshots/06-admin-laporan.png)
 
-#### 2.6 Pratinjau Struk Nota 58mm/80mm & QRIS Dinamis
+#### 3.6 Pratinjau Struk Nota 58mm/80mm & QRIS Dinamis
 Tampilan nota transaksi resmi dengan identitas toko dari cloud, rincian barang, QRIS dinamis sesuai nominal/QR verifikasi nota, cetak langsung ke printer Bluetooth thermal, maupun cetak PDF browser.
 
 ![Pratinjau Struk Nota Transaksi](./public/screenshots/07-struk-nota.png)
 
-#### 2.7 Pengaturan Profil Admin, Identitas Toko/Struk Cloud, & Unggah QRIS (`/admin/pengaturan`)
+#### 3.7 Pengaturan Profil Admin, Identitas Toko/Struk Cloud, & Unggah QRIS (`/admin/pengaturan`)
 Konfigurasi nama pemilik toko, identitas struk (`store_name`, `store_tagline`, `store_address`, `store_phone`, `receipt_footer`, `paper_width`) yang tersimpan di cloud, serta unggah gambar QRIS toko.
 
 ![Pengaturan Toko & QRIS](./public/screenshots/08-admin-pengaturan-toko.png)
 
-#### 2.8 Tema QRIS, Rekening Bank, & Manajemen Akun Staf Kasir (`/admin/pengaturan`)
+#### 3.8 Tema QRIS, Rekening Bank, & Manajemen Akun Staf Kasir (`/admin/pengaturan`)
 Kustomisasi tema tampilan QRIS (`Klasik Nota`, `Biru Modern`, `Hijau Kasir`, `Gelap Elegan`), rekening bank transfer, serta manajemen akun staf kasir (dengan proteksi penguncian pada akun demo publik `kasir@sipb.web.id`).
 
 ![Manajemen Akun Staf Kasir](./public/screenshots/09-admin-pengaturan-kasir.png)
 
 ---
 
-### 3. Panel Staf Kasir (`/kasir`)
+### 4. Panel Staf Kasir (`/kasir`)
 
-#### 3.1 Terminal Kasir POS & Keranjang Belanja (`/kasir`)
+#### 4.1 Terminal Kasir POS & Keranjang Belanja (`/kasir`)
 Antarmuka kasir cepat dengan kartu produk siap ketuk/scan SKU, pencarian instan, keranjang belanja interaktif di sisi kanan, input potongan diskon, dan tombol pembayaran pintas `F8`.
 
 ![Terminal Kasir POS](./public/screenshots/10-kasir-pos.png)
 
-#### 3.2 Penyelesaian Pembayaran & QRIS Dinamis
+#### 4.2 Penyelesaian Pembayaran & QRIS Dinamis
 Modal pembayaran multi-metode (`Tunai`, `QRIS`, `Transfer Bank`, `Kartu Debit`) dengan QRIS dinamis yang mengunci nominal tagihan pas agar pembeli cukup scan dan nominal langsung terisi otomatis.
 
 ![Modal Pembayaran QRIS Dinamis](./public/screenshots/11-kasir-pembayaran-qris.png)
 
-#### 3.3 Riwayat Shift Penjualan Saya (`/kasir/riwayat`)
+#### 4.3 Riwayat Shift Penjualan Saya (`/kasir/riwayat`)
 Halaman khusus staf kasir untuk memantau total penjualan shift aktif, pemisahan penerimaan tunai (kas laci) vs non-tunai, pencarian nota, cetak ulang struk, dan ekspor CSV shift.
 
 ![Riwayat Shift Kasir](./public/screenshots/12-kasir-riwayat-shift.png)
@@ -215,7 +244,7 @@ erDiagram
 
 ## 🧪 Akun Demo (Untuk Pengujian & Evaluasi)
 
-Anda dapat masuk ke **Demo Dashboard Admin** melalui tombol **"Masuk Demo Dashboard"** pada halaman `/login`, atau masuk menggunakan salah satu kredensial berikut untuk menguji masing-masing peran:
+Anda dapat masuk ke **Demo Dashboard Admin** melalui tombol **"Masuk Demo Dashboard"** pada halaman utama `/` maupun halaman `/login`, atau masuk menggunakan salah satu kredensial berikut untuk menguji masing-masing peran:
 
 | Peran Pengguna | Alamat Email | Kata Sandi | Hak Akses Utama |
 | :--- | :--- | :--- | :--- |
